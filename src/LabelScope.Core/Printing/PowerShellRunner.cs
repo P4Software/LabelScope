@@ -23,8 +23,9 @@ public sealed class PowerShellRunner : IPowerShellRunner
             throw new InvalidOperationException("Windows PowerShell was not found on this computer, so the printer cannot be managed. Repair Windows and try again.");
 
         // An elevated process cannot share stdout with us, so every run writes its output to a file.
-        // Only the *result* goes through this file; the script itself is passed encoded on the command
-        // line, so there is no script file on disk that another program could change before it runs elevated.
+        // Only the *result* goes through this file; the script itself is passed as plain -Command text on the
+        // command line (ASCII only, no double quote, values only as base64; see BuildArguments), so there is no
+        // script file on disk that another program could change before it runs elevated.
         var resultPath = Path.Combine(Path.GetTempPath(), "LabelScope-" + Guid.NewGuid().ToString("N") + ".txt");
 
         var psi = new ProcessStartInfo(exe, BuildArguments(script, resultPath))
@@ -39,9 +40,21 @@ public sealed class PowerShellRunner : IPowerShellRunner
         {
             using var process = Process.Start(psi)
                                 ?? throw new InvalidOperationException("Windows PowerShell could not be started.");
-            await process.WaitForExitAsync(ct);
+            try
+            {
+                await process.WaitForExitAsync(ct);
+            }
+            catch (OperationCanceledException)
+            {
+                // Cancelled by the caller or by the installer's timeout: do not leave a hidden PowerShell running.
+                // Only the process object this runner started is touched. An elevated process cannot be ended
+                // from this unelevated program; Windows then refuses and the script simply finishes on its own.
+                try { process.Kill(entireProcessTree: true); }
+                catch (Exception killError) when (killError is Win32Exception or InvalidOperationException or NotSupportedException) { /* already gone, or not ours to end */ }
+                throw;
+            }
             // Trim a leading BOM too: Out-File -Encoding utf8 writes one on Windows PowerShell 5.1.
-            return File.Exists(resultPath) ? (await File.ReadAllTextAsync(resultPath, ct)).Trim().Trim('﻿').Trim() : "";
+            return File.Exists(resultPath) ? (await File.ReadAllTextAsync(resultPath, ct)).Trim().Trim('\uFEFF').Trim() : "";
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == UserCancelledError)
         {

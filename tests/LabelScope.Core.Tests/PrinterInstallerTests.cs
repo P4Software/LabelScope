@@ -262,7 +262,7 @@ public sealed class PrinterInstallerTests
     public async Task Status_ToleratesBomAndBlankLinesAroundTheJson()
     {
         // Out-File -Encoding utf8 on Windows PowerShell 5.1 prefixes the text with a BOM.
-        var runner = new FakeRunner { StatusOutput = "﻿\r\n\r\n" + Ours + "\r\n\r\n" };
+        var runner = new FakeRunner { StatusOutput = "\uFEFF\r\n\r\n" + Ours + "\r\n\r\n" };
 
         Assert.Equal(PrinterStatus.Installed, await Make(runner).GetStatusAsync());
     }
@@ -270,13 +270,13 @@ public sealed class PrinterInstallerTests
     [Fact]
     public async Task Status_BomOnlyOutput_MeansNotInstalled()
     {
-        Assert.Equal(PrinterStatus.NotInstalled, await Make(new FakeRunner { StatusOutput = "﻿\r\n" }).GetStatusAsync());
+        Assert.Equal(PrinterStatus.NotInstalled, await Make(new FakeRunner { StatusOutput = "\uFEFF\r\n" }).GetStatusAsync());
     }
 
     [Fact]
     public async Task Install_BomPrefixedOk_IsSuccess()
     {
-        var result = await Make(new FakeRunner { ElevatedOutput = "﻿OK" }).InstallAsync();
+        var result = await Make(new FakeRunner { ElevatedOutput = "\uFEFFOK" }).InstallAsync();
 
         Assert.True(result.Success);
     }
@@ -455,6 +455,109 @@ public sealed class PrinterInstallerTests
         var result = await Make(new FakeRunner { ElevatedOutput = "ERROR: The spooler is stopped." }).InstallAsync();
 
         Assert.DoesNotContain("..", result.Message);
+    }
+
+    // ---- Timeouts --------------------------------------------------------------------------------------
+
+    /// <summary>A runner that never answers on its own; it only ends when its token fires (as the real one does after killing PowerShell).</summary>
+    private sealed class HangingRunner : IPowerShellRunner
+    {
+        public bool HangOnStatus = true;
+        public bool HangOnElevated = true;
+        public bool TokenWasCancelled;
+
+        public async Task<string> RunAsync(string script, bool elevated, CancellationToken ct = default)
+        {
+            if (elevated ? !HangOnElevated : !HangOnStatus) return "";
+            try { await Task.Delay(Timeout.Infinite, ct); }
+            catch (OperationCanceledException) { TokenWasCancelled = true; throw; }
+            return "";
+        }
+    }
+
+    [Fact]
+    public async Task Status_GivesUpAfterTheTimeout_AndIsUnknown()
+    {
+        var runner = new HangingRunner();
+        var installer = new PrinterInstaller(runner, "P", 9100) { StatusTimeout = TimeSpan.FromMilliseconds(200) };
+
+        var status = await installer.GetStatusAsync().WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(PrinterStatus.Unknown, status);
+        Assert.True(runner.TokenWasCancelled, "the runner must be told to stop so it can end its PowerShell");
+    }
+
+    [Fact]
+    public void DefaultTimeouts_Are15SecondsForStatusAnd120ForPermissionPrompts()
+    {
+        var installer = Make(new FakeRunner());
+
+        Assert.Equal(TimeSpan.FromSeconds(15), installer.StatusTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(120), installer.ElevatedTimeout);
+    }
+
+    [Fact]
+    public async Task Install_GivesUpAfterTheElevatedTimeout_WithAPlainMessage()
+    {
+        var runner = new HangingRunner { HangOnStatus = false };
+        var installer = new PrinterInstaller(runner, "P", 9100) { ElevatedTimeout = TimeSpan.FromMilliseconds(200) };
+
+        var result = await installer.InstallAsync().WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.False(result.Success);
+        Assert.Contains("did not finish in time", result.Message);
+        Assert.DoesNotContain("permission was not given", result.Message);
+    }
+
+    [Fact]
+    public async Task Status_CallerCancellation_StillPropagates()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        var installer = new PrinterInstaller(new HangingRunner(), "P", 9100);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => installer.GetStatusAsync(cts.Token));
+    }
+
+    // ---- Text-only driver and error advice -------------------------------------------------------------
+
+    [Fact]
+    public async Task InstallScript_AddsTheTextOnlyDriverWhenMissing_BeforeAddPrinter()
+    {
+        var script = await InstallScript();
+
+        var check = script.IndexOf("if(!(Get-PrinterDriver -Name 'Generic / Text Only' -EA SilentlyContinue)){Add-PrinterDriver -Name 'Generic / Text Only'|Out-Null}", StringComparison.Ordinal);
+        var add = script.IndexOf("Add-Printer -Name", StringComparison.Ordinal);
+        Assert.True(check >= 0, "the script must add the driver when it is missing");
+        Assert.True(check < add, "the driver must exist before Add-Printer runs");
+    }
+
+    [Fact]
+    public async Task Install_ErrorThatIsNotAboutTheSpooler_DoesNotBlameTheSpooler()
+    {
+        var result = await Make(new FakeRunner { ElevatedOutput = "ERROR: The specified driver does not exist" }).InstallAsync();
+
+        Assert.False(result.Success);
+        Assert.Contains("driver does not exist", result.Message);
+        Assert.DoesNotContain("Print Spooler", result.Message);
+    }
+
+    [Fact]
+    public async Task Install_ErrorAboutTheSpooler_AdvisesCheckingTheService()
+    {
+        var result = await Make(new FakeRunner { ElevatedOutput = "ERROR: The Spooler service is not running" }).InstallAsync();
+
+        Assert.Contains("Print Spooler", result.Message);
+    }
+
+    [Theory]
+    [InlineData("ERROR:")]
+    [InlineData("")]
+    public async Task Install_EmptyErrorText_AdvisesCheckingTheService(string output)
+    {
+        var result = await Make(new FakeRunner { ElevatedOutput = output }).InstallAsync();
+
+        Assert.False(result.Success);
+        Assert.Contains("Print Spooler", result.Message);
     }
 
     [Fact]

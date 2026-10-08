@@ -15,8 +15,9 @@ public enum PrinterStatus
     /// <summary>A printer with the configured name exists but was not created by LabelScope; it is never touched.</summary>
     NameTakenByOther,
     /// <summary>
-    /// The check itself failed (PowerShell could not be started, for example), so nothing is known about the printer.
-    /// Callers should say that the status could not be checked and offer no install or remove action.
+    /// The check itself failed or timed out (PowerShell could not be started, for example), so nothing is known
+    /// about the printer. Callers should show that the status could not be checked. Install and Remove stay
+    /// available on purpose: both re-check the printer themselves and refuse safely when they still cannot tell.
     /// </summary>
     Unknown,
 }
@@ -45,6 +46,15 @@ public sealed class PrinterInstaller
     // and * ? [ ] are wildcards that Get-Printer -Name would expand, so a name could match (and later remove)
     // somebody else's printer.
     private static readonly char[] ForbiddenNameChars = { (char)92, (char)47, '!', '*', '?', '[', ']' };
+
+    /// <summary>How long the status check may take before it is given up. The check needs no permission prompt, so 15 seconds is plenty.</summary>
+    internal TimeSpan StatusTimeout { get; init; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// How long an install or remove may take before it is given up. Longer than the status check because the
+    /// user may need a while to answer the Windows permission prompt.
+    /// </summary>
+    internal TimeSpan ElevatedTimeout { get; init; } = TimeSpan.FromSeconds(120);
 
     private readonly IPowerShellRunner _runner;
     private readonly string _name;
@@ -94,10 +104,14 @@ public sealed class PrinterInstaller
                      "$p=Get-Printer -Name $n -EA SilentlyContinue;" +
                      "if($p){$p|Select-Object Name,Comment,PortName|ConvertTo-Json -Compress}";
 
+        // The runner gets a token that fires after StatusTimeout; it then ends (and kills) its hidden PowerShell.
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(StatusTimeout);
+
         string output;
         try
         {
-            output = Clean(await _runner.RunAsync(script, elevated: false, ct));
+            output = Clean(await _runner.RunAsync(script, elevated: false, timeout.Token));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -105,7 +119,8 @@ public sealed class PrinterInstaller
         }
         catch (Exception)
         {
-            // A UAC decline cannot happen for a non-elevated run, so anything here is a real failure.
+            // A UAC decline cannot happen for a non-elevated run, so anything here is a real failure;
+            // a timeout (the token fired without the caller cancelling) lands here as well.
             return PrinterStatus.Unknown;
         }
 
@@ -153,6 +168,8 @@ public sealed class PrinterInstaller
                      $"if($x){{if($x.Comment -ne '{OwnerMarker}'){{throw 'Another printer already uses this name.'}}}}" +
                      "else{if(!(Get-PrinterPort -Name $o -EA SilentlyContinue)){" +
                      $"Add-PrinterPort -Name $o -PrinterHostAddress '{Address}' -PortNumber {_port.ToString(CultureInfo.InvariantCulture)}|Out-Null}};" +
+                     // The text-only driver ships with Windows but can be switched off; add it when it is missing.
+                     $"if(!(Get-PrinterDriver -Name '{DriverName}' -EA SilentlyContinue)){{Add-PrinterDriver -Name '{DriverName}'|Out-Null}};" +
                      $"Add-Printer -Name $n -DriverName '{DriverName}' -PortName $o -Comment '{OwnerMarker}'|Out-Null}};" +
                      "'OK'}catch{'ERROR: '+$_.Exception.Message}";
 
@@ -193,15 +210,24 @@ public sealed class PrinterInstaller
 
     private async Task<OperationResult> RunElevated(string script, string ok, string failPrefix, CancellationToken ct)
     {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(ElevatedTimeout);
+
         string output;
         try
         {
-            output = Clean(await _runner.RunAsync(script, elevated: true, ct));
+            output = Clean(await _runner.RunAsync(script, elevated: true, timeout.Token));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             // The caller cancelled; that is not the user declining Windows' prompt, so let it travel on.
             throw;
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            // Our own timer fired, so this is not a declined prompt either. Say what happened and what to do.
+            return OperationResult.Fail($"{failPrefix}: Windows did not finish in time (more than {(int)ElevatedTimeout.TotalSeconds} seconds). " +
+                                        "Nothing may have been changed. Press the button again and answer the Windows prompt promptly.");
         }
         catch (OperationCanceledException)
         {
@@ -216,8 +242,15 @@ public sealed class PrinterInstaller
 
         if (output.StartsWith("OK", StringComparison.Ordinal)) return OperationResult.Ok(ok);
 
-        var reason = output.StartsWith("ERROR:", StringComparison.Ordinal) ? output[6..].Trim() : "Windows gave no answer";
-        return OperationResult.Fail($"{failPrefix}: {EndWithPeriod(reason)} Check that the Windows \"Print Spooler\" service is running, then try again.");
+        var reason = output.StartsWith("ERROR:", StringComparison.Ordinal) ? output[6..].Trim() : "";
+        // Blaming the spooler for an unrelated error (a missing driver, say) would send the user to the wrong place,
+        // so the spooler advice appears only when the message mentions it or there is no message at all.
+        var blamesSpooler = reason.Length == 0 || reason.Contains("spooler", StringComparison.OrdinalIgnoreCase);
+        var shown = reason.Length == 0 ? "Windows gave no answer." : EndWithPeriod(reason);
+        var advice = blamesSpooler
+            ? "Check that the Windows \"Print Spooler\" service is running, then try again."
+            : "Try again. If it keeps failing, show this message to your administrator.";
+        return OperationResult.Fail($"{failPrefix}: {shown} {advice}");
     }
 
     /// <summary>Adds a final period unless the text already ends with one, so messages never show "..".</summary>
@@ -232,7 +265,7 @@ public sealed class PrinterInstaller
     /// writes a BOM with <c>Out-File -Encoding utf8</c>, and <c>string.Trim()</c> does not treat U+FEFF as
     /// whitespace, so without this a BOM-prefixed "OK" would be reported as a failure.
     /// </summary>
-    private static string Clean(string? output) => (output ?? "").Trim().Trim('﻿').Trim();
+    private static string Clean(string? output) => (output ?? "").Trim().Trim('\uFEFF').Trim();
 
     /// <summary>
     /// Defines <c>$n</c> (printer name) and <c>$o</c> (port name) at the top of every script. The name is passed
