@@ -10,6 +10,13 @@ internal sealed class LabelPainter : IDisposable
     /// <summary>Largest label edge we will allocate; protects against typos such as ^PW99999.</summary>
     private const int MaxDots = 8000;
 
+    /// <summary>
+    /// Cap on width x height. The per-edge limit alone still allows 8000 x 8000 (256 MB of pixels), and several
+    /// labels may render at once on socket threads. 40 megapixels (160 MB) is far above any real label
+    /// (4 x 6 inch at 600 dpi is under 9 megapixels).
+    /// </summary>
+    private const long MaxPixels = 40_000_000;
+
     // Limits for hostile or mistyped numbers. Without them a value such as ^GB999999999,999999999 or
     // ^A0N,99999 would make Skia work on absurd geometry, and ^FO2147483647 would overflow int maths.
     private const int MaxCoordinate = 100_000;
@@ -74,7 +81,19 @@ internal sealed class LabelPainter : IDisposable
             if (cmd.Name == "^PW" && TryInt(Split(cmd.Args), 0, out var pw)) width = Clamp(pw, cmd, warnings);
             else if (cmd.Name == "^LL" && TryInt(Split(cmd.Args), 0, out var ll)) height = Clamp(ll, cmd, warnings);
         }
-        return (Clamp(width, null, warnings), Clamp(height, null, warnings));
+        width = Clamp(width, null, warnings);
+        height = Clamp(height, null, warnings);
+
+        // Enforced before any allocation. The height is reduced because the width usually matches the print head.
+        if ((long)width * height > MaxPixels)
+        {
+            var cutHeight = (int)Math.Max(1, MaxPixels / width);
+            var source = block.LastOrDefault(c => c.Name is "^PW" or "^LL");
+            warnings.Add(new(source?.Line ?? 1,
+                $"The label size is too large to draw ({width} x {height} dots); it was cut to {width} x {cutHeight} dots. Check ^PW and ^LL."));
+            height = cutHeight;
+        }
+        return (width, height);
     }
 
     private static int Clamp(int dots, ZplCommand? source, List<RenderWarning> warnings)
@@ -291,8 +310,11 @@ internal sealed class LabelPainter : IDisposable
     private RenderedLabel ToResult(int width, int height)
     {
         _canvas.Flush();
-        using var image = SKImage.FromBitmap(_bitmap);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        // Encode straight from the bitmap's pixels: SKImage.FromBitmap on a mutable bitmap would copy the
+        // whole pixel buffer a second time.
+        using var pixmap = _bitmap.PeekPixels();
+        using var data = pixmap.Encode(SKPngEncoderOptions.Default)
+            ?? throw new InvalidOperationException("PNG encoding failed.");
         return new RenderedLabel(data.ToArray(), width, height, _copies);
     }
 

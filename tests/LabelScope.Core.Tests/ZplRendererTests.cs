@@ -239,4 +239,26 @@ public sealed class ZplRendererTests
         r = RenderPromptly("^XA^PQ2000000000^XZ");
         Assert.InRange(r.Labels[0].Copies, 1, 99_999_999);
     }
+
+    [Fact]
+    public void HugeTotalArea_IsCutToPixelBudget_WithWarning()
+    {
+        var r = RenderPromptly("^XA^PW8000^LL8000^XZ");
+
+        var label = Assert.Single(r.Labels);
+        Assert.Equal(8000, label.WidthDots);
+        Assert.True((long)label.WidthDots * label.HeightDots <= 40_000_000);
+        Assert.Contains(r.Warnings, w => w.Message.Contains("too large") && w.Line == 1);
+    }
+
+    [Fact]
+    public void FourBySixInchLabelAt600Dpi_IsNotReduced()
+    {
+        var r = RenderPromptly("^XA^PW2436^LL3654^XZ");
+
+        var label = Assert.Single(r.Labels);
+        Assert.Equal(2436, label.WidthDots);
+        Assert.Equal(3654, label.HeightDots);
+        Assert.Empty(r.Warnings);
+    }
 }
