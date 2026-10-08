@@ -52,8 +52,8 @@ public partial class MainWindow : Window
     private const int MaxPendingForUi = 20;
     private int _drainScheduled; // 1 while a drain is already queued on the dispatcher
 
-    /// <summary>Entries of one received job that are waiting to be shown, plus the note to show with them.</summary>
-    private sealed record PendingResult(List<LabelEntry> Entries, bool Complete);
+    /// <summary>Entries of one received job that are waiting to be shown, plus the status note to show with them (or null).</summary>
+    private sealed record PendingResult(List<LabelEntry> Entries, string? Note);
 
     /// <summary>Creates the window; real startup work happens in <see cref="OnLoaded"/>.</summary>
     public MainWindow()
@@ -145,10 +145,28 @@ public partial class MainWindow : Window
             var entries = result.Labels
                 .Select(l => new LabelEntry(received.ReceivedAt, received.Source, received.Zpl, received.Complete, l, result.Warnings))
                 .ToList();
+            string? note = null;
+
+            if (entries.Count == 0)
+            {
+                // Never drop a job silently: show the raw text and the warnings so the user can see what arrived.
+                // Without any ^XA the data holds no label at all; with one, the label exists but could not be drawn.
+                var hasStart = received.Zpl.Contains("^XA", StringComparison.OrdinalIgnoreCase);
+                entries.Add(new LabelEntry(received.ReceivedAt, received.Source, received.Zpl, received.Complete,
+                    PlaceholderLabel.Create(), result.Warnings, hasStart ? "Label not drawn" : "No label found"));
+                note = hasStart
+                    ? "Data arrived but no label picture could be drawn from it. The raw text and the reasons are shown on the right."
+                    : "Data arrived but it contained no label (^XA ... ^XZ). The raw text is shown on the right.";
+            }
+            else if (!received.Complete)
+            {
+                // Only claimed when a picture really was made.
+                note = "A label arrived incomplete (no ^XZ at the end). It is shown as far as it arrived.";
+            }
 
             // BeginInvoke, never Invoke: a closing window must not be able to block the socket thread.
             if (Dispatcher.HasShutdownStarted) return;
-            QueueForUi(new PendingResult(entries, received.Complete));
+            QueueForUi(new PendingResult(entries, note));
         }
         catch (Exception ex)
         {
@@ -185,11 +203,11 @@ public partial class MainWindow : Window
         // Reset first: a result that arrives while we work schedules the next drain.
         Interlocked.Exchange(ref _drainScheduled, 0);
         while (_pendingForUi.TryDequeue(out var pending))
-            AddEntries(pending.Entries, pending.Complete);
+            AddEntries(pending.Entries, pending.Note);
     }
 
     /// <summary>Runs on the UI thread: adds the entries to the history and selects the newest.</summary>
-    private void AddEntries(List<LabelEntry> entries, bool complete)
+    private void AddEntries(List<LabelEntry> entries, string? note)
     {
         try
         {
@@ -201,7 +219,7 @@ public partial class MainWindow : Window
             for (var i = entries.Count - 1; i >= 0; i--) _history.Insert(0, entries[i]);
             TrimHistory();
             if (entries.Count > 0 && followNewest) HistoryList.SelectedIndex = 0;
-            if (!complete) ShowMessage("A label arrived incomplete (no ^XZ at the end). It is shown as far as it arrived.");
+            if (note is not null) ShowMessage(note);
         }
         catch (Exception ex)
         {

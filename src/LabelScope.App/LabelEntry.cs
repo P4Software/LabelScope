@@ -15,8 +15,9 @@ public sealed class LabelEntry
 {
     /// <summary>Creates the entry; nothing is decoded here.</summary>
     public LabelEntry(DateTimeOffset at, string source, string zpl, bool complete, RenderedLabel label,
-                      IReadOnlyList<RenderWarning> warnings)
+                      IReadOnlyList<RenderWarning> warnings, string? placeholderTitle = null)
     {
+        PlaceholderTitle = placeholderTitle;
         At = at;
         Source = source;
         Zpl = zpl;
@@ -41,12 +42,20 @@ public sealed class LabelEntry
     /// <summary>Approximate memory this entry keeps (PNG bytes plus ZPL text); used to bound the whole history.</summary>
     public long ApproximateBytes => HistoryBudget.SizeOf(Label.PngBytes.Length, Zpl);
 
+    /// <summary>
+    /// Set when the data produced no label picture: the entry then shows a placeholder picture, the raw text
+    /// and the warnings, and this text is its title. Null for a normal label.
+    /// </summary>
+    public string? PlaceholderTitle { get; }
+
     /// <summary>First line in the history list.</summary>
-    public string Title => At.ToString("HH:mm:ss") + (Complete ? "" : "  (incomplete)");
+    public string Title => PlaceholderTitle ?? At.ToString("HH:mm:ss") + (Complete ? "" : "  (incomplete)");
     /// <summary>Second line in the history list.</summary>
-    public string Subtitle => $"{Label.WidthDots} x {Label.HeightDots} dots · {Source}";
+    public string Subtitle => PlaceholderTitle is null ? $"{Label.WidthDots} x {Label.HeightDots} dots · {Source}" : $"{At:HH:mm:ss} · {Source}";
     /// <summary>One line for the info bar above the preview.</summary>
-    public string Info => $"{Label.WidthDots} x {Label.HeightDots} dots · {Label.Copies} copy/copies requested · {Warnings.Count} warning(s)";
+    public string Info => PlaceholderTitle is null
+        ? $"{Label.WidthDots} x {Label.HeightDots} dots · {Label.Copies} copy/copies requested · {Warnings.Count} warning(s)"
+        : $"{PlaceholderLabel.Text} · {Warnings.Count} warning(s)";
 
     /// <summary>
     /// Decodes the PNG into a frozen image that WPF can show. The caller should keep only the image of
