@@ -34,11 +34,19 @@ public partial class MainWindow : Window
     // True while an install/remove runs, so a second click cannot start a second one.
     private bool _printerBusy;
 
+    // Start-up notes (settings, log folder, printer settings) are kept so a later one never hides an earlier one.
+    private readonly List<string> _startupNotes = new();
+    private string _actionMessage = "";
+
+    // Last time the printer status was checked; used to throttle the re-check on window activation.
+    private DateTime _lastStatusCheck = DateTime.MinValue;
+
     /// <summary>Creates the window; real startup work happens in <see cref="OnLoaded"/>.</summary>
     public MainWindow()
     {
         InitializeComponent();
         HistoryList.ItemsSource = _history;
+        Activated += OnActivated;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -49,7 +57,7 @@ public partial class MainWindow : Window
             _settings = load.Settings;
             ConfigureLogging();
             foreach (var message in load.Messages) Log.Information("Settings: {Message}", message);
-            if (load.Messages.Count > 0) ShowMessage(string.Join(" ", load.Messages));
+            foreach (var message in load.Messages) AddStartupNote(message);
 
             StartListener();
             CreateInstaller();
@@ -59,7 +67,7 @@ public partial class MainWindow : Window
         {
             // async void: an exception here would otherwise reach the global handler without context.
             Log.Error(ex, "Startup failed");
-            ShowMessage("LabelScope could not finish starting. " + ex.Message);
+            AddStartupNote("LabelScope could not finish starting. " + ex.Message);
         }
     }
 
@@ -77,7 +85,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             // A log folder that cannot be created must not stop the program; it just runs without a log.
-            ShowMessage($"LabelScope could not create its log folder ({ex.Message}). It keeps working without a log file.");
+            AddStartupNote($"LabelScope could not create its log folder ({ex.Message}). It keeps working without a log file.");
         }
     }
 
@@ -138,9 +146,13 @@ public partial class MainWindow : Window
         try
         {
             if (_closing) return;
-            foreach (var entry in entries) _history.Insert(0, entry);
+            // Follow the newest label only when the user is already looking at the newest one (or at nothing);
+            // otherwise leave their selection alone. The ListBox keeps tracking the selected item through Insert(0).
+            var followNewest = HistoryList.SelectedIndex <= 0;
+            // Insert in reverse so label 1 of a multi-label job ends up above label 2.
+            for (var i = entries.Count - 1; i >= 0; i--) _history.Insert(0, entries[i]);
             while (_history.Count > _settings.HistoryLimit) _history.RemoveAt(_history.Count - 1);
-            if (entries.Count > 0) HistoryList.SelectedIndex = 0; // show the newest label straight away
+            if (entries.Count > 0 && followNewest) HistoryList.SelectedIndex = 0;
             if (!complete) ShowMessage("A label arrived incomplete (no ^XZ at the end). It is shown as far as it arrived.");
         }
         catch (Exception ex)
@@ -208,21 +220,52 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Moving the slider means the user wants a manual zoom, so "Fit to window" is switched off.</summary>
+    private void OnZoomSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!IsLoaded) return; // fires while the window is being built
+        if (FitBox.IsChecked == true) FitBox.IsChecked = false; // triggers OnZoomChanged through Unchecked
+        else OnZoomChanged(sender, e);
+    }
+
     private void OnZoomChanged(object sender, RoutedEventArgs e)
     {
-        if (LabelImage is null || FitBox is null || ZoomSlider is null) return; // fires during InitializeComponent
+        if (LabelImage is null || FitBox is null || ZoomSlider is null || ImageScroll is null) return; // fires during InitializeComponent
+        var src = LabelImage.Source as BitmapSource;
         if (FitBox.IsChecked == true)
         {
+            // Scrollbars off: a ScrollViewer with scrollbars measures its child without a size limit,
+            // so the image would stay at native size instead of fitting the viewport.
+            ImageScroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+            ImageScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
             LabelImage.Stretch = System.Windows.Media.Stretch.Uniform;
             LabelImage.Width = double.NaN;
             LabelImage.Height = double.NaN;
+            // Shrinking with nearest-neighbour makes thin barcode bars vanish; smooth scaling keeps them visible.
+            var shrinking = src is not null && (src.PixelWidth > ImageScroll.ActualWidth || src.PixelHeight > ImageScroll.ActualHeight);
+            System.Windows.Media.RenderOptions.SetBitmapScalingMode(LabelImage, shrinking ? System.Windows.Media.BitmapScalingMode.HighQuality : System.Windows.Media.BitmapScalingMode.NearestNeighbor);
         }
-        else if (LabelImage.Source is BitmapSource src)
+        else
         {
+            ImageScroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
+            ImageScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+            if (src is null) return;
             LabelImage.Stretch = System.Windows.Media.Stretch.Fill;
             LabelImage.Width = src.PixelWidth * ZoomSlider.Value;
             LabelImage.Height = src.PixelHeight * ZoomSlider.Value;
+            // Sharp pixels when enlarging, smooth when reducing.
+            System.Windows.Media.RenderOptions.SetBitmapScalingMode(LabelImage, ZoomSlider.Value >= 1 ? System.Windows.Media.BitmapScalingMode.NearestNeighbor : System.Windows.Media.BitmapScalingMode.HighQuality);
         }
+    }
+
+    /// <summary>
+    /// The ZPL text box has its own inner scroller that swallows the wheel; forward it to the outer
+    /// viewer that really scrolls the text together with the line numbers.
+    /// </summary>
+    private void OnZplMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+    {
+        ZplScroll.ScrollToVerticalOffset(ZplScroll.VerticalOffset - e.Delta);
+        e.Handled = true;
     }
 
     /// <summary>Clicking a warning selects the offending line in the raw ZPL and scrolls to it.</summary>
@@ -232,12 +275,14 @@ public partial class MainWindow : Window
         var index = Math.Clamp(warning.Line - 1, 0, Math.Max(0, ZplBox.LineCount - 1));
         var start = ZplBox.GetCharacterIndexFromLineIndex(index);
         var length = ZplBox.GetLineLength(index);
-        ZplBox.Focus();
+        // No Focus(): focus stays on the warning list. The inactive-selection highlight keeps the line visible.
         ZplBox.Select(start, length);
         ZplBox.ScrollToLine(index);
         // The text box does not scroll itself (the outer ScrollViewer does), so scroll that one by line height.
         var top = index * (ZplBox.ActualHeight / Math.Max(1, ZplBox.LineCount));
         ZplScroll.ScrollToVerticalOffset(Math.Max(0, top - 40));
+        // Clear the selection (the handler returns on null) so clicking the same warning again scrolls again.
+        WarningList.SelectedItem = null;
     }
 
     // ---- printer ------------------------------------------------------------------------------
@@ -251,23 +296,36 @@ public partial class MainWindow : Window
         catch (ArgumentException ex) // also covers ArgumentOutOfRangeException; the message is written for the user
         {
             Log.Warning(ex, "Printer settings are not usable");
-            SetPrinterButtons(false);
+            UpdatePrinterButtons(); // _installer is null, so both stay off
             PrinterText.Text = "Printer: settings need fixing";
-            ShowMessage(ex.Message);
+            AddStartupNote(ex.Message);
             MessageBox.Show(ex.Message, "LabelScope", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
-    /// <summary>Enables or disables both printer buttons together.</summary>
-    private void SetPrinterButtons(bool enabled)
+    /// <summary>
+    /// Both printer buttons are on unless the installer could not be built or a job is running.
+    /// An unknown status does not switch them off: InstallAsync/RemoveAsync re-check it themselves and refuse safely.
+    /// </summary>
+    private void UpdatePrinterButtons()
     {
+        var enabled = _installer is not null && !_printerBusy;
         InstallButton.IsEnabled = enabled;
         RemoveButton.IsEnabled = enabled;
+    }
+
+    /// <summary>Re-checks the printer when the user comes back to the window, so a transient failure heals itself.</summary>
+    private async void OnActivated(object? sender, EventArgs e)
+    {
+        if (_installer is null || _printerBusy || _closing) return;
+        if (DateTime.UtcNow - _lastStatusCheck < TimeSpan.FromSeconds(10)) return;
+        await RefreshPrinterStatusAsync();
     }
 
     private async Task RefreshPrinterStatusAsync()
     {
         if (_installer is null) return;
+        _lastStatusCheck = DateTime.UtcNow; // set first so overlapping activations cannot start a second check
         try
         {
             var status = await _installer.GetStatusAsync();
@@ -278,8 +336,6 @@ public partial class MainWindow : Window
                 PrinterStatus.NameTakenByOther => $"Printer \"{_settings.PrinterName}\": name used by another printer",
                 _ => "Printer: status could not be checked",
             };
-            // Core advises offering no install/remove action when the status is unknown.
-            if (!_printerBusy) SetPrinterButtons(status != PrinterStatus.Unknown);
         }
         catch (Exception ex)
         {
@@ -291,28 +347,45 @@ public partial class MainWindow : Window
     private async void OnInstallPrinter(object sender, RoutedEventArgs e)
     {
         if (_installer is null || _printerBusy) return;
-        var ask = MessageBox.Show(
-            $"LabelScope will add a Windows printer named \"{_settings.PrinterName}\" that sends labels to this program.\n\n" +
-            "Windows will ask for permission once. Continue?",
-            "Install printer", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (ask != MessageBoxResult.Yes) return;
-        await RunPrinterJobAsync(_installer.InstallAsync, "Install printer");
+        try
+        {
+            var ask = MessageBox.Show(
+                $"LabelScope will add a Windows printer named \"{_settings.PrinterName}\" that sends labels to this program.\n\n" +
+                "Windows will ask for permission once. Continue?",
+                "Install printer", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (ask != MessageBoxResult.Yes) return;
+            await RunPrinterJobAsync(_installer.InstallAsync, "Install printer");
+        }
+        catch (Exception ex)
+        {
+            // async void: nothing may escape.
+            Log.Error(ex, "Install printer handler failed");
+            ShowMessage("The printer action did not finish. Details are in the log file.");
+        }
     }
 
     private async void OnRemovePrinter(object sender, RoutedEventArgs e)
     {
         if (_installer is null || _printerBusy) return;
-        var ask = MessageBox.Show($"Remove the Windows printer \"{_settings.PrinterName}\"?", "Remove printer",
-            MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (ask != MessageBoxResult.Yes) return;
-        await RunPrinterJobAsync(_installer.RemoveAsync, "Remove printer");
+        try
+        {
+            var ask = MessageBox.Show($"Remove the Windows printer \"{_settings.PrinterName}\"?", "Remove printer",
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (ask != MessageBoxResult.Yes) return;
+            await RunPrinterJobAsync(_installer.RemoveAsync, "Remove printer");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Remove printer handler failed");
+            ShowMessage("The printer action did not finish. Details are in the log file.");
+        }
     }
 
     /// <summary>Runs one install/remove with both buttons off, shows the message the installer returned, then re-checks the status.</summary>
     private async Task RunPrinterJobAsync(Func<CancellationToken, Task<OperationResult>> job, string what)
     {
         _printerBusy = true;
-        SetPrinterButtons(false);
+        UpdatePrinterButtons();
         try
         {
             var result = await job(CancellationToken.None);
@@ -329,7 +402,7 @@ public partial class MainWindow : Window
         finally
         {
             _printerBusy = false;
-            SetPrinterButtons(true); // RefreshPrinterStatusAsync turns them off again if the status is unknown
+            UpdatePrinterButtons();
         }
         await RefreshPrinterStatusAsync();
     }
@@ -393,19 +466,41 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowMessage(string text) => MessageText.Text = text;
+    /// <summary>Keeps a start-up note; later notes are added after earlier ones instead of replacing them.</summary>
+    private void AddStartupNote(string text)
+    {
+        _startupNotes.Add(text);
+        RefreshMessageText();
+    }
+
+    /// <summary>Shows the result of the latest action after the start-up notes.</summary>
+    private void ShowMessage(string text)
+    {
+        _actionMessage = text;
+        RefreshMessageText();
+    }
+
+    private void RefreshMessageText() =>
+        MessageText.Text = string.Join(" ", _startupNotes.Append(_actionMessage).Where(s => s.Length > 0));
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         // Order matters: stop new events reaching us first, then stop the listener, then close the log.
+        // finally: the log must be flushed even if disposing the listener fails.
         _closing = true;
-        if (_listener is not null)
+        try
         {
-            _listener.LabelReceived -= OnLabelReceived;
-            _listener.ProblemReported -= OnProblemReported;
-            _listener.Dispose();
+            if (_listener is not null)
+            {
+                _listener.LabelReceived -= OnLabelReceived;
+                _listener.ProblemReported -= OnProblemReported;
+                _listener.Dispose();
+            }
+            Log.Information("LabelScope stopped");
         }
-        Log.Information("LabelScope stopped");
-        Log.CloseAndFlush();
+        finally
+        {
+            Log.CloseAndFlush();
+        }
     }
 }

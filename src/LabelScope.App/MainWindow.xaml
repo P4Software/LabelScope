@@ -58,10 +58,10 @@
             <CheckBox x:Name="FitBox" Content="Fit to window" IsChecked="True" VerticalAlignment="Center"
                       Checked="OnZoomChanged" Unchecked="OnZoomChanged"/>
             <TextBlock Text="Zoom" Margin="12,0,4,0" VerticalAlignment="Center"/>
-            <Slider x:Name="ZoomSlider" Width="120" Minimum="0.25" Maximum="4" Value="1" ValueChanged="OnZoomChanged"/>
+            <Slider x:Name="ZoomSlider" Width="120" Minimum="0.25" Maximum="4" Value="1" ValueChanged="OnZoomSliderChanged"/>
           </StackPanel>
           <TextBlock x:Name="InfoText" DockPanel.Dock="Top" Margin="6,0,6,4" Foreground="Gray"/>
-          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#FFDDDDDD">
+          <ScrollViewer x:Name="ImageScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled" Background="#FFDDDDDD" SizeChanged="OnZoomChanged">
             <Image x:Name="LabelImage" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top"
                    RenderOptions.BitmapScalingMode="NearestNeighbor"/>
           </ScrollViewer>
@@ -87,7 +87,8 @@
               <TextBlock x:Name="LineNumbers" Grid.Column="0" FontFamily="Consolas" FontSize="13" Padding="4,0,8,0"
                          Foreground="Gray" TextAlignment="Right"/>
               <TextBox x:Name="ZplBox" Grid.Column="1" FontFamily="Consolas" FontSize="13" Padding="0"
-                       IsReadOnly="True" BorderThickness="0" AcceptsReturn="True" TextWrapping="NoWrap"/>
+                       IsReadOnly="True" BorderThickness="0" AcceptsReturn="True" TextWrapping="NoWrap"
+                       IsInactiveSelectionHighlightEnabled="True" PreviewMouseWheel="OnZplMouseWheel"/>
             </Grid>
           </ScrollViewer>
 
