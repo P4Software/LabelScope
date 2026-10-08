@@ -13,12 +13,19 @@ public sealed class PrinterInstallerTests
         public bool UserDeclines;
         public int ElevatedCalls;
         public string? LastElevatedScript;
+        public Exception? ThrowOnStatus;
+        public Exception? ThrowOnElevated;
 
         public Task<string> RunAsync(string script, bool elevated, CancellationToken ct = default)
         {
-            if (!elevated) return Task.FromResult(StatusOutput);
+            if (!elevated)
+            {
+                if (ThrowOnStatus != null) throw ThrowOnStatus;
+                return Task.FromResult(StatusOutput);
+            }
             ElevatedCalls++;
             LastElevatedScript = script;
+            if (ThrowOnElevated != null) throw ThrowOnElevated;
             if (UserDeclines) throw new OperationCanceledException();
             return Task.FromResult(ElevatedOutput);
         }
@@ -215,6 +222,10 @@ public sealed class PrinterInstallerTests
     [InlineData("A\\B")]
     [InlineData("A/B")]
     [InlineData("A!B")]
+    [InlineData("A*B")]
+    [InlineData("A?B")]
+    [InlineData("A[B")]
+    [InlineData("A]B")]
     public void UnusableName_IsRejectedWithAMessageNamingTheSetting(string name)
     {
         var ex = Assert.Throws<ArgumentException>(() => new PrinterInstaller(new FakeRunner(), name, 9100));
@@ -222,10 +233,17 @@ public sealed class PrinterInstallerTests
     }
 
     [Fact]
-    public void NameOver200Characters_IsRejected_ButExactly200IsAccepted()
+    public void NameOver60Characters_IsRejected_ButExactly60IsAccepted()
     {
-        Assert.Throws<ArgumentException>(() => new PrinterInstaller(new FakeRunner(), new string('a', 201), 9100));
-        _ = new PrinterInstaller(new FakeRunner(), new string('a', 200), 9100);
+        // 60 keeps the elevated command line short enough for ShellExecute (see the argument length tests).
+        Assert.Throws<ArgumentException>(() => new PrinterInstaller(new FakeRunner(), new string('a', 61), 9100));
+        _ = new PrinterInstaller(new FakeRunner(), new string('a', 60), 9100);
+    }
+
+    [Fact]
+    public void NullRunner_IsRejected()
+    {
+        Assert.Throws<ArgumentNullException>(() => new PrinterInstaller(null!, "P", 9100));
     }
 
     [Theory]
@@ -266,9 +284,190 @@ public sealed class PrinterInstallerTests
     [Fact]
     public async Task Install_BomPrefixedError_StillShowsTheCause()
     {
-        var result = await Make(new FakeRunner { ElevatedOutput = "﻿ERROR: The spooler service is not running" }).InstallAsync();
+        var result = await Make(new FakeRunner { ElevatedOutput = "\uFEFFERROR: The spooler service is not running" }).InstallAsync();
 
         Assert.False(result.Success);
         Assert.Contains("spooler", result.Message);
+    }
+
+    // ---- Hardening of the elevated scripts ----------------------------------------------------------
+
+    private static async Task<string> RemoveScript()
+    {
+        var runner = new FakeRunner { StatusOutput = Ours };
+        await Make(runner).RemoveAsync();
+        return runner.LastElevatedScript!;
+    }
+
+    private static async Task<string> InstallScript()
+    {
+        var runner = new FakeRunner();
+        await Make(runner).InstallAsync();
+        return runner.LastElevatedScript!;
+    }
+
+    [Fact]
+    public async Task ElevatedScripts_StopOnEveryError_AndKeepStrayOutputOutOfTheResult()
+    {
+        var install = await InstallScript();
+        var remove = await RemoveScript();
+
+        Assert.StartsWith("$ErrorActionPreference='Stop'", install);
+        Assert.StartsWith("$ErrorActionPreference='Stop'", remove);
+        Assert.Contains("Add-PrinterPort -Name $o -PrinterHostAddress '127.0.0.1' -PortNumber 9100|Out-Null", install);
+        Assert.Contains("-Comment 'Created by LabelScope'|Out-Null", install);
+        Assert.Contains("Remove-Printer -Name $n|Out-Null", remove);
+        Assert.Contains("Remove-PrinterPort -Name $o|Out-Null", remove);
+        Assert.EndsWith("'OK'}catch{'ERROR: '+$_.Exception.Message}", install);
+        Assert.EndsWith("'OK'}catch{'ERROR: '+$_.Exception.Message}", remove);
+    }
+
+    [Fact]
+    public async Task RemoveScript_ChecksOwnershipInsideTheElevatedScript_BeforeRemovingAnything()
+    {
+        var script = await RemoveScript();
+
+        var check = script.IndexOf("$x.Comment -ne 'Created by LabelScope'", StringComparison.Ordinal);
+        var remove = script.IndexOf("Remove-Printer -Name", StringComparison.Ordinal);
+        Assert.True(check >= 0, "the script must compare the Comment with the owner marker");
+        Assert.True(remove > check, "the ownership check must come before Remove-Printer");
+        Assert.Contains("throw", script);
+    }
+
+    [Fact]
+    public async Task InstallScript_ChecksOwnershipOfAnExistingNameInsideTheElevatedScript()
+    {
+        var script = await InstallScript();
+
+        var check = script.IndexOf("$x.Comment -ne 'Created by LabelScope'", StringComparison.Ordinal);
+        var add = script.IndexOf("Add-Printer -Name", StringComparison.Ordinal);
+        Assert.True(check >= 0 && check < add);
+    }
+
+    [Fact]
+    public async Task RemoveScript_RemovesThePortOnlyWhenNoPrinterUsesItAnymore_AndNeverFailsBecauseOfIt()
+    {
+        var script = await RemoveScript();
+
+        // The port step has its own try/catch so that its failure cannot turn a removed printer into an error,
+        // and it runs only when no remaining printer uses the port.
+        Assert.Contains("try{if(!(Get-Printer|Where-Object PortName -eq $o)){Remove-PrinterPort -Name $o|Out-Null}}catch{}", script);
+        Assert.True(script.IndexOf("Remove-Printer -Name", StringComparison.Ordinal) < script.IndexOf("Where-Object PortName", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RunnerArguments_WidenOutFile_AndKeepThePathOutOfPlainText()
+    {
+        var args = PowerShellRunner.BuildArguments("'OK'", @"C:\Temp\x.txt");
+
+        Assert.StartsWith("-NoProfile -Command \"&{'OK'}|Out-File", args);
+        Assert.EndsWith("\"", args);
+        Assert.Contains("-Width 4096", args);
+        Assert.Contains("-NoClobber", args);
+        Assert.DoesNotContain(@"C:\Temp\x.txt", args); // the path only travels as base64
+    }
+
+    [Fact]
+    public async Task RealInstallerScripts_AreAcceptedByTheArgumentBuilder_ButScriptsWithQuotesOrNonAsciiAreNot()
+    {
+        // Plain text on the command line is only safe for pure ASCII without double quotes.
+        _ = PowerShellRunner.BuildArguments(await InstallScript(), @"C:\Temp\x.txt");
+        _ = PowerShellRunner.BuildArguments(await RemoveScript(), @"C:\Temp\x.txt");
+
+        Assert.Throws<InvalidOperationException>(() => PowerShellRunner.BuildArguments("'a\"b'", @"C:\x"));
+        Assert.Throws<InvalidOperationException>(() => PowerShellRunner.BuildArguments("'caf\u00E9'", @"C:\x"));
+    }
+
+    [Theory]
+    [InlineData("P4 LabelScope Printer", false)]
+    [InlineData("P4 LabelScope Printer", true)]
+    [InlineData("012345678901234567890123456789012345678901234567890123456789", false)]
+    [InlineData("012345678901234567890123456789012345678901234567890123456789", true)]
+    public async Task CommandLine_StaysUnder2000Characters(string name, bool remove)
+    {
+        var runner = new FakeRunner { StatusOutput = remove ? Ours : "" };
+        var installer = new PrinterInstaller(runner, name, 9100);
+        if (remove) await installer.RemoveAsync(); else await installer.InstallAsync();
+
+        // A deliberately long, realistic temp path (the real one is Path.GetTempPath() + LabelScope-<guid>.txt).
+        var path = @"C:\Users\A.Very.Long.User.Name\AppData\Local\Temp\LabelScope-" + Guid.NewGuid().ToString("N") + ".txt";
+        var length = PowerShellRunner.BuildArguments(runner.LastElevatedScript!, path).Length;
+
+        Assert.True(length < 2000, $"command line is {length} characters");
+    }
+
+    // ---- Failures never escape as exceptions ---------------------------------------------------------
+
+    [Fact]
+    public async Task Status_JsonThatIsNotAnObject_IsTreatedAsTakenByOther()
+    {
+        foreach (var json in new[] { "[1,2]", "42", "null", "\"text\"", "true" })
+            Assert.Equal(PrinterStatus.NameTakenByOther, await Make(new FakeRunner { StatusOutput = json }).GetStatusAsync());
+    }
+
+    [Fact]
+    public async Task Status_NullOrNonTextComment_IsTreatedAsTakenByOther()
+    {
+        foreach (var json in new[] { "{\"Name\":\"x\",\"Comment\":null}", "{\"Name\":\"x\",\"Comment\":5}", "{\"Name\":\"x\"}" })
+            Assert.Equal(PrinterStatus.NameTakenByOther, await Make(new FakeRunner { StatusOutput = json }).GetStatusAsync());
+    }
+
+    [Fact]
+    public async Task Status_WhenTheRunnerFails_IsUnknown_NotAnException()
+    {
+        var runner = new FakeRunner { ThrowOnStatus = new InvalidOperationException("boom") };
+
+        Assert.Equal(PrinterStatus.Unknown, await Make(runner).GetStatusAsync());
+    }
+
+    [Fact]
+    public async Task InstallAndRemove_WhenTheStatusCheckFails_FailWithPlainTextAndNeverElevate()
+    {
+        var runner = new FakeRunner { ThrowOnStatus = new IOException("disk") };
+
+        var install = await Make(runner).InstallAsync();
+        var remove = await Make(runner).RemoveAsync();
+
+        Assert.False(install.Success);
+        Assert.False(remove.Success);
+        Assert.Contains("could not check", install.Message);
+        Assert.Equal(0, runner.ElevatedCalls);
+    }
+
+    [Fact]
+    public async Task Install_WhenTheRunnerThrows_ShowsItsPlainMessage_WithoutDoublePeriod()
+    {
+        var runner = new FakeRunner
+        {
+            ThrowOnElevated = new InvalidOperationException("The printer name is too long for Windows to install. Use a shorter PrinterName in settings.json."),
+        };
+
+        var result = await Make(runner).InstallAsync();
+
+        Assert.False(result.Success);
+        Assert.Contains("too long", result.Message);
+        Assert.DoesNotContain("..", result.Message);
+    }
+
+    [Fact]
+    public async Task Install_ScriptErrorEndingInAPeriod_DoesNotGetASecondOne()
+    {
+        var result = await Make(new FakeRunner { ElevatedOutput = "ERROR: The spooler is stopped." }).InstallAsync();
+
+        Assert.DoesNotContain("..", result.Message);
+    }
+
+    [Fact]
+    public async Task CancellationByTheCaller_Propagates_ButAUacDeclineDoesNot()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var cancelling = new FakeRunner { ThrowOnElevated = new OperationCanceledException(cts.Token) };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Make(cancelling).InstallAsync(cts.Token));
+
+        var declined = await Make(new FakeRunner { UserDeclines = true }).InstallAsync(CancellationToken.None);
+        Assert.False(declined.Success);
+        Assert.Contains("permission", declined.Message);
     }
 }
