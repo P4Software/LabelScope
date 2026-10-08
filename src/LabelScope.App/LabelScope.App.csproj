@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>..\..\assets\labelscope.ico</ApplicationIcon>
+    <AssemblyName>LabelScope</AssemblyName>
+    <RootNamespace>LabelScope.App</RootNamespace>
+    <Version>0.1.0</Version>
+    <Product>LabelScope</Product>
+    <Company>P4 Software</Company>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LabelScope.Core\LabelScope.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog" Version="4.0.2" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The same icon is used for the window title bar. -->
+    <Resource Include="..\..\assets\labelscope.ico" Link="labelscope.ico" />
+  </ItemGroup>
+
+</Project>
