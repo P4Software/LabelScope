@@ -83,15 +83,39 @@ public sealed class ZplListener : IDisposable
     /// <inheritdoc />
     public void Dispose() => Stop();
 
-    private async Task AcceptLoopAsync(TcpListener listener, CancellationToken ct)
+    private Task AcceptLoopAsync(TcpListener listener, CancellationToken ct) =>
+        RunAcceptLoopAsync(token => listener.AcceptTcpClientAsync(token).AsTask(), ct);
+
+    /// <summary>
+    /// The accept loop, with the accept call injected so tests can make it fail. It only ends on
+    /// shutdown: any other failure is reported and the loop carries on, because a single bad
+    /// connection attempt (for example a client that resets before being accepted) must not leave
+    /// the port bound with nobody accepting.
+    /// </summary>
+    internal async Task RunAcceptLoopAsync(Func<CancellationToken, Task<TcpClient>> accept, CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
         {
             TcpClient client;
-            try { client = await listener.AcceptTcpClientAsync(ct); }
-            catch (OperationCanceledException) { return; }
-            catch (ObjectDisposedException) { return; }
-            catch (SocketException) { return; } // listener stopped
+            try
+            {
+                client = await accept(ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+            catch (ObjectDisposedException) { return; } // the TcpListener was stopped on purpose
+            catch (Exception) when (ct.IsCancellationRequested) { return; } // Stop() aborts a pending accept with a socket error
+            catch (Exception)
+            {
+                Raise(ProblemReported,
+                    "LabelScope had trouble accepting a connection and is still listening. If labels stop arriving, restart LabelScope.");
+                try
+                {
+                    // Short pause so a persistent fault cannot spin the CPU.
+                    await Task.Delay(100, ct);
+                }
+                catch (OperationCanceledException) { return; }
+                continue;
+            }
 
             // Each sender is handled on its own task so one slow sender cannot block others.
             _ = Task.Run(() => HandleClientAsync(client, ct), ct);

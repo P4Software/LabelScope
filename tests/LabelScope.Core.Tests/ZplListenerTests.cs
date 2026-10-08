@@ -140,4 +140,52 @@ public sealed class ZplListenerTests
         var got = await WaitFor(q, 2);
         Assert.Equal(2, got.Count);
     }
+
+    [Fact]
+    public async Task AcceptLoop_SurvivesAFailedAccept_ReportsIt_AndKeepsServing()
+    {
+        using var listener = new ZplListener(IPAddress.Loopback, 0);
+        var q = new BlockingCollection<ReceivedLabel>();
+        var problems = new BlockingCollection<string>();
+        listener.LabelReceived += q.Add;
+        listener.ProblemReported += problems.Add;
+
+        var real = new TcpListener(IPAddress.Loopback, 0);
+        real.Start();
+        using var cts = new CancellationTokenSource();
+        var calls = 0;
+        // The first accept fails the way a client reset does; later ones are real.
+        var loop = listener.RunAcceptLoopAsync(ct =>
+            Interlocked.Increment(ref calls) == 1
+                ? throw new SocketException((int)SocketError.ConnectionReset)
+                : real.AcceptTcpClientAsync(ct).AsTask(), cts.Token);
+
+        await Send(((IPEndPoint)real.LocalEndpoint).Port, "^XA^FDsurvived^FS^XZ");
+
+        var got = await WaitFor(q, 1);
+        Assert.Contains("survived", Assert.Single(got).Zpl);
+        Assert.True(problems.TryTake(out var message, 5000));
+        Assert.Contains("still listening", message);
+
+        cts.Cancel();
+        real.Stop();
+        await loop.WaitAsync(TimeSpan.FromSeconds(5)); // the loop must end cleanly on shutdown
+    }
+
+    [Fact]
+    public async Task ClientResetBeforeSendingAnything_DoesNotStopTheListener()
+    {
+        using var listener = new ZplListener(IPAddress.Loopback, 0);
+        var q = new BlockingCollection<ReceivedLabel>();
+        listener.LabelReceived += q.Add;
+        listener.Start();
+
+        // LingerState 0 makes Close send a TCP reset instead of a normal FIN.
+        using (var rude = new TcpClient { LingerState = new LingerOption(true, 0) })
+            await rude.ConnectAsync(IPAddress.Loopback, listener.LocalPort);
+
+        await Send(listener.LocalPort, "^XA^FDnormal^FS^XZ");
+        var got = await WaitFor(q, 1);
+        Assert.Contains("normal", Assert.Single(got).Zpl);
+    }
 }

@@ -11,6 +11,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Lets the tests drive the listener's internal accept loop with an injected failure. -->
+    <InternalsVisibleTo Include="LabelScope.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="SkiaSharp" Version="2.88.8" />
   </ItemGroup>
 
