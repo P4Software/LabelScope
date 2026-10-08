@@ -1,12 +1,109 @@
-﻿<Window x:Class="LabelScope.App.MainWindow"
+<Window x:Class="LabelScope.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:LabelScope.App"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="LabelScope" Height="760" Width="1200" MinHeight="480" MinWidth="800"
+        Icon="labelscope.ico" Loaded="OnLoaded" Closing="OnClosing">
+  <DockPanel>
 
+    <ToolBar DockPanel.Dock="Top">
+      <Button x:Name="InstallButton" Content="Install printer" Click="OnInstallPrinter" ToolTip="Adds the Windows printer that sends labels to LabelScope"/>
+      <Button x:Name="RemoveButton" Content="Remove printer" Click="OnRemovePrinter"/>
+      <Separator/>
+      <Button Content="Save PNG" Click="OnSavePng"/>
+      <Button Content="Copy image" Click="OnCopyImage"/>
+      <Button Content="Clear history" Click="OnClearHistory"/>
+      <Separator/>
+      <Button Content="Open settings" Click="OnOpenSettings"/>
+      <Button Content="Open log folder" Click="OnOpenLog"/>
+    </ToolBar>
+
+    <StatusBar DockPanel.Dock="Bottom">
+      <TextBlock x:Name="ListeningText" Text="Starting..."/>
+      <Separator/>
+      <TextBlock x:Name="PrinterText" Text="Printer: checking..."/>
+      <Separator/>
+      <TextBlock x:Name="MessageText" TextWrapping="Wrap"/>
+    </StatusBar>
+
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="230" MinWidth="140"/>
+        <ColumnDefinition Width="5"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- History: newest label first -->
+      <ListBox x:Name="HistoryList" Grid.Column="0" SelectionChanged="OnSelectionChanged">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <StackPanel Margin="2">
+              <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+              <TextBlock Text="{Binding Subtitle}" Foreground="Gray" FontSize="11"/>
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
+
+      <!-- Label picture (left) and raw ZPL (right), always visible together -->
+      <Grid Grid.Column="2">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" MinWidth="200"/>
+          <ColumnDefinition Width="5"/>
+          <ColumnDefinition Width="*" MinWidth="200"/>
+        </Grid.ColumnDefinitions>
+
+        <DockPanel Grid.Column="0">
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4">
+            <CheckBox x:Name="FitBox" Content="Fit to window" IsChecked="True" VerticalAlignment="Center"
+                      Checked="OnZoomChanged" Unchecked="OnZoomChanged"/>
+            <TextBlock Text="Zoom" Margin="12,0,4,0" VerticalAlignment="Center"/>
+            <Slider x:Name="ZoomSlider" Width="120" Minimum="0.25" Maximum="4" Value="1" ValueChanged="OnZoomChanged"/>
+          </StackPanel>
+          <TextBlock x:Name="InfoText" DockPanel.Dock="Top" Margin="6,0,6,4" Foreground="Gray"/>
+          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#FFDDDDDD">
+            <Image x:Name="LabelImage" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top"
+                   RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+          </ScrollViewer>
+        </DockPanel>
+
+        <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
+
+        <Grid Grid.Column="2">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="5"/>
+            <RowDefinition Height="130" MinHeight="40"/>
+          </Grid.RowDefinitions>
+
+          <!-- Line numbers sit in the same scroll area as the text so both always scroll together,
+               while the text box itself stays clean to copy. -->
+          <ScrollViewer Grid.Row="0" x:Name="ZplScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock x:Name="LineNumbers" Grid.Column="0" FontFamily="Consolas" FontSize="13" Padding="4,0,8,0"
+                         Foreground="Gray" TextAlignment="Right"/>
+              <TextBox x:Name="ZplBox" Grid.Column="1" FontFamily="Consolas" FontSize="13" Padding="0"
+                       IsReadOnly="True" BorderThickness="0" AcceptsReturn="True" TextWrapping="NoWrap"/>
+            </Grid>
+          </ScrollViewer>
+
+          <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch"/>
+
+          <ListBox x:Name="WarningList" Grid.Row="2" SelectionChanged="OnWarningSelected">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock TextWrapping="Wrap">
+                  <Run Text="Line "/><Run Text="{Binding Line, Mode=OneWay}"/><Run Text=": "/><Run Text="{Binding Message, Mode=OneWay}"/>
+                </TextBlock>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Grid>
     </Grid>
+  </DockPanel>
 </Window>
