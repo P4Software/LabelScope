@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="LabelScope logo">
+  <title>LabelScope</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1E4FD8"/>
+      <stop offset="1" stop-color="#0B2A7A"/>
+    </linearGradient>
+    <linearGradient id="lens" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5EEAD4" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#14B8A6" stop-opacity="0.25"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App tile -->
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bg)"/>
+
+  <!-- The label: white card with a corner peel, like a printed shipping label -->
+  <path d="M96 112 H336 a24 24 0 0 1 24 24 V300 H96 a24 24 0 0 1 -24 -24 V136 a24 24 0 0 1 24 -24 Z" fill="#F8FAFC"/>
+  <path d="M360 300 V136 a24 24 0 0 0 -24 -24" fill="none"/>
+
+  <!-- Text lines on the label -->
+  <rect x="104" y="140" width="120" height="16" rx="8" fill="#1E4FD8"/>
+  <rect x="104" y="170" width="76" height="12" rx="6" fill="#94A3B8"/>
+
+  <!-- Barcode bars -->
+  <g fill="#0F172A">
+    <rect x="104" y="204" width="10" height="72"/>
+    <rect x="122" y="204" width="5"  height="72"/>
+    <rect x="135" y="204" width="14" height="72"/>
+    <rect x="157" y="204" width="5"  height="72"/>
+    <rect x="170" y="204" width="9"  height="72"/>
+    <rect x="187" y="204" width="14" height="72"/>
+    <rect x="209" y="204" width="5"  height="72"/>
+    <rect x="222" y="204" width="10" height="72"/>
+    <rect x="240" y="204" width="5"  height="72"/>
+    <rect x="253" y="204" width="14" height="72"/>
+    <rect x="275" y="204" width="5"  height="72"/>
+    <rect x="288" y="204" width="9"  height="72"/>
+  </g>
+
+  <!-- Scope: lens over the lower-right of the label, with handle -->
+  <circle cx="318" cy="318" r="86" fill="url(#lens)" stroke="#FFFFFF" stroke-width="22"/>
+  <path d="M381 381 L440 440" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round"/>
+
+  <!-- Crosshair inside the lens: the "scope" -->
+  <g stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" opacity="0.95">
+    <path d="M318 270 V294"/>
+    <path d="M318 342 V366"/>
+    <path d="M270 318 H294"/>
+    <path d="M342 318 H366"/>
+  </g>
+  <circle cx="318" cy="318" r="7" fill="#FFFFFF"/>
+</svg>
