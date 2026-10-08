@@ -1,4 +1,3 @@
-// src/LabelScope.Core/Rendering/ZplRenderer.cs
 namespace LabelScope.Core.Rendering;
 
 /// <summary>Converts ZPL text into label images without any online service.</summary>

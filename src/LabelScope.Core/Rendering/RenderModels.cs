@@ -1,4 +1,3 @@
-// src/LabelScope.Core/Rendering/RenderModels.cs
 namespace LabelScope.Core.Rendering;
 
 /// <summary>Defaults used when the ZPL itself does not give a label size.</summary>

@@ -1,4 +1,3 @@
-// src/LabelScope.Core/Listening/ZplTooLargeException.cs
 namespace LabelScope.Core.Listening;
 
 /// <summary>

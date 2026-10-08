@@ -1,4 +1,3 @@
-// src/LabelScope.Core/Printing/PowerShellRunner.cs
 using System.ComponentModel;
 using System.Diagnostics;
 

@@ -1,5 +1,3 @@
-
-// tests/LabelScope.Core.Tests/ZplListenerTests.cs
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;

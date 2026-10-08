@@ -1,4 +1,3 @@
-// src/LabelScope.Core/Printing/IPowerShellRunner.cs
 namespace LabelScope.Core.Printing;
 
 /// <summary>Runs PowerShell text; abstracted so printer logic can be tested without touching Windows.</summary>

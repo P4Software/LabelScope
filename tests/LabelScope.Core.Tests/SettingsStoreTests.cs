@@ -1,4 +1,3 @@
-// tests/LabelScope.Core.Tests/SettingsStoreTests.cs
 using LabelScope.Core.Settings;
 using Xunit;
 

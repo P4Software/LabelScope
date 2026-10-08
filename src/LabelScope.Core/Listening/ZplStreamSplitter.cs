@@ -1,4 +1,3 @@
-// src/LabelScope.Core/Listening/ZplStreamSplitter.cs
 using System.Text;
 
 namespace LabelScope.Core.Listening;
@@ -127,7 +126,7 @@ public sealed class ZplStreamSplitter
             text = Windows1252.GetString(_bytes, start, count);
         }
         // A leading byte order mark would otherwise show up as an invisible character in the ZPL.
-        return text.Trim().Trim('﻿').Trim();
+        return text.Trim().Trim('\uFEFF').Trim();
     }
 
     // Grows the pending buffer by doubling so repeated small chunks cost amortised O(1) per byte.

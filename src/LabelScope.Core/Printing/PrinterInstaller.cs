@@ -1,4 +1,3 @@
-// src/LabelScope.Core/Printing/PrinterInstaller.cs
 using System.Globalization;
 using System.Text;
 using System.Text.Json;

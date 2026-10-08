@@ -1,4 +1,3 @@
-// tests/LabelScope.Core.Tests/ZplParserTests.cs
 using LabelScope.Core.Rendering;
 using Xunit;
 

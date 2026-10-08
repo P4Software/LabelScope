@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <em>By <a href="https://github.com/P4Software">P4 Software</a> · Status: in development. The first release is feature-complete and is being tested on real PCs. There is no download yet; <a href="#building-from-source">build and run it from source</a>.</em>
+  <em>By <a href="https://github.com/P4Software">P4 Software</a> · Status: in development. The first release is built and is being tested on real PCs. There is no download yet; <a href="#building-from-source">build and run it from source</a>.</em>
 </p>
 
 ---
@@ -63,7 +63,7 @@ LabelScope pretends to be that printer. It installs a normal Windows printer, re
                                       └───────────────────────────────────────┘
 ```
 
-- The Windows printer uses the **Generic / Text Only** driver that ships with Windows, so the ZPL reaches LabelScope untouched.
+- The Windows printer uses the **Generic / Text Only** driver that ships with Windows, so for raw print jobs the ZPL reaches LabelScope untouched.
 - Programs that can talk TCP directly can skip the printer and send to port **9100**, the standard port for network label printers.
 - Rendering is done **inside LabelScope**. Nothing is uploaded anywhere.
 
@@ -115,13 +115,17 @@ $client.Close()
 - LabelScope marks the printer it creates. It never changes or removes a printer it did not create, even if the name is the same.
 - The printer forwards to `127.0.0.1` on `ListenPort`, so if you change the port, remove the printer and install it again.
 
-## Settings
+### Where to put the program
+
+Keep LabelScope in a folder you can write to, for example `C:abelscope` or your documents folder, and not in `program files`: it writes `settings.json` and its `logs` folder next to itself. listening on `0.0.0.0` can make windows show a firewall prompt, and answering it needs an administrator.
+
+## settings
 
 On first start LabelScope creates `settings.json` next to the program, with an explanation for every option. If a value is wrong it falls back to a safe default and tells you which setting to fix.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `ListenAddress` | `127.0.0.1` | `127.0.0.1` accepts labels from this computer only; `0.0.0.0` also accepts them from the network. Must be a valid IP address. |
+| `ListenAddress` | `127.0.0.1` | `127.0.0.1` accepts labels from this computer only; `0.0.0.0` also accepts them from the network. Only these two values are accepted; anything else falls back to `127.0.0.1`. |
 | `ListenPort` | `9100` | Port for incoming ZPL, 1 to 65535. Change it if another program already uses 9100. |
 | `DefaultDpi` | `203` | Print resolution: 152, 203, 300 or 600. |
 | `DefaultLabelWidthMm` | `101.6` | Label width in millimetres when the ZPL has no `^PW` (4 inch). |
@@ -144,14 +148,15 @@ LabelScope draws what it understands and **tells you about everything else** ins
 | 3. Graphics and fonts | `^GF ~DG ^XG ^IM ^IL`, your own TrueType fonts | Planned |
 | 4. Advanced | `^SN ^FV ^CI ^FH`, more | Planned |
 
-Any command that is not drawn is listed in the warnings list with its line number, for example `^BC is not supported yet and was ignored.` A few commands that only change printer behaviour and not the picture (`^MN ^MM ^MD ^MT ^PR ^JU ^PM`) are ignored without a warning.
+Any command that is not drawn is listed in the warnings list with its line number, for example `^BC is not supported yet and was ignored.` A few commands that only change printer behaviour and not the picture (`^MN ^MM ^MD ^MT ^PR ^JU`) are ignored without a warning.
 
 ### Limits worth knowing
 
-- **Fonts are approximate.** Text is drawn with an approximation of the Zebra fonts (a scaled Arial), so letter shapes and widths can differ from a real printer. LabelScope is a preview tool, not a pixel-exact replacement for a printer.
+- **Fonts are approximate.** Text is drawn with an approximation of the Zebra fonts (a scaled Arial when it is installed, otherwise the Windows default font), so letter shapes and widths can differ from a real printer. LabelScope is a preview tool, not a pixel-exact replacement for a printer.
 - **Barcodes are not drawn yet.** A warning is shown for each barcode command, and the barcode's data is drawn as plain text.
+- **The window is simple for now.** It does not show the dpi, and unsupported commands are not underlined in the ZPL text yet; they are listed in the warnings list instead.
 - **Rotated text is not drawn yet.** `^A` with orientation R, I or B is drawn unrotated, with a warning. Rounded corners on `^GB` are drawn square, with a warning.
-- **Label size is capped** at 8000 dots per side and 40 million dots in total (a warning tells you when a label was cut down).
+- **Label size is capped** at 8000 dots per side and 40 million dots in total (a warning names the command or the setting, `DefaultLabelWidthMm` or `DefaultLabelHeightMm`, when a label size was cut down).
 - **Text encoding.** Each label is read as UTF-8 first. If it is not valid UTF-8 (many label programs and the Windows text-only printer driver send Windows-1252 text, where "ñ" is a single byte), it is read as Windows-1252 instead. Other code pages, such as CP850, may show wrong characters for accented letters.
 - **A single label larger than 16 MB without `^XZ` is discarded**, and a message is shown.
 
@@ -164,7 +169,7 @@ Any command that is not drawn is listed in the warnings list with its line numbe
 
 ## Building from source
 
-Requirements: Windows 10 or 11 and the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+Requirements: Windows 10 or 11 and the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or a newer one (`global.json` allows any newer SDK).
 
 ```powershell
 git clone https://github.com/P4Software/LabelScope.git
@@ -219,7 +224,7 @@ assets/                 Logo and icon
 | "LabelScope could not check which printers are installed" | Check that the Windows "Print Spooler" service is running, then try again. |
 | "The printer could not be installed: ..." | Check that the Windows "Print Spooler" service is running, then try again. Details are in the log. |
 | "The settings file could not be read ..." | There is a typo in `settings.json`. Fix it, or delete the file to get a fresh one, then restart. Standard settings are used meanwhile. |
-| "... is not a valid IP address" or "... is not between 1 and 65535" | A setting had a wrong value and the default was used. Fix the named setting and restart. |
+| "ListenAddress ... is not allowed" or "... is not between 1 and 65535" | A setting had a wrong value and the default was used. Fix the named setting and restart. |
 | "A label larger than 16 MB was received without an end marker (^XZ) and was discarded" | The sender is not sending real labels, or never sends `^XZ`. Check the program that sends the labels. |
 | "A label arrived incomplete (no ^XZ at the end)" | The sender disconnected before sending `^XZ`. The label is shown as far as it arrived. |
 | A label looks different from the real printer | Fonts are approximated and some commands are not supported yet. Check the warnings list. |

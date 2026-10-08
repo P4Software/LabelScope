@@ -1,4 +1,3 @@
-// tests/LabelScope.Core.Tests/PrinterInstallerTests.cs
 using LabelScope.Core.Printing;
 using Xunit;
 

@@ -1,4 +1,3 @@
-// src/LabelScope.Core/Rendering/LabelPainter.cs
 using System.Globalization;
 using SkiaSharp;
 

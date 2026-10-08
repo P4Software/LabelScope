@@ -1,4 +1,3 @@
-// tests/LabelScope.Core.Tests/ZplStreamSplitterTests.cs
 using System.Text;
 using LabelScope.Core.Listening;
 using Xunit;

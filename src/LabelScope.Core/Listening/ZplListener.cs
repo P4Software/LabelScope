@@ -1,5 +1,3 @@
-
-// src/LabelScope.Core/Listening/ZplListener.cs
 using System.Net;
 using System.Net.Sockets;
 

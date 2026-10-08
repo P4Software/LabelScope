@@ -1,4 +1,3 @@
-// tests/LabelScope.Core.Tests/ZplRendererTests.cs
 using System.Diagnostics;
 using LabelScope.Core.Rendering;
 using SkiaSharp;
