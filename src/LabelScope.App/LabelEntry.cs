@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows.Media.Imaging;
+using LabelScope.Core;
 using LabelScope.Core.Rendering;
 
 namespace LabelScope.App;
@@ -36,6 +37,9 @@ public sealed class LabelEntry
     public RenderedLabel Label { get; }
     /// <summary>Warnings produced while rendering.</summary>
     public IReadOnlyList<RenderWarning> Warnings { get; }
+
+    /// <summary>Approximate memory this entry keeps (PNG bytes plus ZPL text); used to bound the whole history.</summary>
+    public long ApproximateBytes => HistoryBudget.SizeOf(Label.PngBytes.Length, Zpl);
 
     /// <summary>First line in the history list.</summary>
     public string Title => At.ToString("HH:mm:ss") + (Complete ? "" : "  (incomplete)");

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -40,6 +41,19 @@ public partial class MainWindow : Window
 
     // Last time the printer status was checked; used to throttle the re-check on window activation.
     private DateTime _lastStatusCheck = DateTime.MinValue;
+
+    // Back-pressure design. Rendering is the expensive step and runs on the socket threads, so at most two
+    // labels are rendered at the same time (a socket thread simply waits its turn; TCP slows the sender down).
+    // Finished results then wait in a queue for the UI thread. That queue is bounded: if senders are faster
+    // than the window can show labels, the oldest waiting results are dropped from the display (they stay
+    // in the log) and the user is told once, instead of the dispatcher queue growing without limit.
+    private readonly SemaphoreSlim _renderGate = new(2);
+    private readonly ConcurrentQueue<PendingResult> _pendingForUi = new();
+    private const int MaxPendingForUi = 20;
+    private int _drainScheduled; // 1 while a drain is already queued on the dispatcher
+
+    /// <summary>Entries of one received job that are waiting to be shown, plus the note to show with them.</summary>
+    private sealed record PendingResult(List<LabelEntry> Entries, bool Complete);
 
     /// <summary>Creates the window; real startup work happens in <see cref="OnLoaded"/>.</summary>
     public MainWindow()
@@ -121,7 +135,10 @@ public partial class MainWindow : Window
         {
             if (_closing) return;
             var options = new RenderOptions(_settings.DefaultDpi, _settings.DefaultLabelWidthMm, _settings.DefaultLabelHeightMm);
-            var result = _renderer.Render(received.Zpl, options);
+            RenderResult result;
+            _renderGate.Wait();
+            try { result = _renderer.Render(received.Zpl, options); }
+            finally { _renderGate.Release(); }
             Log.Information("Label received from {Source}: {Labels} image(s), {Warnings} warning(s), complete={Complete}",
                 received.Source, result.Labels.Count, result.Warnings.Count, received.Complete);
 
@@ -131,13 +148,44 @@ public partial class MainWindow : Window
 
             // BeginInvoke, never Invoke: a closing window must not be able to block the socket thread.
             if (Dispatcher.HasShutdownStarted) return;
-            Dispatcher.BeginInvoke(() => AddEntries(entries, received.Complete));
+            QueueForUi(new PendingResult(entries, received.Complete));
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Could not process a received label");
             ReportOnUi("A label arrived but LabelScope could not show it. Send it again; details are in the log file.");
         }
+    }
+
+    /// <summary>
+    /// Runs on a socket thread: parks a finished result for the UI thread and drops the oldest waiting
+    /// results when more than <see cref="MaxPendingForUi"/> are waiting.
+    /// </summary>
+    private void QueueForUi(PendingResult result)
+    {
+        _pendingForUi.Enqueue(result);
+
+        var skipped = 0;
+        while (_pendingForUi.Count > MaxPendingForUi && _pendingForUi.TryDequeue(out var dropped))
+            skipped += Math.Max(1, dropped.Entries.Count);
+        if (skipped > 0)
+        {
+            Log.Warning("Skipped showing {Skipped} label(s) because they arrived faster than they can be displayed", skipped);
+            ReportOnUi($"Skipped showing {skipped} labels because they arrived faster than they can be displayed. They are listed in the log file.");
+        }
+
+        // Only one drain is queued at a time, however many results arrive meanwhile.
+        if (Interlocked.Exchange(ref _drainScheduled, 1) == 0)
+            Dispatcher.BeginInvoke(DrainPendingResults);
+    }
+
+    /// <summary>Runs on the UI thread: shows everything that is waiting.</summary>
+    private void DrainPendingResults()
+    {
+        // Reset first: a result that arrives while we work schedules the next drain.
+        Interlocked.Exchange(ref _drainScheduled, 0);
+        while (_pendingForUi.TryDequeue(out var pending))
+            AddEntries(pending.Entries, pending.Complete);
     }
 
     /// <summary>Runs on the UI thread: adds the entries to the history and selects the newest.</summary>
@@ -151,7 +199,7 @@ public partial class MainWindow : Window
             var followNewest = HistoryList.SelectedIndex <= 0;
             // Insert in reverse so label 1 of a multi-label job ends up above label 2.
             for (var i = entries.Count - 1; i >= 0; i--) _history.Insert(0, entries[i]);
-            while (_history.Count > _settings.HistoryLimit) _history.RemoveAt(_history.Count - 1);
+            TrimHistory();
             if (entries.Count > 0 && followNewest) HistoryList.SelectedIndex = 0;
             if (!complete) ShowMessage("A label arrived incomplete (no ^XZ at the end). It is shown as far as it arrived.");
         }
@@ -160,6 +208,16 @@ public partial class MainWindow : Window
             Log.Error(ex, "Could not add a label to the history");
             ShowMessage("A label arrived but LabelScope could not show it. Details are in the log file.");
         }
+    }
+
+    /// <summary>
+    /// Drops the oldest entries until both limits hold: HistoryLimit entries at most, and 256 MB of kept data
+    /// at most (see <see cref="HistoryBudget"/>). The history is newest first, so the oldest are at the end.
+    /// </summary>
+    private void TrimHistory()
+    {
+        var keep = HistoryBudget.EntriesToKeep(_history.Select(h => h.ApproximateBytes).ToList(), _settings.HistoryLimit);
+        while (_history.Count > keep) _history.RemoveAt(_history.Count - 1);
     }
 
     /// <summary>Runs on a socket thread when the listener had to drop a connection.</summary>

@@ -27,12 +27,33 @@ public sealed class ZplListener : IDisposable
     private readonly CancellationTokenSource _cts = new();
     private TcpListener? _listener;
 
+    // Number of connections being served right now; touched from many threads, so only through Interlocked.
+    private int _activeConnections;
+
+    // Environment.TickCount64 of the last "too many connections" message, 0 when none was sent yet.
+    private long _lastBusyReport;
+
     /// <summary>Creates a listener; nothing is bound until <see cref="Start"/>.</summary>
     public ZplListener(IPAddress address, int port)
     {
         _address = address;
         _port = port;
     }
+
+    /// <summary>
+    /// Most clients served at the same time. A real print spooler uses one or two connections, so 16 is generous;
+    /// the cap stops a misbehaving program from opening thousands of sockets and exhausting memory or threads.
+    /// </summary>
+    internal int MaxConnections { get; init; } = 16;
+
+    /// <summary>
+    /// A connection that sends nothing for this long is closed. Without it, a program that connects and then
+    /// never writes or closes would hold one of the <see cref="MaxConnections"/> slots forever.
+    /// </summary>
+    internal TimeSpan IdleTimeout { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>Minimum time between two "too many connections" messages, so a flood does not flood the app as well.</summary>
+    internal TimeSpan BusyReportInterval { get; init; } = TimeSpan.FromSeconds(10);
 
     /// <summary>The port actually bound (differs from the requested one only when port 0 was requested).</summary>
     public int LocalPort => ((IPEndPoint?)_listener?.LocalEndpoint)?.Port ?? _port;
@@ -117,24 +138,63 @@ public sealed class ZplListener : IDisposable
                 continue;
             }
 
+            // Count first, then decide: Increment returns the new total, so two connections arriving at the
+            // same moment can never both slip in under the cap.
+            if (Interlocked.Increment(ref _activeConnections) > MaxConnections)
+            {
+                Interlocked.Decrement(ref _activeConnections);
+                client.Dispose(); // refused: closing at once tells the sender "not now" without costing us a task
+                ReportBusy();
+                continue;
+            }
+
             // Each sender is handled on its own task so one slow sender cannot block others.
             _ = Task.Run(() => HandleClientAsync(client, ct), ct);
         }
     }
 
+    /// <summary>Tells the app that connections were refused, at most once per <see cref="BusyReportInterval"/>.</summary>
+    private void ReportBusy()
+    {
+        var now = Math.Max(1, Environment.TickCount64); // 0 is reserved for "never reported"
+        var last = Interlocked.Read(ref _lastBusyReport);
+        if (last != 0 && now - last < (long)BusyReportInterval.TotalMilliseconds) return;
+        // Only the thread that wins the swap reports, so concurrent refusals produce a single message.
+        if (Interlocked.CompareExchange(ref _lastBusyReport, now, last) != last) return;
+        Raise(ProblemReported,
+            "LabelScope is busy: too many programs are sending labels at once. New connections were refused. Try again in a moment.");
+    }
+
     private async Task HandleClientAsync(TcpClient client, CancellationToken ct)
+    {
+        try
+        {
+            await ServeClientAsync(client, ct);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _activeConnections); // frees the slot whatever happened
+        }
+    }
+
+    private async Task ServeClientAsync(TcpClient client, CancellationToken ct)
     {
         using (client)
         {
             var source = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString() ?? "unknown";
             var splitter = new ZplStreamSplitter();
             var buffer = new byte[8192];
+            // One timer for the whole connection: CancelAfter is called again before every read, which restarts it.
+            // When it fires the read is cancelled and the code below flushes whatever partial label arrived.
+            using var idle = CancellationTokenSource.CreateLinkedTokenSource(ct);
             try
             {
                 var stream = client.GetStream();
-                int read;
-                while ((read = await stream.ReadAsync(buffer, ct)) > 0)
+                while (true)
                 {
+                    idle.CancelAfter(IdleTimeout);
+                    var read = await stream.ReadAsync(buffer, idle.Token);
+                    if (read <= 0) break;
                     foreach (var zpl in splitter.Feed(buffer, read))
                         Raise(LabelReceived, new ReceivedLabel(zpl, DateTimeOffset.Now, source, true));
                 }

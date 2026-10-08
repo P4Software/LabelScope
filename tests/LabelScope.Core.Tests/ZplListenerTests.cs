@@ -173,6 +173,70 @@ public sealed class ZplListenerTests
     }
 
     [Fact]
+    public async Task TooManyConnections_AreRefused_ReportedOnce_AndServingResumesWhenOneLeaves()
+    {
+        using var listener = new ZplListener(IPAddress.Loopback, 0) { MaxConnections = 2 };
+        var q = new BlockingCollection<ReceivedLabel>();
+        var problems = new BlockingCollection<string>();
+        listener.LabelReceived += q.Add;
+        listener.ProblemReported += problems.Add;
+        listener.Start();
+
+        // Two idle senders fill the table.
+        using var first = new TcpClient();
+        using var second = new TcpClient();
+        await first.ConnectAsync(IPAddress.Loopback, listener.LocalPort);
+        await second.ConnectAsync(IPAddress.Loopback, listener.LocalPort);
+        await Task.Delay(300); // let the listener count both
+
+        // Two more are turned away: the listener closes them, so a read ends at once (or is reset).
+        for (var i = 0; i < 2; i++)
+        {
+            using var refused = new TcpClient();
+            await refused.ConnectAsync(IPAddress.Loopback, listener.LocalPort);
+            var buffer = new byte[1];
+            var read = 0;
+            try { read = await refused.GetStream().ReadAsync(buffer).AsTask().WaitAsync(TimeSpan.FromSeconds(5)); }
+            catch (IOException) { /* a reset also means "closed on us" */ }
+            Assert.Equal(0, read);
+        }
+
+        // Both refusals fall into the same 10 second window, so only one message is raised.
+        Assert.True(problems.TryTake(out var message, 5000));
+        Assert.Contains("too many programs", message);
+        Assert.False(problems.TryTake(out _, 300));
+
+        // When a sender leaves, a new one is served again.
+        first.Dispose();
+        await Task.Delay(300);
+        await Send(listener.LocalPort, "^XA^FDagain^FS^XZ");
+        Assert.Contains("again", Assert.Single(await WaitFor(q, 1)).Zpl);
+    }
+
+    [Fact]
+    public async Task IdleConnection_IsClosed_AndWhatArrivedIsFlushedAsIncomplete()
+    {
+        using var listener = new ZplListener(IPAddress.Loopback, 0) { IdleTimeout = TimeSpan.FromMilliseconds(300) };
+        var q = new BlockingCollection<ReceivedLabel>();
+        listener.LabelReceived += q.Add;
+        listener.Start();
+
+        // The sender writes half a label and then stays connected without sending anything.
+        using var client = new TcpClient();
+        await client.ConnectAsync(IPAddress.Loopback, listener.LocalPort);
+        await client.GetStream().WriteAsync(Encoding.UTF8.GetBytes("^XA^FDstuck^FS"));
+
+        var got = await WaitFor(q, 1);
+        var label = Assert.Single(got);
+        Assert.False(label.Complete);
+        Assert.Contains("stuck", label.Zpl);
+
+        // The listener has closed its side, so the client sees the end of the stream.
+        var read = await client.GetStream().ReadAsync(new byte[1]).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(0, read);
+    }
+
+    [Fact]
     public async Task ClientResetBeforeSendingAnything_DoesNotStopTheListener()
     {
         using var listener = new ZplListener(IPAddress.Loopback, 0);
