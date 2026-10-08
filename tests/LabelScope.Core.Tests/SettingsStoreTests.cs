@@ -85,4 +85,51 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(203, result.Settings.DefaultDpi);
         Assert.Contains(result.Messages, m => m.Contains("DefaultDpi"));
     }
+
+    [Fact]
+    public void ParentFolderMissing_ReturnsDefaults_WithMessage_AndDoesNotThrow()
+    {
+        // The parent folder is never created, so writing the starter file must fail.
+        var missing = Path.Combine(_dir, "no-such-folder", "settings.json");
+
+        var result = new SettingsStore().LoadOrCreate(missing);
+
+        Assert.Equal(9100, result.Settings.ListenPort);
+        Assert.Single(result.Messages);
+        Assert.Contains("could not create the settings file", result.Messages[0]);
+        Assert.False(File.Exists(missing));
+    }
+
+    [Fact]
+    public void FileLockedByAnotherProgram_ReturnsDefaults_WithMessage_AndLeavesFileUnchanged()
+    {
+        const string original = "{ \"ListenPort\": 9300 }";
+        File.WriteAllText(P, original);
+
+        // Hold the file open exclusively, the way an editor or antivirus scan can.
+        SettingsLoadResult result;
+        using (var locker = new FileStream(P, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            result = new SettingsStore().LoadOrCreate(P);
+        }
+
+        Assert.Equal(9100, result.Settings.ListenPort);
+        Assert.Single(result.Messages);
+        Assert.Contains("could not be opened", result.Messages[0]);
+        // The lock is released now; the user's file must still hold exactly what they wrote.
+        Assert.Equal(original, File.ReadAllText(P));
+    }
+
+    [Fact]
+    public void EmptySettingsFile_ReturnsDefaults_WithMessage_AndDoesNotThrow()
+    {
+        // Regression: an empty file has no JSON tokens and must not crash the loader.
+        File.WriteAllText(P, string.Empty);
+
+        var result = new SettingsStore().LoadOrCreate(P);
+
+        Assert.Equal(9100, result.Settings.ListenPort);
+        Assert.Single(result.Messages);
+        Assert.Contains("could not be read", result.Messages[0]);
+    }
 }

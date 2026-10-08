@@ -58,20 +58,45 @@ public sealed class SettingsStore
 
         if (!File.Exists(path))
         {
-            // Written without a byte-order mark so editors and the parser both read it cleanly.
-            File.WriteAllText(path, StarterText, new UTF8Encoding(false));
-            messages.Add($"A settings file was created at {path}. Open it to change the port, label size or other options.");
+            try
+            {
+                // Written without a byte-order mark so editors and the parser both read it cleanly.
+                File.WriteAllText(path, StarterText, new UTF8Encoding(false));
+                messages.Add($"A settings file was created at {path}. Open it to change the port, label size or other options.");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // A read-only program folder or a missing parent folder must not crash the first run;
+                // the defaults still work, so the user is told and the program carries on.
+                messages.Add($"LabelScope could not create the settings file at {path} ({ex.Message}). " +
+                             "Standard settings are used for now; check that the folder is writable.");
+            }
+            return new SettingsLoadResult(new AppSettings(), messages);
+        }
+
+        string text;
+        try
+        {
+            text = File.ReadAllText(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Another program (an editor or antivirus) can hold the file open. We only read here,
+            // so the user's file is left untouched and the defaults are used until the lock is gone.
+            messages.Add($"The settings file could not be opened ({ex.Message}). Standard settings are used for now. " +
+                         $"Close other programs that may be using {path}, then restart LabelScope.");
             return new SettingsLoadResult(new AppSettings(), messages);
         }
 
         AppSettings? loaded;
         try
         {
-            loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path), Options);
+            loaded = JsonSerializer.Deserialize<AppSettings>(text, Options);
         }
         catch (JsonException ex)
         {
             // Never overwrite the user's file: they may only have a typo to fix.
+            // An empty file also lands here ("no JSON tokens"), so it gets this same message.
             messages.Add($"The settings file could not be read ({ex.Message}). Standard settings are used for now. " +
                          $"Fix the file, or delete it to get a fresh one, then restart LabelScope: {path}");
             return new SettingsLoadResult(new AppSettings(), messages);
