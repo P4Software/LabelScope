@@ -132,4 +132,41 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Single(result.Messages);
         Assert.Contains("could not be read", result.Messages[0]);
     }
+
+    [Theory]
+    [InlineData("localhost")]
+    [InlineData("192.168.1.5")]
+    [InlineData("::1")]
+    [InlineData("")]
+    public void ListenAddress_OtherThanTheTwoAllowedValues_FallsBackAndNamesTheKey(string address)
+    {
+        File.WriteAllText(P, "{ \"ListenAddress\": \"" + address + "\" }");
+
+        var result = new SettingsStore().LoadOrCreate(P);
+
+        Assert.Equal("127.0.0.1", result.Settings.ListenAddress);
+        var message = Assert.Single(result.Messages);
+        Assert.Contains("ListenAddress", message);
+        Assert.Contains("0.0.0.0", message);
+    }
+
+    [Theory]
+    [InlineData("127.0.0.1")]
+    [InlineData("0.0.0.0")]
+    public void ListenAddress_AllowedValues_AreAcceptedWithoutMessage(string address)
+    {
+        File.WriteAllText(P, "{ \"ListenAddress\": \"" + address + "\" }");
+
+        var result = new SettingsStore().LoadOrCreate(P);
+
+        Assert.Equal(address, result.Settings.ListenAddress);
+        Assert.Empty(result.Messages);
+    }
+
+    [Fact]
+    public void StarterFile_ExplainsTheTwoAllowedAddresses()
+    {
+        Assert.Contains("\"0.0.0.0\"", SettingsStore.StarterText);
+        Assert.Contains("Only two values are allowed", SettingsStore.StarterText);
+    }
 }

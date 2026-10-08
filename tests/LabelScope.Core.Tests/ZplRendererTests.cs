@@ -261,4 +261,94 @@ public sealed class ZplRendererTests
         Assert.Equal(3654, label.HeightDots);
         Assert.Empty(r.Warnings);
     }
+
+    // ---- ^PM, ^FT graphics and default-size clamp ----------------------------------------------------------
+
+    [Fact]
+    public void PrintMirror_IsNotSupported_SoItWarns()
+    {
+        // ^PM mirrors the picture, so ignoring it silently would show a label that differs from the printed one.
+        var r = new ZplRenderer().Render("^XA^PW100^LL100^PMY^XZ", Opt);
+
+        Assert.Contains(r.Warnings, w => w.Message.Contains("^PM") && w.Message.Contains("not supported"));
+    }
+
+    [Theory]
+    [InlineData("^MNN")]
+    [InlineData("^MMT")]
+    [InlineData("^MDN")]
+    [InlineData("^MTT")]
+    [InlineData("^PR4")]
+    [InlineData("^JUS")]
+    public void CommandsWithoutVisualEffect_StayQuiet(string command)
+    {
+        var r = new ZplRenderer().Render($"^XA^PW100^LL100{command}^XZ", Opt);
+
+        Assert.Empty(r.Warnings);
+    }
+
+    [Fact]
+    public void FieldTypesetBox_HasItsBottomLeftCornerAtTheGivenPosition()
+    {
+        // ^FT100 with a 20 dot high box: it fills y 80..100, not 100..120.
+        var r = new ZplRenderer().Render("^XA^PW100^LL150^FT10,100^GB30,20,20^FS^XZ", Opt);
+
+        using var bmp = Decode(r.Labels[0]);
+        Assert.True(IsBlack(bmp, 20, 90));
+        Assert.True(IsBlack(bmp, 20, 81));
+        Assert.True(IsWhite(bmp, 20, 110)); // the place where ^FO would have drawn it
+        Assert.True(IsWhite(bmp, 20, 70));
+    }
+
+    [Fact]
+    public void FieldTypesetCircle_HasItsBottomLeftCornerAtTheGivenPosition()
+    {
+        // Diameter 40 at ^FT10,100 fills the square x 10..50, y 60..100; its centre is (30, 80).
+        var r = new ZplRenderer().Render("^XA^PW100^LL150^FT10,100^GC40,40^FS^XZ", Opt);
+
+        using var bmp = Decode(r.Labels[0]);
+        Assert.True(IsBlack(bmp, 30, 80));
+        Assert.True(IsWhite(bmp, 30, 120)); // where ^FO would have put the centre
+        Assert.True(IsWhite(bmp, 11, 61));  // corner of the bounding box stays empty
+    }
+
+    [Fact]
+    public void FieldOriginBox_IsStillDrawnBelowTheGivenPosition()
+    {
+        var r = new ZplRenderer().Render("^XA^PW100^LL150^FO10,100^GB30,20,20^FS^XZ", Opt);
+
+        using var bmp = Decode(r.Labels[0]);
+        Assert.True(IsBlack(bmp, 20, 110));
+        Assert.True(IsWhite(bmp, 20, 90));
+    }
+
+    [Fact]
+    public void DefaultWidthFromSettings_ThatIsTooLarge_IsCutWithAWarningNamingTheSetting()
+    {
+        var r = new ZplRenderer().Render("^XA^XZ", new RenderOptions(203, 5000, 100));
+
+        Assert.Equal(8000, r.Labels[0].WidthDots);
+        var warning = Assert.Single(r.Warnings);
+        Assert.Contains("DefaultLabelWidthMm", warning.Message);
+        Assert.DoesNotContain("DefaultLabelHeightMm", warning.Message);
+    }
+
+    [Fact]
+    public void DefaultHeightFromSettings_ThatIsTooSmall_IsRaisedWithAWarningNamingTheSetting()
+    {
+        var r = new ZplRenderer().Render("^XA^XZ", new RenderOptions(203, 100, 0.001));
+
+        Assert.Equal(1, r.Labels[0].HeightDots);
+        var warning = Assert.Single(r.Warnings);
+        Assert.Contains("DefaultLabelHeightMm", warning.Message);
+    }
+
+    [Fact]
+    public void DefaultSizeFromSettings_ThatIsOverriddenByPwAndLl_NeedsNoWarning()
+    {
+        // The settings value is never used here, so complaining about it would be noise.
+        var r = new ZplRenderer().Render("^XA^PW100^LL100^XZ", new RenderOptions(203, 5000, 5000));
+
+        Assert.Empty(r.Warnings);
+    }
 }

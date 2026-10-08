@@ -115,6 +115,9 @@ public partial class MainWindow : Window
             _listener.ProblemReported += OnProblemReported;
             _listener.Start();
             ListeningText.Text = $"Listening on {_settings.ListenAddress}:{_settings.ListenPort}";
+            if (_settings.ListenAddress == "0.0.0.0")
+                AddStartupNote("LabelScope accepts labels from other computers on your network (ListenAddress 0.0.0.0). " +
+                               "Windows may ask you to allow LabelScope through the firewall; answering that needs an administrator.");
         }
         catch (ListenerStartException ex)
         {

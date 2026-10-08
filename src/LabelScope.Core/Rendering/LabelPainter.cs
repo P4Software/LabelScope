@@ -25,7 +25,8 @@ internal sealed class LabelPainter : IDisposable
     private const int MaxCopies = 99_999_999; // the ZPL limit for ^PQ
 
     // Commands that change printer behaviour but not the picture; warning about them would be noise.
-    private static readonly HashSet<string> NoVisualEffect = new() { "^MN", "^MM", "^MD", "^MT", "^PR", "^JU", "^PM" };
+    // ^PM (print mirror) is deliberately not here: it flips the picture, so ignoring it silently would mislead.
+    private static readonly HashSet<string> NoVisualEffect = new() { "^MN", "^MM", "^MD", "^MT", "^PR", "^JU" };
 
     private readonly List<RenderWarning> _warnings;
     private readonly SKBitmap _bitmap;
@@ -81,8 +82,9 @@ internal sealed class LabelPainter : IDisposable
             if (cmd.Name == "^PW" && TryInt(Split(cmd.Args), 0, out var pw)) width = Clamp(pw, cmd, warnings);
             else if (cmd.Name == "^LL" && TryInt(Split(cmd.Args), 0, out var ll)) height = Clamp(ll, cmd, warnings);
         }
-        width = Clamp(width, null, warnings);
-        height = Clamp(height, null, warnings);
+        // A size that still comes from settings.json is clamped here; say which setting to fix.
+        width = Clamp(width, null, warnings, "DefaultLabelWidthMm");
+        height = Clamp(height, null, warnings, "DefaultLabelHeightMm");
 
         // Enforced before any allocation. The height is reduced because the width usually matches the print head.
         if ((long)width * height > MaxPixels)
@@ -96,11 +98,13 @@ internal sealed class LabelPainter : IDisposable
         return (width, height);
     }
 
-    private static int Clamp(int dots, ZplCommand? source, List<RenderWarning> warnings)
+    private static int Clamp(int dots, ZplCommand? source, List<RenderWarning> warnings, string? setting = null)
     {
         var clamped = Math.Clamp(dots, 1, MaxDots);
         if (clamped != dots && source is not null)
             warnings.Add(new(source.Line, $"{source.Name}{dots} is outside the supported label size (1 to {MaxDots} dots); {clamped} was used instead."));
+        else if (clamped != dots && setting is not null)
+            warnings.Add(new(1, $"The label size from {setting} in settings.json ({dots} dots) is outside the supported range (1 to {MaxDots} dots); {clamped} dots were used instead. Change {setting} in settings.json."));
         return clamped;
     }
 
@@ -255,18 +259,21 @@ internal sealed class LabelPainter : IDisposable
         if (Int(a, 4, 0) > 0)
             _warnings.Add(new(cmd.Line, "Rounded corners on ^GB are not supported yet; square corners are drawn."));
 
+        // For graphics ^FT names the bottom-left corner (for text it is the baseline), so the box grows upwards.
+        var y = _baseline ? _y - height : _y;
+
         using var paint = InkPaint(white);
         paint.IsAntialias = false; // boxes are made of whole dots on a real printer
         if (thickness * 2 >= Math.Min(width, height))
         {
-            _canvas.DrawRect(_x, _y, width, height, paint);
+            _canvas.DrawRect(_x, y, width, height, paint);
             return;
         }
         // Outline: four bars. Drawing them as rectangles keeps edges crisp.
-        _canvas.DrawRect(_x, _y, width, thickness, paint);
-        _canvas.DrawRect(_x, _y + height - thickness, width, thickness, paint);
-        _canvas.DrawRect(_x, _y + thickness, thickness, height - 2 * thickness, paint);
-        _canvas.DrawRect(_x + width - thickness, _y + thickness, thickness, height - 2 * thickness, paint);
+        _canvas.DrawRect(_x, y, width, thickness, paint);
+        _canvas.DrawRect(_x, y + height - thickness, width, thickness, paint);
+        _canvas.DrawRect(_x, y + thickness, thickness, height - 2 * thickness, paint);
+        _canvas.DrawRect(_x + width - thickness, y + thickness, thickness, height - 2 * thickness, paint);
     }
 
     private void DrawCircle(string[] a)
@@ -277,7 +284,9 @@ internal sealed class LabelPainter : IDisposable
 
         using var paint = InkPaint(white);
         var radius = diameter / 2f;
-        var centre = (X: _x + radius, Y: _y + radius);
+        // ^FT names the bottom-left corner of a graphic, so the circle's box grows upwards from _y.
+        var top = _baseline ? _y - diameter : _y;
+        var centre = (X: _x + radius, Y: top + radius);
         if (thickness >= radius)
         {
             _canvas.DrawCircle(centre.X, centre.Y, radius, paint);

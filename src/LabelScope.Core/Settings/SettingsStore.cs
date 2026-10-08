@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text;
 using System.Text.Json;
 
@@ -13,8 +12,9 @@ public sealed class SettingsStore
     /// <summary>The commented file written on first run. JSON allows no comments by spec, so we parse with comments enabled.</summary>
     public const string StarterText = """
         {
-          // Address LabelScope listens on. "127.0.0.1" = this computer only.
-          // Use "0.0.0.0" to also accept labels from other computers on your network.
+          // Address LabelScope listens on. Only two values are allowed:
+          // "127.0.0.1" = this computer only (the Windows printer always sends here).
+          // "0.0.0.0"   = also accept labels from other computers on your network.
           "ListenAddress": "127.0.0.1",
 
           // Port for incoming labels. 9100 is the standard label-printer port.
@@ -114,9 +114,12 @@ public sealed class SettingsStore
         // A fresh instance supplies the default for every key, so defaults are defined in one place only.
         var d = new AppSettings();
 
-        if (!IPAddress.TryParse(s.ListenAddress, out _))
+        // Only these two are meaningful: the Windows printer always forwards to 127.0.0.1, and 0.0.0.0 is the
+        // explicit choice to open the port to the network. Any other address (a specific network card, a name)
+        // would either break the printer or open the port in a way the user did not clearly ask for.
+        if (s.ListenAddress is not ("127.0.0.1" or "0.0.0.0"))
         {
-            messages.Add($"ListenAddress \"{s.ListenAddress}\" is not a valid IP address; \"{d.ListenAddress}\" is used instead.");
+            messages.Add($"ListenAddress \"{s.ListenAddress}\" is not allowed. Use \"127.0.0.1\" (this computer only) or \"0.0.0.0\" (also other computers on your network); \"{d.ListenAddress}\" is used instead.");
             s.ListenAddress = d.ListenAddress;
         }
         if (s.ListenPort is < 1 or > 65535)
