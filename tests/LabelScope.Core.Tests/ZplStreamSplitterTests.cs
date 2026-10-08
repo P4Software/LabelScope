@@ -150,4 +150,81 @@ public sealed class ZplStreamSplitterTests
         Assert.Equal(new[] { "^XA^FDOK^FS^XZ" }, labels);
         Assert.Null(s.Flush());
     }
+
+    // ---- Text encodings ------------------------------------------------------------------------------------
+
+    private static IReadOnlyList<string> FeedBytes(ZplStreamSplitter s, byte[] bytes) => s.Feed(bytes, bytes.Length);
+
+    [Fact]
+    public void Utf8Text_IsDecodedAsUtf8()
+    {
+        var bytes = Encoding.UTF8.GetBytes("^XA^FDAño^FS^XZ");
+
+        Assert.Equal(new[] { "^XA^FDAño^FS^XZ" }, FeedBytes(new ZplStreamSplitter(), bytes));
+    }
+
+    [Fact]
+    public void Windows1252Text_FallsBackToWindows1252()
+    {
+        // 0xF1 alone is "ñ" in Windows-1252 but is not valid UTF-8, so the strict UTF-8 attempt fails.
+        var bytes = new byte[] { (byte)'^', (byte)'X', (byte)'A', (byte)'^', (byte)'F', (byte)'D',
+                                 (byte)'A', 0xF1, (byte)'o', (byte)'^', (byte)'F', (byte)'S', (byte)'^', (byte)'X', (byte)'Z' };
+
+        Assert.Equal(new[] { "^XA^FDAño^FS^XZ" }, FeedBytes(new ZplStreamSplitter(), bytes));
+    }
+
+    [Fact]
+    public void Windows1252Text_SplitIntoTinyChunks_StillDecodes()
+    {
+        var bytes = new byte[] { (byte)'^', (byte)'X', (byte)'A', 0xE9, 0x80, (byte)'^', (byte)'X', (byte)'Z' };
+        var s = new ZplStreamSplitter();
+        var labels = new List<string>();
+        foreach (var b in bytes) labels.AddRange(s.Feed(new[] { b }, 1));
+
+        Assert.Equal(new[] { "^XAé€^XZ" }, labels); // 0xE9 = é, 0x80 = euro sign in Windows-1252
+    }
+
+    [Fact]
+    public void EachLabelIsDecodedOnItsOwn_SoUtf8AndWindows1252LabelsCanFollowEachOther()
+    {
+        var bytes = Encoding.UTF8.GetBytes("^XA^FDñ^FS^XZ").Concat(new byte[] { (byte)'^', (byte)'X', (byte)'A', 0xF1, (byte)'^', (byte)'X', (byte)'Z' }).ToArray();
+
+        var labels = FeedBytes(new ZplStreamSplitter(), bytes);
+
+        Assert.Equal(new[] { "^XA^FDñ^FS^XZ", "^XAñ^XZ" }, labels);
+    }
+
+    [Fact]
+    public void Utf8CharacterSplitAcrossManyChunks_StillDecodes()
+    {
+        var all = Encoding.UTF8.GetBytes("^XA^FD€日本^FS^XZ");
+        var s = new ZplStreamSplitter();
+        var labels = new List<string>();
+        foreach (var b in all) labels.AddRange(s.Feed(new[] { b }, 1));
+
+        Assert.Equal(new[] { "^XA^FD€日本^FS^XZ" }, labels);
+    }
+
+    [Fact]
+    public void AnyByteValues_NeverThrow()
+    {
+        // Every possible byte value, including the five that Windows-1252 leaves undefined (0x81, 0x8D, 0x8F, 0x90, 0x9D).
+        var all = Enumerable.Range(0, 256).Select(b => (byte)b).ToArray();
+        var s = new ZplStreamSplitter();
+
+        var labels = FeedBytes(s, all.Concat(Encoding.ASCII.GetBytes("^XZ")).ToArray());
+        var rest = s.Flush();
+
+        Assert.Single(labels);
+        Assert.Null(rest);
+    }
+
+    [Fact]
+    public void Flush_OfWindows1252Leftover_IsDecoded()
+    {
+        var s = new ZplStreamSplitter();
+        FeedBytes(s, new byte[] { (byte)'^', (byte)'X', (byte)'A', 0xF1 });
+
+        Assert.Equal("^XAñ", s.Flush());
+    }
 }

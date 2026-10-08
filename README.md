@@ -152,6 +152,7 @@ Any command that is not drawn is listed in the warnings list with its line numbe
 - **Barcodes are not drawn yet.** A warning is shown for each barcode command, and the barcode's data is drawn as plain text.
 - **Rotated text is not drawn yet.** `^A` with orientation R, I or B is drawn unrotated, with a warning. Rounded corners on `^GB` are drawn square, with a warning.
 - **Label size is capped** at 8000 dots per side and 40 million dots in total (a warning tells you when a label was cut down).
+- **Text encoding.** Each label is read as UTF-8 first. If it is not valid UTF-8 (many label programs and the Windows text-only printer driver send Windows-1252 text, where "ñ" is a single byte), it is read as Windows-1252 instead. Other code pages, such as CP850, may show wrong characters for accented letters.
 - **A single label larger than 16 MB without `^XZ` is discarded**, and a message is shown.
 
 ## Privacy and security
