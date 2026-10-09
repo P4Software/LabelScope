@@ -104,6 +104,10 @@ internal static class Code128Encoder
             if (pending >= 0 && !(item.Kind == 'c' && subset == 'C' && char.IsAsciiDigit(item.Value)))
                 throw new BarcodeDataException("In Code 128 subset C digits come in pairs, but a digit has no partner. Add a digit or switch subset before it.");
 
+            // SHIFT applies to the one character right after it; anything else there is a mistake in the data.
+            if (shifted && item.Kind != 'c')
+                throw new BarcodeDataException("The Code 128 shift code >4 must be followed directly by a character. Put the character right after >4.");
+
             switch (item.Kind)
             {
                 case 's':
@@ -122,9 +126,13 @@ internal static class Code128Encoder
                     shifted = true;
                     break;
                 case 'v':
-                    // Symbol values below 96 are plain characters, which subset C cannot hold.
-                    if (item.Value < 96 && subset == 'C')
-                        throw new BarcodeDataException("This Code 128 special code is a character and cannot be used in subset C. Switch to subset B first.");
+                    // Values 30 to 97 here are characters (>, ~, DEL) or FNC2/FNC3. Subset C codes 96 and 97 are digit
+                    // pairs, so none of them may be written there or they would silently turn into digits.
+                    if (subset == 'C')
+                        throw new BarcodeDataException("This Code 128 special code cannot be used in subset C, which holds digit pairs only. Use >6 to switch to subset B first.");
+                    // In subset A the values 94 and 95 are the control characters RS and US, not '~' and DEL.
+                    if (subset == 'A' && item.Value is (char)94 or (char)95)
+                        throw new BarcodeDataException("'~' and DEL exist only in subset B; start the data with >: or use >6 to switch to subset B before this code.");
                     values.Add(item.Value);
                     break;
                 default:
@@ -135,6 +143,8 @@ internal static class Code128Encoder
         }
         if (pending >= 0)
             throw new BarcodeDataException("In Code 128 subset C digits come in pairs, but the last digit has no partner.");
+        if (shifted)
+            throw new BarcodeDataException("The Code 128 shift code >4 must be followed directly by a character. Put the character right after >4.");
         return values;
     }
 
@@ -190,7 +200,14 @@ internal static class Code128Encoder
             items.Add(Item.Char((char)('0' + CheckDigits.Mod10(digits))));
         }
 
-        var text = string.Concat(items.Where(i => i.Kind == 'c').Select(i => i.Value));
+        // The human-readable line shows literal '>' (>0) and '~' (>=) too; DEL, FNC and SHIFT have nothing to print.
+        var text = string.Concat(items.Select(i => i.Kind switch
+        {
+            'c' => i.Value.ToString(),
+            'v' when i.Value == 30 => ">",
+            'v' when i.Value == 94 => "~",
+            _ => string.Empty,
+        }));
         return (Finish(Emit(start, items)), text);
     }
 
