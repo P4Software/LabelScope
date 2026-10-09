@@ -75,7 +75,12 @@ public static class UpdateInstaller
         try
         {
             if (!WinTrust.IsValid(path)) return false;
+            // SYSLIB0057 marks the file/byte loaders as obsolete in favour of X509CertificateLoader, but that class has
+            // no way to read the signer out of a signed .exe: CreateFromSignedFile is the only built-in call that does.
+            // The file's hash and certificate chain were already verified by WinTrust above, so this only reads the name.
+#pragma warning disable SYSLIB0057
             using var cert = new X509Certificate2(X509Certificate.CreateFromSignedFile(path));
+#pragma warning restore SYSLIB0057
             // Exact match on the parsed name, not a substring: "Evil Barrdega Sistemas NA LLC Ltd" must not pass.
             // The certificate is not pinned by thumbprint because Azure Artifact Signing certificates are short-lived
             // and renewed constantly; the chain check in WinTrust plus this exact name is what can be relied on.
