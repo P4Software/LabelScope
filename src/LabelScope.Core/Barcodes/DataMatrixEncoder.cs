@@ -119,18 +119,40 @@ internal static class DataMatrixEncoder
         return cw;
     }
 
-    /// <summary>The smallest symbol with room for <paramref name="codewords"/> that is at least minRows x minCols.</summary>
-    /// <exception cref="BarcodeDataException">The requested size is larger than any symbol, or no symbol is large enough for the data.</exception>
+    /// <summary>
+    /// The symbol for <paramref name="codewords"/> data codewords. Without a requested size (both minimums 0) it is
+    /// the smallest symbol that holds the data. With one, it is the smallest symbol at least minRows x minCols
+    /// (the requested size itself when it exists), and the data must fit in it.
+    /// </summary>
+    /// <exception cref="BarcodeDataException">
+    /// The requested size is larger than any symbol, the data does not fit the requested size, or no symbol is
+    /// large enough for the data.
+    /// </exception>
     internal static DmSize SelectSize(int codewords, bool rectangular, int minRows, int minCols)
     {
         // A requested size beyond the largest symbol of the shape is its own mistake; calling it "too much data"
-        // would send the user looking in the wrong place.
+        // would send the user looking in the wrong place. Only the dimension that is out of range is named.
+        var shape = rectangular ? "rectangular" : "square";
         var largest = Sizes.Where(s => s.IsRectangular == rectangular).MaxBy(s => s.Rows * s.Cols)!;
-        if (minRows > largest.Rows || minCols > largest.Cols)
+        var tooLarge = new List<string>();
+        if (minRows > largest.Rows) tooLarge.Add($"{minRows} rows");
+        if (minCols > largest.Cols) tooLarge.Add($"{minCols} columns");
+        if (tooLarge.Count > 0)
             throw new BarcodeDataException(
-                $"The requested size of {minRows} rows by {minCols} columns is larger than the largest {(rectangular ? "rectangular" : "square")} Data Matrix symbol ({largest.Rows} x {largest.Cols}). Ask for a smaller size, or leave rows and columns empty for the automatic size.");
+                $"The requested {string.Join(" and ", tooLarge)} is more than the largest {shape} Data Matrix symbol ({largest.Rows} x {largest.Cols}) has. Ask for a smaller size, or leave rows and columns empty for the automatic size.");
 
-        var size = Sizes.FirstOrDefault(s => s.IsRectangular == rectangular && s.DataCodewords >= codewords && s.Rows >= minRows && s.Cols >= minCols);
+        if (minRows > 0 || minCols > 0)
+        {
+            // A forced size: Zebra prints no symbol at all when the data does not fit it, so neither does LabelScope
+            // (drawing a bigger symbol would show something the printer never prints).
+            var forced = Sizes.First(s => s.IsRectangular == rectangular && s.Rows >= minRows && s.Cols >= minCols);
+            if (forced.DataCodewords < codewords)
+                throw new BarcodeDataException(
+                    $"The data does not fit the requested {forced.Rows} x {forced.Cols} Data Matrix symbol (it holds {forced.DataCodewords} codewords, the data needs {codewords}); the printer prints no symbol in this case. Ask for a larger size, or leave rows and columns empty for the automatic size.");
+            return forced;
+        }
+
+        var size = Sizes.FirstOrDefault(s => s.IsRectangular == rectangular && s.DataCodewords >= codewords);
         return size ?? throw new BarcodeDataException(rectangular
             ? "The data is too long for a rectangular Data Matrix symbol (the largest, 16 x 48, holds about 49 letters or 98 digits). Shorten the data or use the square shape."
             : "The data is too long for a Data Matrix symbol (the largest square symbol holds about 1550 letters or 3100 digits). Shorten the data.");
@@ -296,29 +318,43 @@ internal static class DataMatrixEncoder
         if (tokens.Count == 0) throw new BarcodeDataException("There is no data for the barcode.");
         var dataCodewords = EncodeAscii(tokens);
 
-        // Quality: omitted means the recommended ECC 200 (silently, a deliberate choice: Zebra's documented default
-        // is 0); 0 to 140 are the older convolutional codes, which are deferred and drawn as ECC 200.
+        // Quality: only 200 is drawn as written. Omitted (Zebra's default 0) and 0 to 140 are the older
+        // convolutional codes, which are deferred: they are drawn as ECC 200 with a warning.
         var notes = new List<string>();
         var qualityText = a.Text(2);
-        var quality = qualityText.Length == 0 ? 200 : a.Int(2, -1);
-        var minRows = a.Int(4, 0);
-        var minCols = a.Int(3, 0);
-        if (quality != 200)
+        var minRows = Math.Max(0, a.Int(4, 0));
+        var minCols = Math.Max(0, a.Int(3, 0));
+        if (qualityText.Length == 0)
         {
-            notes.Add(DocumentedQualities.Contains(quality)
-                ? $"Quality {quality} (the older ECC 000 to 140 symbols) is drawn as ECC 200 by LabelScope; it holds the same data and scans the same, but the pattern differs."
-                : $"Quality '{qualityText}' is not one of the documented values 0, 50, 80, 100, 140 or 200; the symbol is drawn as ECC 200. Use 200 for the recommended Data Matrix type.");
-
-            // Below 200 Zebra only accepts odd sizes (an even column count prints nothing), and those sizes do not
-            // exist in ECC 200, so the requested size is dropped for the automatic one.
-            if (minRows > 0 || minCols > 0)
+            // Zebra's documented default is 0 (ECC 000), which LabelScope does not draw; say so every time, since
+            // the printed label would carry a different, older symbol.
+            notes.Add("No quality was given, so the printer uses its default 0: an older ECC 000 symbol that many scanners cannot read. LabelScope draws it as ECC 200 instead. Add 200 as the third parameter (for example ^BXN,5,200) to get the recommended type.");
+        }
+        else
+        {
+            var quality = a.Int(2, -1);
+            if (quality != 200)
             {
-                notes.Add("The requested rows and columns were ignored and the automatic size was used.");
-                minRows = minCols = 0;
+                notes.Add(DocumentedQualities.Contains(quality)
+                    ? $"Quality {quality} is an older ECC 000 to 140 symbol that many scanners cannot read; LabelScope draws it as ECC 200 instead, so the printed pattern differs. Use quality 200 for the recommended type."
+                    : $"Quality '{qualityText}' is not one of the documented values 0, 50, 80, 100, 140 or 200; the symbol is drawn as ECC 200. Use 200 for the recommended Data Matrix type.");
+
+                // Below 200 Zebra only accepts odd sizes (an even column count prints nothing), and those sizes do
+                // not exist in ECC 200, so the requested size is dropped for the automatic one.
+                if (minRows > 0 || minCols > 0)
+                {
+                    notes.Add("The requested rows and columns were ignored and the automatic size was used.");
+                    minRows = minCols = 0;
+                }
             }
         }
 
         var size = SelectSize(dataCodewords.Count, a.Int(7, 1) == 2, minRows, minCols);
+
+        // A requested size that is not one of the standard sizes (25 x 25, an odd column count) is rounded up to
+        // the next one; the label then prints a different size than written, so the user is told.
+        if ((minRows > 0 && minRows != size.Rows) || (minCols > 0 && minCols != size.Cols))
+            notes.Add($"The requested size ({Dim(minRows, "rows")} by {Dim(minCols, "columns")}) is not a Data Matrix size; the next larger size, {size.Rows} x {size.Cols}, was drawn.");
         var matrix = BuildSymbol(size, Codewords(dataCodewords, size));
 
         // h = module size; empty or 0 means "fit the ^BY height into the rows", at least one dot.
@@ -332,4 +368,7 @@ internal static class DataMatrixEncoder
             Note = notes.Count == 0 ? null : string.Join(" ", notes),
         };
     }
+
+    /// <summary>"24 rows" for a requested dimension, "automatic rows" for one left empty.</summary>
+    private static string Dim(int value, string unit) => value > 0 ? $"{value} {unit}" : $"automatic {unit}";
 }
