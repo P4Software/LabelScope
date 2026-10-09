@@ -85,7 +85,7 @@ internal static class Code128Encoder
             else if (code == '8') items.Add(Item.Function1());
             else if (code == '4') items.Add(Item.Shift());
             else if (ExtraInvocations.TryGetValue(code, out var symbol)) items.Add(Item.Raw(symbol));
-            else throw new BarcodeDataException($"The Code 128 special code '>{code}' is not supported yet.");
+            else throw new BarcodeDataException($"The Code 128 special code '>{code}' is not a Code 128 special code. Remove it, or write >0 for a literal '>'.");
         }
         return (start, items);
     }
@@ -176,7 +176,9 @@ internal static class Code128Encoder
     internal static int[] Finish(List<int> values)
     {
         var sum = values[0];
-        for (var i = 1; i < values.Count; i++) sum += values[i] * i; // position weights start at 1 after the start character
+        // Position weights start at 1 after the start character. The sum is reduced modulo 103 at every step (the result
+        // is mathematically identical) so very long hostile data can never overflow the int.
+        for (var i = 1; i < values.Count; i++) sum = (sum + values[i] * (i % 103)) % 103;
         values.Add(sum % 103);
         values.Add(Stop);
         return values.ToArray();

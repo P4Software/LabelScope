@@ -47,7 +47,7 @@ public sealed class WinspoolPrinterLookup : IPrinterLookup
 
     /// <summary>The names of all printers, for diagnostics and tests.</summary>
     /// <exception cref="InvalidOperationException">The print system could not be asked.</exception>
-    public IReadOnlyList<string> ListNames() => Enumerate().Select(p => p.Name).ToList();
+    internal IReadOnlyList<string> ListNames() => Enumerate().Select(p => p.Name).ToList();
 
     private static List<PrinterEntry> Enumerate()
     {

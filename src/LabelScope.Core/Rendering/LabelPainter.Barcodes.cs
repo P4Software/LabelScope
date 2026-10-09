@@ -24,7 +24,7 @@ internal sealed partial class LabelPainter
         // WithArgs always goes through BarDefaults.Clamped, so absurd values can never reach the drawers.
         _by = _by.WithArgs(a, out var clamped);
         if (clamped)
-            _warnings.Add(new(cmd.Line, "^BY values were outside the allowed range and were adjusted: module width 1 to 10, ratio 2.0 to 3.0, height at least 1."));
+            _warnings.Add(new(cmd.Line, "^BY values were outside the allowed range and were adjusted: module width 1 to 10, ratio 2.0 to 3.0, height 1 to 32000."));
     }
 
     /// <summary>
@@ -48,10 +48,22 @@ internal sealed partial class LabelPainter
         return true;
     }
 
+    /// <summary>
+    /// Longest field data an encoder is asked to handle. Above every real symbol maximum (QR 7089 digits,
+    /// Data Matrix 3116, PDF417 2710), so valid data is never refused, while hostile input cannot cost
+    /// gigabytes or minutes inside an encoder.
+    /// </summary>
+    internal const int MaxBarcodeDataLength = 8000;
+
     private void DrawBarcode(string data)
     {
         if (data.Length == 0) return; // a field such as ^FD^FS has nothing to draw
         var req = _barcode!;
+        if (data.Length > MaxBarcodeDataLength)
+        {
+            _warnings.Add(new(req.Line, $"{req.Command}: The barcode data is {data.Length} characters long; no barcode holds more than about 7000. The barcode was not drawn."));
+            return;
+        }
         BarcodeField field;
         try
         {
@@ -60,6 +72,12 @@ internal sealed partial class LabelPainter
         catch (BarcodeDataException ex)
         {
             _warnings.Add(new(req.Line, $"{req.Command}: {ex.Message} The barcode was not drawn."));
+            return;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // An encoder bug must cost this one field, not the whole label (ZplRenderer.PaintSafely is the last resort).
+            _warnings.Add(new(req.Line, $"{req.Command}: This barcode could not be drawn because of an internal error; the rest of the label is shown."));
             return;
         }
         if (field.Note is not null) _warnings.Add(new(req.Line, $"{req.Command}: {field.Note}"));

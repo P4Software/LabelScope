@@ -103,7 +103,7 @@ internal static class CheckDigits
         var weight = 1;
         for (var i = values.Count - 1; i >= 0; i--)
         {
-            sum += values[i] * weight;
+            sum = (sum + values[i] * weight) % mod; // reduced at every step so very long data cannot overflow the int
             weight = weight == maxWeight ? 1 : weight + 1;
         }
         return sum % mod;

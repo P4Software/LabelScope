@@ -9,9 +9,6 @@ internal sealed class RunList
 {
     private readonly List<int> _runs = new();
 
-    /// <summary>True when the next element added will be a bar (false: a space).</summary>
-    public bool NextIsBar => _runs.Count % 2 == 0;
-
     /// <summary>Adds one element of <paramref name="dots"/> width.</summary>
     public RunList Add(int dots)
     {
@@ -77,5 +74,5 @@ internal sealed record LinearSymbol(
     IReadOnlySet<int>? GuardBars = null)
 {
     /// <summary>Total width in dots, from the left edge of the first bar to the right edge of the last.</summary>
-    public int Width => Runs.Sum();
+    public int Width => (int)Math.Min(int.MaxValue, Runs.Sum(r => (long)r)); // long sum, saturating: never throws on absurd input
 }
