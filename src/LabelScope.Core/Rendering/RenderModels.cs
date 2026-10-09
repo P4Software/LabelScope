@@ -11,7 +11,11 @@ public sealed record RenderOptions(int Dpi = 203, double LabelWidthMm = 101.6, d
 /// <param name="WidthDots">Width in printer dots.</param>
 /// <param name="HeightDots">Height in printer dots.</param>
 /// <param name="Copies">Number of copies requested with ^PQ (1 when absent).</param>
-public sealed record RenderedLabel(byte[] PngBytes, int WidthDots, int HeightDots, int Copies);
+/// <param name="WidthFromZpl">True when the width came from a ^PW in the ZPL; false when it fell back to settings.json.</param>
+/// <param name="HeightFromZpl">True when the height came from a ^LL in the ZPL; false when it fell back to settings.json.</param>
+/// <param name="Dpi">Dots per inch used to turn dots into millimetres (0 when unknown).</param>
+public sealed record RenderedLabel(byte[] PngBytes, int WidthDots, int HeightDots, int Copies,
+                                   bool WidthFromZpl = false, bool HeightFromZpl = false, int Dpi = 0);
 
 /// <summary>Something in the ZPL that could not be drawn as written.</summary>
 /// <param name="Line">1-based line in the ZPL text.</param>

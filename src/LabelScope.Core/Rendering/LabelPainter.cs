@@ -62,24 +62,27 @@ internal sealed class LabelPainter : IDisposable
     /// <summary>Paints one label block and returns its image.</summary>
     public static RenderedLabel Paint(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings)
     {
-        var (w, h) = ResolveSize(block, options, warnings);
+        var (w, h, widthFromZpl, heightFromZpl) = ResolveSize(block, options, warnings);
         using var painter = new LabelPainter(w, h, warnings);
         foreach (var cmd in block) painter.Handle(cmd);
-        return painter.ToResult(w, h);
+        return painter.ToResult(w, h, widthFromZpl, heightFromZpl, options.Dpi);
     }
 
     /// <summary>
     /// ^PW and ^LL usually come after ^XA, so the bitmap size must be known before drawing starts.
     /// </summary>
-    private static (int Width, int Height) ResolveSize(IReadOnlyList<ZplCommand> block, RenderOptions o, List<RenderWarning> warnings)
+    private static (int Width, int Height, bool WidthFromZpl, bool HeightFromZpl) ResolveSize(IReadOnlyList<ZplCommand> block, RenderOptions o, List<RenderWarning> warnings)
     {
         var width = (int)Math.Round(o.LabelWidthMm * o.Dpi / 25.4);
         var height = (int)Math.Round(o.LabelHeightMm * o.Dpi / 25.4);
+        // Remembered so the window can tell the user whether the sender declared the size or settings.json supplied it.
+        var widthFromZpl = false;
+        var heightFromZpl = false;
 
         foreach (var cmd in block)
         {
-            if (cmd.Name == "^PW" && TryInt(Split(cmd.Args), 0, out var pw)) width = Clamp(pw, cmd, warnings);
-            else if (cmd.Name == "^LL" && TryInt(Split(cmd.Args), 0, out var ll)) height = Clamp(ll, cmd, warnings);
+            if (cmd.Name == "^PW" && TryInt(Split(cmd.Args), 0, out var pw)) { width = Clamp(pw, cmd, warnings); widthFromZpl = true; }
+            else if (cmd.Name == "^LL" && TryInt(Split(cmd.Args), 0, out var ll)) { height = Clamp(ll, cmd, warnings); heightFromZpl = true; }
         }
         // A size that still comes from settings.json is clamped here; say which setting to fix.
         width = Clamp(width, null, warnings, "DefaultLabelWidthMm");
@@ -94,7 +97,7 @@ internal sealed class LabelPainter : IDisposable
                 $"The label size is too large to draw ({width} x {height} dots); it was cut to {width} x {cutHeight} dots. Check ^PW and ^LL."));
             height = cutHeight;
         }
-        return (width, height);
+        return (width, height, widthFromZpl, heightFromZpl);
     }
 
     private static int Clamp(int dots, ZplCommand? source, List<RenderWarning> warnings, string? setting = null)
@@ -315,7 +318,7 @@ internal sealed class LabelPainter : IDisposable
     /// <summary>Adds the label home to a field position and keeps the result in the safe range.</summary>
     private static int Offset(int home, int value) => Math.Clamp(home + value, -MaxCoordinate, MaxCoordinate);
 
-    private RenderedLabel ToResult(int width, int height)
+    private RenderedLabel ToResult(int width, int height, bool widthFromZpl, bool heightFromZpl, int dpi)
     {
         _canvas.Flush();
         // Encode straight from the bitmap's pixels: SKImage.FromBitmap on a mutable bitmap would copy the
@@ -323,7 +326,7 @@ internal sealed class LabelPainter : IDisposable
         using var pixmap = _bitmap.PeekPixels();
         using var data = pixmap.Encode(SKPngEncoderOptions.Default)
             ?? throw new InvalidOperationException("PNG encoding failed.");
-        return new RenderedLabel(data.ToArray(), width, height, _copies);
+        return new RenderedLabel(data.ToArray(), width, height, _copies, widthFromZpl, heightFromZpl, dpi);
     }
 
     /// <inheritdoc />

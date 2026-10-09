@@ -61,9 +61,28 @@ public sealed class LabelEntry
     public string Title => PlaceholderTitle ?? At.ToString("HH:mm:ss") + (Complete ? "" : "  (incomplete)");
     /// <summary>Second line in the history list.</summary>
     public string Subtitle => PlaceholderTitle is null ? $"{Label.WidthDots} x {Label.HeightDots} dots · {Source}" : $"{At:HH:mm:ss} · {Source}";
+    /// <summary>
+    /// Says where the label size came from: the sender's ^PW / ^LL, or the default size in settings.json
+    /// (used when the ZPL does not state it, as a real printer would use the size stored in the printer).
+    /// </summary>
+    public string SizeText
+    {
+        get
+        {
+            string Part(string name, int dots, bool fromZpl, string command)
+            {
+                var mm = Label.Dpi > 0 ? $" = {dots * 25.4 / Label.Dpi:0.#} mm" : "";
+                return $"{name} {dots} dots{mm} ({(fromZpl ? "sent by the program in " + command : "not in the ZPL, default from settings.json")})";
+            }
+            return Part("Width", Label.WidthDots, Label.WidthFromZpl, "^PW") + " · " +
+                   Part("Height", Label.HeightDots, Label.HeightFromZpl, "^LL") +
+                   (Label.Dpi > 0 ? $" · at {Label.Dpi} dpi" : "");
+        }
+    }
+
     /// <summary>One line for the info bar above the preview.</summary>
     public string Info => PlaceholderTitle is null
-        ? $"{Label.WidthDots} x {Label.HeightDots} dots · {Label.Copies} copy/copies requested · {Warnings.Count} warning(s)"
+        ? $"{SizeText} · {Label.Copies} copy/copies requested · {Warnings.Count} warning(s)"
         : $"{(PlaceholderTitle == PlaceholderLabel.NotDrawnTitle ? PlaceholderLabel.NotDrawnText : PlaceholderLabel.Text)} · {Warnings.Count} warning(s)";
 
     /// <summary>

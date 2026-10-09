@@ -5,7 +5,7 @@
 ; The printer itself is added from inside the app (it asks for administrator rights then).
 
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.1.1"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\publish\win-x64"
