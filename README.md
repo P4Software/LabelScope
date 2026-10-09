@@ -242,6 +242,7 @@ assets/                 Logo and icon
 | "A label larger than 16 MB was received without an end marker (^XZ) and was discarded" | The sender is not sending real labels, or never sends `^XZ`. Check the program that sends the labels. |
 | "A label arrived incomplete (no ^XZ at the end)" | The sender disconnected before sending `^XZ`. The label is shown as far as it arrived. |
 | A label looks different from the real printer | Fonts are approximated and some commands are not supported yet. Check the warnings list. |
+| LabelScope closed by itself, or showed "LabelScope hit an unexpected error" | LabelScope saved the technical details in `crash.log` next to the program (in the `logs` folder), or under `%LocalAppData%\LabelScope\logs` if the program folder is read-only. The file can contain file paths, including your Windows user name, so look at it before you email it to support. |
 | Something else | Press **Open log folder** and look at the newest file. |
 
 ## Third-party software

@@ -15,6 +15,8 @@ public partial class App : Application
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LabelScope", "logs"),
         appVersion: typeof(App).Assembly.GetName().Version?.ToString() ?? "");
 
+    private readonly ErrorDialogGuard _dialogGuard = new();
+
     /// <summary>Registers the error handlers before any window or background work exists.</summary>
     public App()
     {
@@ -36,25 +38,31 @@ public partial class App : Application
         {
             var ex = e.ExceptionObject as Exception ?? new Exception(e.ExceptionObject?.ToString() ?? "unknown error");
             var path = _crashLog.Write("fatal error on a background thread", ex);
-            try
-            {
-                Log.Fatal(ex, "Unhandled exception on a background thread");
-                Log.CloseAndFlush(); // the process is ending: push the log lines to disk now
-            }
-            catch
-            {
-                // Serilog may not be configured yet; the crash log above has the details.
-            }
-
             if (e.IsTerminating)
             {
+                try
+                {
+                    Log.Fatal(ex, "Unhandled exception on a background thread");
+                    Log.CloseAndFlush(); // the process is ending: push the log lines to disk now
+                }
+                catch
+                {
+                    // Serilog may not be configured yet; the crash log above has the details.
+                }
+
                 MessageBox.Show(
-                    "LabelScope hit an unexpected error and has to close.\n\n" + ex.Message + "\n\n" +
+                    "LabelScope hit an unexpected error and has to close.\n\n" + CrashLog.ShortMessage(ex.Message) + "\n\n" +
                     (path is null
                         ? "The details could not be saved."
                         : "The details were saved in:\n" + path) +
                     "\n\nStart LabelScope again to continue. If this keeps happening, send that file to support.",
                     "LabelScope", MessageBoxButton.OK, MessageBoxImage.Error);
+                // End the process ourselves: otherwise Windows adds its own "has stopped working" dialog after ours.
+                Environment.Exit(1);
+            }
+            else
+            {
+                Log.Error(ex, "Unhandled exception on a background thread (the program keeps running)");
             }
         }
         catch
@@ -87,20 +95,46 @@ public partial class App : Application
     {
         // Keep the window open no matter what happens below.
         e.Handled = true;
+        var dialogClaimed = false;
         try
         {
             var path = _crashLog.Write("error in the window", e.Exception);
             // Log may not be configured yet (the default logger discards silently), which is fine.
             Log.Error(e.Exception, "Unhandled error");
+
+            // Three errors in 30 seconds means the program is stuck in a loop: stop with one clear message
+            // instead of an endless stream of dialogs.
+            var loop = _dialogGuard.RecordAndCheckLoop();
+            // MessageBox keeps the message loop running, so a new error can arrive while a dialog is open:
+            // in that case only the log is written.
+            dialogClaimed = _dialogGuard.TryEnterDialog();
+            if (!dialogClaimed) return;
+
+            var where = path ?? "the log file (use \"Open log folder\" in LabelScope)";
+            if (loop)
+            {
+                MessageBox.Show(
+                    "LabelScope keeps running into errors and has to close.\n\n" +
+                    "The details were written to " + where + ".\n\nStart LabelScope again to continue. " +
+                    "If this keeps happening, send that file to support.",
+                    "LabelScope", MessageBoxButton.OK, MessageBoxImage.Error);
+                Shutdown(1);
+                return;
+            }
+
             MessageBox.Show(
                 "Something unexpected went wrong, but LabelScope is still running.\n\n" +
-                e.Exception.Message +
-                "\n\nThe details were written to " + (path ?? "the log file (use \"Open log folder\" in LabelScope)") + ".",
+                CrashLog.ShortMessage(e.Exception.Message) +
+                "\n\nThe details were written to " + where + ".",
                 "LabelScope", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch
         {
             // Nothing more can be done; staying alive is the goal.
+        }
+        finally
+        {
+            if (dialogClaimed) _dialogGuard.ExitDialog();
         }
     }
 }
