@@ -1,0 +1,214 @@
+namespace LabelScope.Core.Barcodes;
+
+/// <summary>Code 128 encoder following the ZPL rules for <c>^BC</c> (subsets A, B and C, invocation codes starting with '>').</summary>
+internal static class Code128Encoder
+{
+    private const int StartA = 103, StartB = 104, StartC = 105, Stop = 106, Fnc1 = 102, ShiftValue = 98;
+
+    /// <summary>
+    /// Bar and space widths of all 107 symbol characters in module units, bar first (values 0 to 105 have six
+    /// elements, the stop character 106 has seven). From ISO/IEC 15417; the test checks that every entry adds up to 11 modules.
+    /// </summary>
+    private static readonly string[] Patterns =
+    {
+        "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213",
+        "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132",
+        "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211",
+        "212123", "212321", "232121", "111323", "131123", "131321", "112313", "132113", "132311", "211313",
+        "231113", "231311", "112133", "112331", "132131", "113123", "113321", "133121", "313121", "211331",
+        "231131", "213113", "213311", "213131", "311123", "311321", "331121", "312113", "312311", "332111",
+        "314111", "221411", "431111", "111224", "111422", "121124", "121421", "141122", "141221", "112214",
+        "112412", "122114", "122411", "142112", "142211", "241211", "221114", "413111", "241112", "134111",
+        "111242", "121142", "121241", "114212", "124112", "124211", "411212", "421112", "421211", "212141",
+        "214121", "412121", "111143", "111341", "131141", "114113", "114311", "411113", "411311", "113141",
+        "114131", "311141", "411131", "211412", "211214", "211232", "2331112",
+    };
+
+    /// <summary>Exposes the table to the consistency test only.</summary>
+    internal static string[] PatternsForTests => Patterns;
+
+    /// <summary>Start code letters: <c>&gt;9</c> A, <c>&gt;:</c> B, <c>&gt;;</c> C.</summary>
+    private static readonly Dictionary<char, char> StartCodes = new() { ['9'] = 'A', [':'] = 'B', [';'] = 'C' };
+
+    /// <summary>Mid-data subset switches: <c>&gt;5</c> to C, <c>&gt;6</c> to B, <c>&gt;7</c> to A.</summary>
+    private static readonly Dictionary<char, char> SwitchCodes = new() { ['5'] = 'C', ['6'] = 'B', ['7'] = 'A' };
+
+    /// <summary>
+    /// Further codes from Zebra's invocation table (docs.zebra.com, ^BC page) with their Code 128 symbol value:
+    /// <c>&gt;0</c> a literal '>', <c>&gt;=</c> '~', <c>&gt;1</c> DEL, <c>&gt;2</c> FNC3, <c>&gt;3</c> FNC2.
+    /// <c>&gt;4</c> (SHIFT) needs special handling and is done in <see cref="Emit"/>. Values below 96 are
+    /// ordinary characters and only exist in subsets A and B.
+    /// </summary>
+    private static readonly Dictionary<char, int> ExtraInvocations = new()
+    {
+        ['0'] = 30, ['='] = 94, ['1'] = 95, ['2'] = 96, ['3'] = 97,
+    };
+
+    /// <summary>One piece of data after invocation codes were read: a character, FNC1, a subset switch, a shift or a raw symbol value.</summary>
+    internal readonly record struct Item(char Kind, char Value)
+    {
+        public static Item Char(char c) => new('c', c);
+        public static Item Function1() => new('f', '\0');
+        public static Item Switch(char subset) => new('s', subset);
+        public static Item Raw(int symbolValue) => new('v', (char)symbolValue);
+        public static Item Shift() => new('h', '\0');
+    }
+
+    /// <summary>Splits the data into items and finds the start subset (B unless the data begins with a start code).</summary>
+    internal static (char Start, List<Item> Items) ParseInvocations(string data)
+    {
+        var items = new List<Item>();
+        var start = 'B';
+        var i = 0;
+        if (data.Length >= 2 && data[0] == '>' && StartCodes.TryGetValue(data[1], out var s))
+        {
+            start = s;
+            i = 2;
+        }
+
+        while (i < data.Length)
+        {
+            var c = data[i];
+            if (c != '>')
+            {
+                items.Add(Item.Char(c));
+                i++;
+                continue;
+            }
+            if (i + 1 >= data.Length)
+                throw new BarcodeDataException("The data ends with '>', which starts a Code 128 special code. Add the code character after it, or remove the '>'.");
+
+            var code = data[i + 1];
+            i += 2;
+            if (StartCodes.TryGetValue(code, out var startSubset)) items.Add(Item.Switch(startSubset)); // start codes inside the data switch subset
+            else if (SwitchCodes.TryGetValue(code, out var subset)) items.Add(Item.Switch(subset));
+            else if (code == '8') items.Add(Item.Function1());
+            else if (code == '4') items.Add(Item.Shift());
+            else if (ExtraInvocations.TryGetValue(code, out var symbol)) items.Add(Item.Raw(symbol));
+            else throw new BarcodeDataException($"The Code 128 special code '>{code}' is not supported yet.");
+        }
+        return (start, items);
+    }
+
+    /// <summary>Turns items into symbol character values: the start character first, no check or stop yet.</summary>
+    internal static List<int> Emit(char start, IEnumerable<Item> items)
+    {
+        var values = new List<int> { start switch { 'A' => StartA, 'C' => StartC, _ => StartB } };
+        var subset = start;
+        var pending = -1; // first digit of a subset C pair
+        var shifted = false; // SHIFT: the next single character comes from the other of A and B
+
+        foreach (var item in items)
+        {
+            // A half pair must be completed by the very next digit.
+            if (pending >= 0 && !(item.Kind == 'c' && subset == 'C' && char.IsAsciiDigit(item.Value)))
+                throw new BarcodeDataException("In Code 128 subset C digits come in pairs, but a digit has no partner. Add a digit or switch subset before it.");
+
+            switch (item.Kind)
+            {
+                case 's':
+                    if (item.Value != subset)
+                    {
+                        values.Add(item.Value switch { 'A' => 101, 'B' => 100, _ => 99 });
+                        subset = item.Value;
+                    }
+                    shifted = false;
+                    break;
+                case 'f': values.Add(Fnc1); break;
+                case 'h':
+                    if (subset == 'C')
+                        throw new BarcodeDataException("The Code 128 shift code >4 only works in subset A or B. Switch to one of them first.");
+                    values.Add(ShiftValue);
+                    shifted = true;
+                    break;
+                case 'v':
+                    // Symbol values below 96 are plain characters, which subset C cannot hold.
+                    if (item.Value < 96 && subset == 'C')
+                        throw new BarcodeDataException("This Code 128 special code is a character and cannot be used in subset C. Switch to subset B first.");
+                    values.Add(item.Value);
+                    break;
+                default:
+                    EmitCharacter(values, shifted ? (subset == 'A' ? 'B' : 'A') : subset, item.Value, ref pending);
+                    shifted = false;
+                    break;
+            }
+        }
+        if (pending >= 0)
+            throw new BarcodeDataException("In Code 128 subset C digits come in pairs, but the last digit has no partner.");
+        return values;
+    }
+
+    private static void EmitCharacter(List<int> values, char subset, char c, ref int pending)
+    {
+        switch (subset)
+        {
+            case 'C':
+                if (!char.IsAsciiDigit(c))
+                    throw new BarcodeDataException($"Code 128 subset C holds digits only, but the data contains {Describe(c)}. Use >6 to switch to subset B first.");
+                if (pending < 0) pending = c - '0';
+                else { values.Add(pending * 10 + (c - '0')); pending = -1; }
+                break;
+            case 'A':
+                if (c is >= ' ' and <= '_') values.Add(c - 32);
+                else if (c < ' ') values.Add(c + 64);
+                else throw new BarcodeDataException($"{Describe(c)} cannot be written in Code 128 subset A. Use >6 to switch to subset B before it.");
+                break;
+            default:
+                if (c is >= ' ' and <= (char)127) values.Add(c - 32);
+                else throw new BarcodeDataException($"{Describe(c)} cannot be written in Code 128 subset B. Use >7 to switch to subset A before it.");
+                break;
+        }
+    }
+
+    private static string Describe(char c) => c < ' ' ? $"the control character 0x{(int)c:X2}" : $"the character '{c}'";
+
+    /// <summary>Appends the Mod 103 check character and the stop character.</summary>
+    internal static int[] Finish(List<int> values)
+    {
+        var sum = values[0];
+        for (var i = 1; i < values.Count; i++) sum += values[i] * i; // position weights start at 1 after the start character
+        values.Add(sum % 103);
+        values.Add(Stop);
+        return values.ToArray();
+    }
+
+    /// <summary>All symbol character values (start, data, check, stop) for <paramref name="data"/>.</summary>
+    internal static int[] Values(string data, char mode, bool uccCheck) => Prepare(data, mode, uccCheck).Values;
+
+    private static (int[] Values, string Text) Prepare(string data, char mode, bool uccCheck)
+    {
+        var (start, items) = mode switch
+        {
+            'N' => ParseInvocations(data),
+            _ => throw new BarcodeDataException($"Code 128 mode {mode} is not supported yet."),
+        };
+
+        if (uccCheck)
+        {
+            // e = Y: a Mod 10 check digit is added to the data before the Mod 103 check is computed.
+            var digits = string.Concat(items.Where(i => i.Kind == 'c').Select(i => i.Value));
+            items.Add(Item.Char((char)('0' + CheckDigits.Mod10(digits))));
+        }
+
+        var text = string.Concat(items.Where(i => i.Kind == 'c').Select(i => i.Value));
+        return (Finish(Emit(start, items)), text);
+    }
+
+    /// <summary>Encodes <paramref name="data"/> as a Code 128 symbol with the bar widths of <paramref name="by"/>.</summary>
+    /// <exception cref="BarcodeDataException">The data cannot be written in Code 128.</exception>
+    public static LinearSymbol Encode(string data, char mode, bool uccCheck, BarDefaults by)
+    {
+        var (values, text) = Prepare(data, mode, uccCheck);
+        var runs = new RunList();
+        foreach (var v in values) runs.AddUnits(Patterns[v], by.Narrow);
+        return new LinearSymbol(runs.ToArray(), text);
+    }
+
+    /// <summary>Factory entry for <c>^BCo,h,f,g,e,m</c>.</summary>
+    public static BarcodeField Build(BarcodeArgs a, string data) =>
+        new LinearField(
+            Encode(data, a.Letter(5, 'N'), a.Flag(4, false), a.By),
+            new BarcodeLook(a.Height(1), a.Flag(2, true), a.Flag(3, false)),
+            a.By.Narrow,
+            a.Orientation);
+}

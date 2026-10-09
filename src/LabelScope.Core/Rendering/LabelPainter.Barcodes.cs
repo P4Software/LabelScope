@@ -50,6 +50,7 @@ internal sealed partial class LabelPainter
 
     private void DrawBarcode(string data)
     {
+        if (data.Length == 0) return; // a field such as ^FD^FS has nothing to draw
         var req = _barcode!;
         BarcodeField field;
         try

@@ -20,7 +20,8 @@ internal static class BarcodeFactory
     /// </summary>
     private static readonly Dictionary<string, Func<BarcodeArgs, string, BarcodeField>> Encoders = new()
     {
-        // (filled in by Tasks 6 to 14)
+        ["^BC"] = Code128Encoder.Build,
+        // (further symbologies are added by Tasks 7 to 14)
     };
 
     /// <summary>Symbologies that exist in ZPL but are planned for plan 4; see the deferral table of plan 2.</summary>
