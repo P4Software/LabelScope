@@ -255,4 +255,4 @@ LabelScope uses SkiaSharp, Serilog, ZXing.Net and the .NET runtime, and credits 
 
 Zebra® and ZPL® are trademarks of Zebra Technologies Corporation. LabelScope is an independent product by P4 Software and is not affiliated with or endorsed by Zebra Technologies.
 
-The licence has not been chosen yet. Until it is, all rights are reserved.
+LabelScope is free software under the [MIT licence](LICENSE): you may use, copy, change and share it, including in commercial work, as long as the copyright notice and licence text stay with it. The libraries it uses keep their own licences, listed in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt).

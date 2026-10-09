@@ -12,6 +12,7 @@
     <Version>0.2.0</Version>
     <Product>LabelScope</Product>
     <Company>P4 Software</Company>
+    <Copyright>Copyright (c) 2026 P4 Software. MIT licence.</Copyright>
     <!-- Per-monitor DPI awareness and asInvoker execution level; see the comments in the manifest. -->
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
