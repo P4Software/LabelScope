@@ -85,7 +85,7 @@ internal static class Code128Encoder
             else if (code == '8') items.Add(Item.Function1());
             else if (code == '4') items.Add(Item.Shift());
             else if (ExtraInvocations.TryGetValue(code, out var symbol)) items.Add(Item.Raw(symbol));
-            else throw new BarcodeDataException($"The Code 128 special code '>{code}' is not a Code 128 special code. Remove it, or write >0 for a literal '>'.");
+            else throw new BarcodeDataException($"'>{code}' is not a Code 128 special code. Remove it, or write >0 for a literal '>'.");
         }
         return (start, items);
     }

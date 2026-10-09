@@ -81,7 +81,7 @@ internal static class Pdf417Encoder
 
         throw new BarcodeDataException(rows > 0
             ? $"The data does not fit {rows} PDF417 rows (at most {MaxColumns} columns) at security level {security}; the printer prints no symbol in this case. Ask for more rows, lower the security level, or shorten the data."
-            : $"The data is too long for a PDF417 symbol at security level {security} (about 1100 bytes fit at most, fewer at higher security levels). Lower the security level or shorten the data.");
+            : $"The data is too long for a PDF417 symbol at security level {security}. At the default level about 2700 digits, 1800 letters or 1100 bytes (accented or other special characters) fit at most, and fewer fit at higher security levels. Shorten the data or lower the security level (the s value of ^B7).");
     }
 
     /// <summary>The message for a size above <see cref="MaxCells"/>.</summary>
@@ -105,8 +105,9 @@ internal static class Pdf417Encoder
 
     /// <summary>
     /// Runs ZXing's PDF417 writer for exactly <paramref name="columns"/> data columns and <paramref name="minRows"/>
-    /// to <paramref name="maxRows"/> rows. Returns null when the data does not fit (the library's WriterException);
-    /// any other exception is a fault and is not hidden.
+    /// to <paramref name="maxRows"/> rows. Returns null when the data does not fit (the library's WriterException,
+    /// or the IndexOutOfRangeException / ArgumentException it throws near its capacity); any other exception is a
+    /// fault and is not hidden.
     /// </summary>
     private static BitMatrix? TryEncode(string bytes, int security, int columns, int minRows, int maxRows, bool truncate)
     {
@@ -125,9 +126,15 @@ internal static class Pdf417Encoder
         {
             zx = new PDF417Writer().encode(bytes, BarcodeFormat.PDF_417, 0, 0, options.Hints);
         }
-        catch (WriterException)
+        catch (Exception e) when (e is WriterException or IndexOutOfRangeException or ArgumentException)
         {
-            return null;    // "unable to fit message in columns" or "message too big"
+            // WriterException: "unable to fit message in columns" or "message too big". Close to the capacity
+            // (roughly 2665 digits or 1800 letters) the library's low-level encoder runs
+            // past the end of its own codeword array instead and throws IndexOutOfRangeException; oversize input
+            // can also surface as an ArgumentException (which includes ArgumentOutOfRangeException). All of them
+            // mean the data does not fit in this column count, so the caller tries the next one (a wider symbol
+            // does hold it: the standard's maximum of 2710 digits is reached that way). Only these types are caught, so a real fault is still not hidden.
+            return null;
         }
 
         // The writer turns a symbol with fewer modules across than rows on its side. An upright symbol has the
