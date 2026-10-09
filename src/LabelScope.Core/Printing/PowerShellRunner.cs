@@ -48,8 +48,11 @@ public sealed class PowerShellRunner : IPowerShellRunner
                 // Cancelled by the caller or by the installer's timeout: do not leave a hidden PowerShell running.
                 // Only the process object this runner started is touched. An elevated process cannot be ended
                 // from this unelevated program; Windows then refuses and the script simply finishes on its own.
+                // Ending the process is best effort, so ANY failure is ignored. Killing an elevated process is refused
+                // with an AggregateException (not a plain Win32Exception); letting it escape would hide the real
+                // reason (timeout or cancel) behind "One or more errors occurred".
                 try { process.Kill(entireProcessTree: true); }
-                catch (Exception killError) when (killError is Win32Exception or InvalidOperationException or NotSupportedException) { /* already gone, or not ours to end */ }
+                catch (Exception) { /* already gone, or not ours to end */ }
                 throw;
             }
             // Trim a leading BOM too: Out-File -Encoding utf8 writes one on Windows PowerShell 5.1.

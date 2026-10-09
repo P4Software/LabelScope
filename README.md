@@ -117,9 +117,9 @@ $client.Close()
 
 ### Where to put the program
 
-Keep LabelScope in a folder you can write to, for example `C:abelscope` or your documents folder, and not in `program files`: it writes `settings.json` and its `logs` folder next to itself. listening on `0.0.0.0` can make windows show a firewall prompt, and answering it needs an administrator.
+Keep LabelScope in a folder you can write to, for example `C:\LabelScope` or your Documents folder, and not in `Program Files`: it writes `settings.json` and its `logs` folder next to itself. Listening on `0.0.0.0` can make Windows show a firewall prompt, and answering it needs an administrator.
 
-## settings
+## Settings
 
 On first start LabelScope creates `settings.json` next to the program, with an explanation for every option. If a value is wrong it falls back to a safe default and tells you which setting to fix.
 
@@ -222,7 +222,10 @@ assets/                 Logo and icon
 | "A printer named ... already exists and was not created by LabelScope" | LabelScope will not touch printers it did not create. Choose a different `PrinterName` in `settings.json` and restart. |
 | "PrinterName in settings.json is too long" or "must not contain a backslash, a slash, ..." | Shorten the name (60 characters at most) or remove the forbidden characters, then restart LabelScope. |
 | "LabelScope could not check which printers are installed" | Check that the Windows "Print Spooler" service is running, then try again. |
-| "The printer could not be installed: ..." | Check that the Windows "Print Spooler" service is running, then try again. Details are in the log. |
+| "The printer could not be installed: ..." | Read the reason in the message. If it mentions the print spooler, check that the Windows "Print Spooler" service is running. Then try again; if it keeps failing, show the message to your administrator. Details are in the log. |
+| A history entry titled "No label found" | The data that arrived had no `^XA ... ^XZ` block (for example a status request, or a normal document printed to the LabelScope printer). The raw text is shown on the right. |
+| A history entry titled "Label not drawn" | The data had a label start (`^XA`) but nothing could be drawn from it. Check the warnings list under the raw ZPL. |
+| "LabelScope is busy: too many programs are sending labels at once" | More than 16 programs were connected at the same time and new connections were refused. Wait a moment and send again. |
 | "The settings file could not be read ..." | There is a typo in `settings.json`. Fix it, or delete the file to get a fresh one, then restart. Standard settings are used meanwhile. |
 | "ListenAddress ... is not allowed" or "... is not between 1 and 65535" | A setting had a wrong value and the default was used. Fix the named setting and restart. |
 | "A label larger than 16 MB was received without an end marker (^XZ) and was discarded" | The sender is not sending real labels, or never sends `^XZ`. Check the program that sends the labels. |

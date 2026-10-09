@@ -193,6 +193,10 @@ public sealed class ZplListener : IDisposable
                     idle.CancelAfter(IdleTimeout);
                     var read = await stream.ReadAsync(buffer, idle.Token);
                     if (read <= 0) break;
+                    // The sender just proved it is alive. Stop the idle timer while we process what arrived: handling
+                    // can wait for the render gate for a long time under load, and that wait must not count as the
+                    // sender being idle (it would cut off an active sender and flush its label as incomplete).
+                    idle.CancelAfter(Timeout.InfiniteTimeSpan);
                     foreach (var zpl in splitter.Feed(buffer, read))
                         Raise(LabelReceived, new ReceivedLabel(zpl, DateTimeOffset.Now, source, true));
                 }

@@ -5,11 +5,20 @@ namespace LabelScope.Core.Rendering;
 /// <summary>Makes the small picture shown when received data did not produce a label.</summary>
 public static class PlaceholderLabel
 {
-    /// <summary>The text drawn on the picture.</summary>
+    /// <summary>The text drawn on the picture when the data contains no label at all.</summary>
     public const string Text = "No label (^XA ... ^XZ) in this data";
 
-    /// <summary>Draws <see cref="Text"/> in grey on white and returns it as a PNG, so it fits the normal history entry.</summary>
-    public static RenderedLabel Create()
+    /// <summary>The text drawn when the data has a label start (^XA) but no picture could be drawn from it.</summary>
+    public const string NotDrawnText = "This label could not be drawn";
+
+    /// <summary>The history title for data without any label.</summary>
+    public const string NotFoundTitle = "No label found";
+
+    /// <summary>The history title for a label that exists but could not be drawn.</summary>
+    public const string NotDrawnTitle = "Label not drawn";
+
+    /// <summary>Draws <paramref name="text"/> (default <see cref="Text"/>) in grey on white and returns it as a PNG, so it fits the normal history entry.</summary>
+    public static RenderedLabel Create(string text = Text)
     {
         const int width = 420, height = 120;
         using var bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
@@ -24,8 +33,8 @@ public static class PlaceholderLabel
             using var font = new SKFont(typeface, 20);
             using var ink = new SKPaint { Color = new SKColor(0x60, 0x60, 0x60), IsAntialias = true };
             using var measure = new SKPaint(font);
-            var textWidth = measure.MeasureText(Text);
-            canvas.DrawText(Text, (width - textWidth) / 2, height / 2f + 7, font, ink);
+            var textWidth = measure.MeasureText(text);
+            canvas.DrawText(text, (width - textWidth) / 2, height / 2f + 7, font, ink);
         }
 
         using var pixmap = bitmap.PeekPixels();

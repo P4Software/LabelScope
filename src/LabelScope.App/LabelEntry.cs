@@ -55,7 +55,7 @@ public sealed class LabelEntry
     /// <summary>One line for the info bar above the preview.</summary>
     public string Info => PlaceholderTitle is null
         ? $"{Label.WidthDots} x {Label.HeightDots} dots · {Label.Copies} copy/copies requested · {Warnings.Count} warning(s)"
-        : $"{PlaceholderLabel.Text} · {Warnings.Count} warning(s)";
+        : $"{(PlaceholderTitle == PlaceholderLabel.NotDrawnTitle ? PlaceholderLabel.NotDrawnText : PlaceholderLabel.Text)} · {Warnings.Count} warning(s)";
 
     /// <summary>
     /// Decodes the PNG into a frozen image that WPF can show. The caller should keep only the image of

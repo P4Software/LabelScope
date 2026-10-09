@@ -156,7 +156,8 @@ public partial class MainWindow : Window
                 // Without any ^XA the data holds no label at all; with one, the label exists but could not be drawn.
                 var hasStart = received.Zpl.Contains("^XA", StringComparison.OrdinalIgnoreCase);
                 entries.Add(new LabelEntry(received.ReceivedAt, received.Source, received.Zpl, received.Complete,
-                    PlaceholderLabel.Create(), result.Warnings, hasStart ? "Label not drawn" : "No label found"));
+                    PlaceholderLabel.Create(hasStart ? PlaceholderLabel.NotDrawnText : PlaceholderLabel.Text),
+                    result.Warnings, hasStart ? PlaceholderLabel.NotDrawnTitle : PlaceholderLabel.NotFoundTitle));
                 note = hasStart
                     ? "Data arrived but no label picture could be drawn from it. The raw text and the reasons are shown on the right."
                     : "Data arrived but it contained no label (^XA ... ^XZ). The raw text is shown on the right.";

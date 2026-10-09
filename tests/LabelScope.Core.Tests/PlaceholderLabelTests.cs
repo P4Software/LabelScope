@@ -24,4 +24,15 @@ public sealed class PlaceholderLabelTests
                 inked = bitmap.GetPixel(x, y) != SKColors.White;
         Assert.True(inked);
     }
+
+    [Fact]
+    public void Create_WithOtherText_DrawsADifferentPicture()
+    {
+        // A label that could not be drawn must not carry the "no label in this data" message.
+        var none = PlaceholderLabel.Create();
+        var notDrawn = PlaceholderLabel.Create(PlaceholderLabel.NotDrawnText);
+
+        Assert.NotEqual(none.PngBytes, notDrawn.PngBytes);
+        Assert.NotEqual(PlaceholderLabel.Text, PlaceholderLabel.NotDrawnText);
+    }
 }

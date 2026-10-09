@@ -235,6 +235,38 @@ public sealed class ZplListenerTests
     }
 
     [Fact]
+    public async Task SlowHandling_DoesNotCountAsTheSenderBeingIdle()
+    {
+        // Handling a label can take a long time under load (waiting for the render gate). That time must not
+        // count against the sender: an active sender must not be cut off and must not lose its next label.
+        using var listener = new ZplListener(IPAddress.Loopback, 0) { IdleTimeout = TimeSpan.FromMilliseconds(300) };
+        var q = new BlockingCollection<ReceivedLabel>();
+        var first = true;
+        listener.LabelReceived += label =>
+        {
+            if (first)
+            {
+                first = false;
+                Thread.Sleep(900); // three times the idle timeout, spent inside the subscriber
+            }
+            q.Add(label);
+        };
+        listener.Start();
+
+        using var client = new TcpClient();
+        await client.ConnectAsync(IPAddress.Loopback, listener.LocalPort);
+        var stream = client.GetStream();
+        await stream.WriteAsync(Encoding.UTF8.GetBytes("^XA^FDone^FS^XZ"));
+        await Task.Delay(100); // the first label is now being handled (slowly)
+        await stream.WriteAsync(Encoding.UTF8.GetBytes("^XA^FDtwo^FS^XZ"));
+
+        var got = await WaitFor(q, 2);
+        Assert.Equal(2, got.Count);
+        Assert.All(got, l => Assert.True(l.Complete));
+        Assert.Contains("two", got[1].Zpl);
+    }
+
+    [Fact]
     public async Task ClientResetBeforeSendingAnything_DoesNotStopTheListener()
     {
         using var listener = new ZplListener(IPAddress.Loopback, 0);
