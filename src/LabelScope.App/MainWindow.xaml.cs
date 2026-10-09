@@ -16,7 +16,7 @@ using Serilog;
 
 namespace LabelScope.App;
 
-/// <summary>The single window: history, label picture and raw ZPL side by side.</summary>
+/// <summary>The single window: history, label picture and ZPL side by side.</summary>
 public partial class MainWindow : Window
 {
     private readonly string _settingsPath = Path.Combine(AppContext.BaseDirectory, "settings.json");
@@ -140,10 +140,16 @@ public partial class MainWindow : Window
             var options = new RenderOptions(_settings.DefaultDpi, _settings.DefaultLabelWidthMm, _settings.DefaultLabelHeightMm);
             // Format first and draw THE FORMATTED TEXT: warnings carry line numbers, and they must point at the
             // lines the user sees. Formatting does not change the picture (ZPL ignores line breaks).
-            var formatted = ZplFormatter.Format(received.Zpl);
+            // Formatting copies the whole text, so it waits for the same gate as drawing: a flood of very large
+            // labels must not be able to hold many extra copies in memory at once.
+            string formatted;
             RenderResult result;
             _renderGate.Wait();
-            try { result = _renderer.Render(formatted, options); }
+            try
+            {
+                formatted = ZplFormatter.Format(received.Zpl);
+                result = _renderer.Render(formatted, options);
+            }
             finally { _renderGate.Release(); }
             Log.Information("Label received from {Source}: {Labels} image(s), {Warnings} warning(s), complete={Complete}",
                 received.Source, result.Labels.Count, result.Warnings.Count, received.Complete);
@@ -162,8 +168,8 @@ public partial class MainWindow : Window
                     PlaceholderLabel.Create(hasStart ? PlaceholderLabel.NotDrawnText : PlaceholderLabel.Text),
                     result.Warnings, hasStart ? PlaceholderLabel.NotDrawnTitle : PlaceholderLabel.NotFoundTitle));
                 note = hasStart
-                    ? "Data arrived but no label picture could be drawn from it. The raw text and the reasons are shown on the right."
-                    : "Data arrived but it contained no label (^XA ... ^XZ). The raw text is shown on the right.";
+                    ? "Data arrived but no label picture could be drawn from it. The ZPL text and the reasons are shown on the right."
+                    : "Data arrived but it contained no label (^XA ... ^XZ). The ZPL text is shown on the right.";
             }
             else if (!received.Complete)
             {
@@ -355,7 +361,7 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    /// <summary>Clicking a warning selects the offending line in the raw ZPL and scrolls to it.</summary>
+    /// <summary>Clicking a warning selects the offending line in the ZPL and scrolls to it.</summary>
     private void OnWarningSelected(object sender, SelectionChangedEventArgs e)
     {
         if (WarningList.SelectedItem is not RenderWarning warning) return;

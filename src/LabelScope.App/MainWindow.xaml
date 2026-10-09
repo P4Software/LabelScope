@@ -45,7 +45,7 @@
       </ListBox>
       <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
 
-      <!-- Label picture (left) and raw ZPL (right), always visible together -->
+      <!-- Label picture (left) and ZPL (right), always visible together -->
       <Grid Grid.Column="2">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" MinWidth="200"/>

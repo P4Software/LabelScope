@@ -35,7 +35,7 @@
 
 Warehouse, shipping and retail systems print labels by sending **ZPL** (Zebra Programming Language) text to a label printer. Testing that output normally needs a real printer, a roll of labels and a lot of wasted paper.
 
-LabelScope pretends to be that printer. It installs a normal Windows printer, receives the ZPL, draws the label on screen and shows you the raw ZPL next to it, so you can check a label in seconds.
+LabelScope pretends to be that printer. It installs a normal Windows printer, receives the ZPL, draws the label on screen and shows you the ZPL next to it, so you can check a label in seconds.
 
 ## Who is it for?
 
@@ -57,7 +57,7 @@ LabelScope pretends to be that printer. It installs a normal Windows printer, re
                                           └────────────────┬────────────────┘
                                                            ▼
                                       ┌───────────────────────────────────────┐
-                                      │  label picture   │   raw ZPL text      │
+                                      │  label picture   │   ZPL text          │
                                       │  (zoom, save)    │   (line numbers,    │
                                       │                  │    warnings)        │
                                       └───────────────────────────────────────┘
@@ -74,7 +74,7 @@ LabelScope pretends to be that printer. It installs a normal Windows printer, re
 | **Windows printer** | One button installs (and removes) a printer you can pick in any program. |
 | **Network input** | Listens on a TCP port (default 9100) for ZPL from other programs or computers. |
 | **Offline rendering** | Draws labels itself. No online service, no usage limits, no label data leaving the computer. |
-| **Label and ZPL side by side** | The picture and the raw ZPL are visible at the same time, with line numbers. |
+| **Label and ZPL side by side** | The picture and the ZPL are visible at the same time, with line numbers. |
 | **Plain-language warnings** | Commands that cannot be drawn are listed with their line. Click one to jump to it. |
 | **History** | Every received label is kept in a list, newest first. |
 | **Export** | Save a label as a PNG or copy it to the clipboard. |
@@ -94,7 +94,7 @@ To remove the printer again, press **Remove printer**. LabelScope only ever remo
 
 - **Left: history list.** Every received label, newest first, showing the time, the size in dots and the sender address. A label that arrived without its closing `^XZ` is marked "(incomplete)". The list keeps the newest `HistoryLimit` labels.
 - **Middle: the label picture**, with a **Fit to window** box and a **Zoom** slider (moving the slider switches fit off). A line above the picture shows the size in dots, the number of copies requested (`^PQ`) and the number of warnings.
-- **Right: the raw ZPL**, shown formatted with one command group per line (a field such as `^FO50,50^A0N,60,60^FDHello^FS` stays on one line) and with line numbers, side by side with the picture. The **Copy** button above it copies the formatted text and **Copy original** copies the ZPL exactly as it was received. Under it is the **warnings list** ("Line 7: ^BC is not supported yet and was ignored."). Click a warning to select and scroll to that line in the ZPL.
+- **Right: the ZPL**, shown formatted with one command group per line (a field such as `^FO50,50^A0N,60,60^FDHello^FS` stays on one line) and with line numbers, side by side with the picture. The **Copy** button above it copies the formatted text and **Copy original** copies the ZPL as it was received (with Windows line endings). The display re-flows line breaks, including breaks inside field data, because ZPL ignores them; use **Copy original** when you need the text byte for byte. Under it is the **warnings list** ("Line 7: ^BC is not supported yet and was ignored."). Click a warning to select and scroll to that line in the ZPL.
 - **Toolbar:** **Install printer**, **Remove printer**, **Save PNG**, **Copy image**, **Clear history**, **Open settings**, **Open log folder**.
 - **Status bar:** the first part says `Listening on 127.0.0.1:9100` (or `NOT listening` if the port could not be opened); the second part shows the printer state (`Printer "LabelScope": installed`, `Printer: not installed (press "Install printer")`, `Printer "...": name used by another printer`, `Printer: status could not be checked` or `Printer: settings need fixing`); the third part shows notes and the result of your last action, such as problems found in `settings.json`.
 
@@ -203,7 +203,7 @@ assets/                 Logo and icon
 ## Roadmap
 
 - [x] Name, logo and design
-- [ ] First release: Windows printer, listener, core ZPL commands, label and raw ZPL side by side (built; being tested on real PCs before it is ticked)
+- [ ] First release: Windows printer, listener, core ZPL commands, label and ZPL side by side (built; being tested on real PCs before it is ticked)
 - [ ] Barcodes, rotated text, light-grid and stacked-layout view options
 - [ ] Graphics, images and custom fonts
 - [ ] Advanced commands, installer package, Spanish user interface
@@ -220,8 +220,8 @@ assets/                 Logo and icon
 | "PrinterName in settings.json is too long" or "must not contain a backslash, a slash, ..." | Shorten the name (60 characters at most) or remove the forbidden characters, then restart LabelScope. |
 | "LabelScope could not check which printers are installed" | Check that the Windows "Print Spooler" service is running, then try again. |
 | "The printer could not be installed: ..." | Read the reason in the message. If it mentions the print spooler, check that the Windows "Print Spooler" service is running. Then try again; if it keeps failing, show the message to your administrator. Details are in the log. |
-| A history entry titled "No label found" | The data that arrived had no `^XA ... ^XZ` block (for example a status request, or a normal document printed to the LabelScope printer). The raw text is shown on the right. |
-| A history entry titled "Label not drawn" | The data had a label start (`^XA`) but nothing could be drawn from it. Check the warnings list under the raw ZPL. |
+| A history entry titled "No label found" | The data that arrived had no `^XA ... ^XZ` block (for example a status request, or a normal document printed to the LabelScope printer). The ZPL text is shown on the right. |
+| A history entry titled "Label not drawn" | The data had a label start (`^XA`) but nothing could be drawn from it. Check the warnings list under the ZPL. |
 | "LabelScope is busy: too many programs are sending labels at once" | More than 16 programs were connected at the same time and new connections were refused. Wait a moment and send again. |
 | "The settings file could not be read ..." | There is a typo in `settings.json`. Fix it, or delete the file to get a fresh one, then restart. Standard settings are used meanwhile. |
 | "ListenAddress ... is not allowed" or "... is not between 1 and 65535" | A setting had a wrong value and the default was used. Fix the named setting and restart. |
