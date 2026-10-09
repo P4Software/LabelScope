@@ -1,8 +1,7 @@
-// Data Matrix ECC 200 follows the public standard ISO/IEC 16022: the symbol size table (table 7), ASCII
-// encodation (5.2.3), the 253-state pad randomising algorithm (Annex H), Reed-Solomon over GF(256) with
-// polynomial 0x12D and block interleaving (5.7 and Annex E), and the codeword placement algorithm of Annex F
-// (the "Utah" placement, including its four corner cases and its edge wrapping rules), which Place below
-// follows step for step.
+// Data Matrix ECC 200 follows the public standard ISO/IEC 16022: its symbol size table, ASCII encodation,
+// the 253-state pad randomising algorithm, Reed-Solomon over GF(256) with polynomial 0x12D and round-robin
+// block interleaving, and its reference codeword placement algorithm (Annex F, the "Utah" placement with
+// its four corner cases and edge wrapping rules), which Place below follows step for step.
 using System.Text;
 
 namespace LabelScope.Core.Barcodes;
@@ -146,7 +145,7 @@ internal static class DataMatrixEncoder
         if (padded.Count < size.DataCodewords) padded.Add(129);                       // first pad codeword
         while (padded.Count < size.DataCodewords)
         {
-            // Later pads are scrambled by the 253-state algorithm (ISO/IEC 16022 Annex H) using their 1-based
+            // Later pads are scrambled by the 253-state randomising algorithm of ISO/IEC 16022 using their 1-based
             // position, so runs of pads do not create long identical module patterns.
             var v = 129 + (149 * (padded.Count + 1)) % 253 + 1;
             padded.Add(v > 254 ? v - 254 : v);
