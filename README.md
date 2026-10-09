@@ -152,7 +152,7 @@ LabelScope draws what it understands and **tells you about everything else** ins
 | Stage | Commands | Status |
 |---|---|---|
 | 1. Core | `^XA ^XZ ^PW ^LL ^LH ^FO ^FT ^FD ^FS ^A ^CF ^FB ^FR ^GB ^GC ^PQ` | Built, being tested |
-| 2. Barcodes and rotation | Code 128, Code 39, EAN-13, UPC-A, Interleaved 2 of 5, QR, Data Matrix, PDF417; `^GD ^FW ^PO` | Planned. `^FW`, `^PO` and `^GD` are not supported yet |
+| 2. Barcodes and rotation | Barcodes `^BY ^BC ^B3 ^BL ^BA ^BE ^BU ^B8 ^B9 ^B2 ^BK ^B1 ^BM ^BQ ^BX ^B7` (Code 128, Code 39, LOGMARS, Code 93, EAN-13, UPC-A, EAN-8, UPC-E, Interleaved 2 of 5, Codabar, Code 11, MSI, QR Code, Data Matrix, PDF417); rotation `^FW ^PO` and the orientation letter of `^A`; `^GD`; `^FH` | Built (version 0.2.0). Not yet compared with a real Zebra printer, see the limits below |
 | 3. Graphics and fonts | `^GF ~DG ^XG ^IM ^IL`, your own TrueType fonts | Planned |
 | 4. Advanced | `^SN ^FV ^CI ^FH`, more | Planned |
 
@@ -161,9 +161,11 @@ Any command that is not drawn is listed in the warnings list with its line numbe
 ### Limits worth knowing
 
 - **Fonts are approximate.** Text is drawn with an approximation of the Zebra fonts (a scaled Arial when it is installed, otherwise the Windows default font), so letter shapes and widths can differ from a real printer. LabelScope is a preview tool, not a pixel-exact replacement for a printer.
-- **Barcodes are not drawn yet.** A warning is shown for each barcode command, and the barcode's data is drawn as plain text.
+- **Barcodes are drawn from the published symbology rules, not yet compared with a real Zebra printer.** They scan with an independent decoder in our own checks, but small details (quiet space around a symbol, the exact size LabelScope picks when a label does not give columns and rows for PDF417, or the digit size under EAN/UPC) may differ from a real printer. Always scan-test a label on your real printer before relying on it.
+- **Barcodes not drawn yet.** `^BI ^BJ ^BP ^BS ^B5 ^BZ ^BR ^BD ^B0 ^BO ^B4 ^BB ^BT ^BF` (industrial 2 of 5, Plessey, add-ons, postal codes, GS1 DataBar, MaxiCode, Aztec, Code 49, CODABLOCK, TLC39, MicroPDF417) show a warning that they are planned for a later release. Data Matrix with quality 0 to 140 is drawn as the modern ECC 200 type, with a warning. GS1 application identifiers in Code 128 mode D are not validated.
+- **QR text encoding.** QR data that has accented letters is sent as Latin-1 when every character fits, whereas a printer set to UTF-8 (`^CI28`) sends UTF-8. Both scan, but the scanned bytes can differ.
 - **The window is simple for now.** It does not show the dpi, and unsupported commands are not underlined in the ZPL text yet; they are listed in the warnings list instead.
-- **Rotated text is not drawn yet.** `^A` with orientation R, I or B is drawn unrotated, with a warning. Rounded corners on `^GB` are drawn square, with a warning.
+- **Rounded corners on `^GB` are drawn square**, with a warning.
 - **Label size is capped** at 8000 dots per side and 40 million dots in total (a warning names the command or the setting, `DefaultLabelWidthMm` or `DefaultLabelHeightMm`, when a label size was cut down).
 - **Text encoding.** Each label is read as UTF-8 first. If it is not valid UTF-8 (many label programs and the Windows text-only printer driver send Windows-1252 text, where "ñ" is a single byte), it is read as Windows-1252 instead. Other code pages, such as CP850, may show wrong characters for accented letters.
 - **A single label larger than 16 MB without `^XZ` is discarded**, and a message is shown.
@@ -213,7 +215,8 @@ assets/                 Logo and icon
 
 - [x] Name, logo and design
 - [ ] First release: Windows printer, listener, core ZPL commands, label and ZPL side by side (built; being tested on real PCs before it is ticked)
-- [ ] Barcodes, rotated text, light-grid and stacked-layout view options
+- [x] Barcodes and rotated text (version 0.2.0)
+- [ ] Light-grid and stacked-layout view options, crash log, `^FB` width 0, quieter warnings for ZebraDesigner setup blocks, comparison of barcodes with a real printer
 - [ ] Graphics, images and custom fonts
 - [x] Windows installer (signed)
 - [ ] Advanced commands, Spanish user interface
