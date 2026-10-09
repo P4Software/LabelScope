@@ -28,5 +28,5 @@ public sealed class AppSettings
     public string LogFolder { get; set; } = "logs";
 
     /// <summary>Name of the Windows printer that LabelScope installs.</summary>
-    public string PrinterName { get; set; } = "P4 LabelScope Printer";
+    public string PrinterName { get; set; } = "LabelScope";
 }

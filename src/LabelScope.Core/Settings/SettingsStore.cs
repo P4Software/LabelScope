@@ -38,7 +38,7 @@ public sealed class SettingsStore
           "LogFolder": "logs",
 
           // Name of the Windows printer LabelScope installs when you press "Install printer".
-          "PrinterName": "P4 LabelScope Printer"
+          "PrinterName": "LabelScope"
         }
         """;
 

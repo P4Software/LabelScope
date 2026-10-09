@@ -46,7 +46,7 @@ LabelScope pretends to be that printer. It installs a normal Windows printer, re
 ## How it works
 
 ```
- Any Windows program ──print──▶  "P4 LabelScope Printer"  ──┐
+ Any Windows program ──print──▶  "LabelScope"  ──┐
                                  (a real Windows printer)    │  TCP, port 9100
  ERP / WMS / script ──────────── send ZPL over the network ──┤
                                                              ▼
@@ -85,7 +85,7 @@ LabelScope pretends to be that printer. It installs a normal Windows printer, re
 
 1. Build LabelScope (see [Building from source](#building-from-source)) or copy a published build anywhere, and double-click **LabelScope.exe**. The first start creates `settings.json` and a `logs` folder next to the program.
 2. Press **Install printer** and answer **Yes** twice: once to LabelScope's own question, once when Windows asks for permission. This is the only time administrator rights are needed.
-3. Print from any program to **P4 LabelScope Printer**, or send ZPL to `127.0.0.1:9100`.
+3. Print from any program to **LabelScope**, or send ZPL to `127.0.0.1:9100`.
 4. The label appears in the window. Select older labels from the list on the left.
 
 To remove the printer again, press **Remove printer**. LabelScope only ever removes a printer it created itself.
@@ -96,7 +96,7 @@ To remove the printer again, press **Remove printer**. LabelScope only ever remo
 - **Middle: the label picture**, with a **Fit to window** box and a **Zoom** slider (moving the slider switches fit off). A line above the picture shows the size in dots, the number of copies requested (`^PQ`) and the number of warnings.
 - **Right: the raw ZPL** exactly as received, with line numbers, side by side with the picture. Under it is the **warnings list** ("Line 7: ^BC is not supported yet and was ignored."). Click a warning to select and scroll to that line in the ZPL.
 - **Toolbar:** **Install printer**, **Remove printer**, **Save PNG**, **Copy image**, **Clear history**, **Open settings**, **Open log folder**.
-- **Status bar:** the first part says `Listening on 127.0.0.1:9100` (or `NOT listening` if the port could not be opened); the second part shows the printer state (`Printer "P4 LabelScope Printer": installed`, `Printer: not installed (press "Install printer")`, `Printer "...": name used by another printer`, `Printer: status could not be checked` or `Printer: settings need fixing`); the third part shows notes and the result of your last action, such as problems found in `settings.json`.
+- **Status bar:** the first part says `Listening on 127.0.0.1:9100` (or `NOT listening` if the port could not be opened); the second part shows the printer state (`Printer "LabelScope": installed`, `Printer: not installed (press "Install printer")`, `Printer "...": name used by another printer`, `Printer: status could not be checked` or `Printer: settings need fixing`); the third part shows notes and the result of your last action, such as problems found in `settings.json`.
 
 Quick test without any other program (PowerShell):
 
@@ -110,7 +110,7 @@ $client.Close()
 
 ### Printer details
 
-- The printer is called **P4 LabelScope Printer** unless you change `PrinterName`. The name can be at most 60 characters and must not contain any of `* ? [ ] \ / !` or line breaks. If it does, LabelScope tells you which setting to fix.
+- The printer is called **LabelScope** unless you change `PrinterName`. The name can be at most 60 characters and must not contain any of `* ? [ ] \ / !` or line breaks. If it does, LabelScope tells you which setting to fix.
 - Installing asks Windows for permission once. If you decline, nothing is changed and you can press the button again.
 - LabelScope marks the printer it creates. It never changes or removes a printer it did not create, even if the name is the same.
 - The printer forwards to `127.0.0.1` on `ListenPort`, so if you change the port, remove the printer and install it again.
@@ -133,7 +133,7 @@ On first start LabelScope creates `settings.json` next to the program, with an e
 | `HistoryLimit` | `100` | How many labels to keep in the list, 1 to 1000. |
 | `FontsFolder` | empty | Folder with your own TrueType fonts. Read but not used yet (a later release). |
 | `LogFolder` | `logs` | Where log files are written. A relative folder is relative to the program folder. |
-| `PrinterName` | `P4 LabelScope Printer` | Name of the Windows printer (see [Printer details](#printer-details)). |
+| `PrinterName` | `LabelScope` | Name of the Windows printer (see [Printer details](#printer-details)). |
 
 The file may contain `//` comments. Restart LabelScope after editing it.
 

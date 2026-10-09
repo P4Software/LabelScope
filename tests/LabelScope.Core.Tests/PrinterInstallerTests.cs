@@ -31,11 +31,11 @@ public sealed class PrinterInstallerTests
     }
 
     private const string Ours =
-        "{\"Name\":\"P4 LabelScope Printer\",\"Comment\":\"Created by LabelScope\",\"PortName\":\"LabelScope-9100\"}";
+        "{\"Name\":\"LabelScope\",\"Comment\":\"Created by LabelScope\",\"PortName\":\"LabelScope-9100\"}";
     private const string Foreign =
-        "{\"Name\":\"P4 LabelScope Printer\",\"Comment\":\"Office printer\",\"PortName\":\"IP_10.0.0.5\"}";
+        "{\"Name\":\"LabelScope\",\"Comment\":\"Office printer\",\"PortName\":\"IP_10.0.0.5\"}";
 
-    private static PrinterInstaller Make(FakeRunner r) => new(r, "P4 LabelScope Printer", 9100);
+    private static PrinterInstaller Make(FakeRunner r) => new(r, "LabelScope", 9100);
 
     [Fact]
     public async Task Status_NotInstalled_WhenNothingIsReturned()
@@ -129,10 +129,18 @@ public sealed class PrinterInstallerTests
 
     private static string Base64(string value) => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(value));
 
+    /// <summary>
+    /// The scripts legitimately contain fixed text such as the owner marker and the port name, and both
+    /// include the word "LabelScope". Remove that fixed text so that a printer name like "LabelScope" can
+    /// still be checked: what is left must not hold the raw name (it may only travel as base64).
+    /// </summary>
+    private static string WithoutFixedText(string script) =>
+        script.Replace("by LabelScope", "").Replace("LabelScope-9100", "");
+
     /// <summary>Names a user could type, including every character PowerShell may treat as a quote.</summary>
     public static IEnumerable<object[]> HostileNames() => new[]
     {
-        "P4 LabelScope Printer",
+        "LabelScope",
         "Bob's Labels",
         "A\u2018B", "A\u2019B", "A\u201AB", "A\u201BB",
         "A\"B", "A$B", "A`B", "A;B",
@@ -147,7 +155,7 @@ public sealed class PrinterInstallerTests
 
         await new PrinterInstaller(runner, name, 9100).InstallAsync();
 
-        Assert.DoesNotContain(name, runner.LastElevatedScript);
+        Assert.DoesNotContain(name, WithoutFixedText(runner.LastElevatedScript!));
         Assert.Contains(Base64(name), runner.LastElevatedScript);
     }
 
@@ -159,7 +167,7 @@ public sealed class PrinterInstallerTests
 
         await new PrinterInstaller(runner, name, 9100).RemoveAsync();
 
-        Assert.DoesNotContain(name, runner.LastElevatedScript);
+        Assert.DoesNotContain(name, WithoutFixedText(runner.LastElevatedScript!));
         Assert.Contains(Base64(name), runner.LastElevatedScript);
     }
 
@@ -171,7 +179,7 @@ public sealed class PrinterInstallerTests
 
         await new PrinterInstaller(runner, name, 9100).GetStatusAsync();
 
-        Assert.DoesNotContain(name, runner.LastScript);
+        Assert.DoesNotContain(name, WithoutFixedText(runner.LastScript!));
         Assert.Contains(Base64(name), runner.LastScript);
     }
 
@@ -378,8 +386,8 @@ public sealed class PrinterInstallerTests
     }
 
     [Theory]
-    [InlineData("P4 LabelScope Printer", false)]
-    [InlineData("P4 LabelScope Printer", true)]
+    [InlineData("LabelScope", false)]
+    [InlineData("LabelScope", true)]
     [InlineData("012345678901234567890123456789012345678901234567890123456789", false)]
     [InlineData("012345678901234567890123456789012345678901234567890123456789", true)]
     public async Task CommandLine_StaysUnder2000Characters(string name, bool remove)
