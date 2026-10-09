@@ -240,6 +240,10 @@ assets/                 Logo and icon
 | A label looks different from the real printer | Fonts are approximated and some commands are not supported yet. Check the warnings list. |
 | Something else | Press **Open log folder** and look at the newest file. |
 
+## Third-party software
+
+LabelScope uses SkiaSharp, Serilog, ZXing.Net and the .NET runtime, and credits the Project Nayuki QR Code generator library. Their licences and copyright notices are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which is also installed next to `LabelScope.exe`.
+
 ## Trademarks and licence
 
 Zebra® and ZPL® are trademarks of Zebra Technologies Corporation. LabelScope is an independent product by P4 Software and is not affiliated with or endorsed by Zebra Technologies.

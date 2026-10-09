@@ -1,3 +1,8 @@
+// The QR matrix construction in this encoder (function patterns, module placement, masking, format and
+// version information) follows the approach of the Project Nayuki QR Code generator library (MIT licence,
+// https://www.nayuki.io/page/qr-code-generator-library). The licence text and the credit are in
+// THIRD-PARTY-NOTICES.txt at the repository root.
+
 namespace LabelScope.Core.Barcodes;
 
 internal static partial class QrEncoder

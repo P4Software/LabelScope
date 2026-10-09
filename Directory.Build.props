@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    Release builds map the repository folder to a fixed fake path. Without this the compiler stores the full
+    path of the build machine's folder in every assembly (the PDB path), which leaks the developer's folder
+    names into a public product. Debug builds (and therefore "dotnet test" and the debugger) keep real paths
+    so the debugger finds the sources.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DeterministicSourcePaths>true</DeterministicSourcePaths>
+    <PathMap>$(MSBuildThisFileDirectory)=/_/LabelScope/</PathMap>
+  </PropertyGroup>
+</Project>

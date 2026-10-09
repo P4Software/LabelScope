@@ -1,3 +1,7 @@
+// This encoder (codeword building and the matrix half in QrEncoder.Matrix.cs) follows the approach of the
+// Project Nayuki QR Code generator library (MIT licence, https://www.nayuki.io/page/qr-code-generator-library).
+// The licence text and the credit are in THIRD-PARTY-NOTICES.txt at the repository root.
+
 using System.Text;
 
 namespace LabelScope.Core.Barcodes;

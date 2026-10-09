@@ -12,6 +12,8 @@
     <Version>0.1.2</Version>
     <Product>LabelScope</Product>
     <Company>P4 Software</Company>
+    <!-- Per-monitor DPI awareness and asInvoker execution level; see the comments in the manifest. -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,6 +28,14 @@
   <ItemGroup>
     <!-- The same icon is used for the window title bar. -->
     <Resource Include="..\..\assets\labelscope.ico" Link="labelscope.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Licence notices travel with the program: next to the exe in build output and in the publish folder. -->
+    <None Include="..\..\THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

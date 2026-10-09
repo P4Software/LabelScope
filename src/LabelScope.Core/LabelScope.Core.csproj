@@ -17,8 +17,9 @@
 
   <ItemGroup>
     <PackageReference Include="SkiaSharp" Version="2.88.8" />
-    <!-- PDF417 codeword tables and encoder (Apache-2.0); listed in THIRD-PARTY-NOTICES.txt. Exact version, kept
-         equal to the test project's reference so the app and its decoder tests use the same library. -->
+    <!-- PDF417 codeword tables and encoder (Apache-2.0); its attribution and licence text are in
+         THIRD-PARTY-NOTICES.txt. Exact version, kept equal to the test project's
+         reference so the app and its decoder tests use the same library. -->
     <PackageReference Include="ZXing.Net" Version="[0.16.9]" />
   </ItemGroup>
 
