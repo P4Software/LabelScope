@@ -175,7 +175,6 @@ Requirements: Windows 10 or 11 and the [.NET 10 SDK](https://dotnet.microsoft.co
 git clone https://github.com/P4Software/LabelScope.git
 cd LabelScope
 dotnet build
-dotnet test
 dotnet run --project src/LabelScope.App
 ```
 
@@ -183,7 +182,6 @@ On some PCs a broken or unreachable NuGet source makes the package restore fail.
 
 ```powershell
 dotnet build -p:RestoreSources=https://api.nuget.org/v3/index.json
-dotnet test -p:RestoreSources=https://api.nuget.org/v3/index.json
 ```
 
 Self-contained build (nothing to install on the target computer):
@@ -199,7 +197,6 @@ The result in `publish/win-x64` can be copied to any Windows 10 or 11 PC and sta
 ```
 src/LabelScope.Core/    Settings, TCP listener, ZPL parser and renderer, printer installer (no UI)
 src/LabelScope.App/     The Windows (WPF) application
-tests/                  Automated tests for the Core library
 assets/                 Logo and icon
 ```
 
