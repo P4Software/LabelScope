@@ -371,9 +371,20 @@ public partial class MainWindow : Window
         ApplyView();
     }
 
+    /// <summary>The layout last applied (null until the first call); lets a grid toggle skip the layout rebuild.</summary>
+    private bool? _appliedStacked;
+
     private void ApplyView()
     {
-        ApplyLayout(StackedBox.IsChecked == true);
+        // ApplyLayout rebuilds the columns or rows, which throws away a splitter drag between the picture and the
+        // ZPL. Ticking the grid box must not cost the user that, so the layout is only rebuilt when the stacked
+        // choice really changed.
+        var stacked = StackedBox.IsChecked == true;
+        if (_appliedStacked != stacked)
+        {
+            ApplyLayout(stacked);
+            _appliedStacked = stacked;
+        }
         UpdateGrid();
     }
 

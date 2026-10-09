@@ -16,7 +16,7 @@
       <Button Content="Open settings" Click="OnOpenSettings"/>
       <Button Content="Open log folder" Click="OnOpenLog"/>
       <Separator/>
-      <CheckBox x:Name="GridBox" Content="Light grid" VerticalAlignment="Center" Margin="4,0"
+      <CheckBox x:Name="GridBox" Content="Light grid (10 mm)" VerticalAlignment="Center" Margin="4,0"
                 ToolTip="Draws a thin 10 mm grid over the label picture. The grid is not part of saved or copied images."
                 Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"/>
       <CheckBox x:Name="StackedBox" Content="Stacked layout" VerticalAlignment="Center" Margin="4,0"
