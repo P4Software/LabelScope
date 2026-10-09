@@ -169,7 +169,7 @@ Any command that is not drawn is listed in the warnings list with its line numbe
 
 ## Building from source
 
-Requirements: Windows 10 or 11 and the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or a newer one (`global.json` allows any newer SDK).
+Requirements: Windows 10 or 11 and the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) or a newer one (`global.json` allows any newer SDK).
 
 ```powershell
 git clone https://github.com/P4Software/LabelScope.git
