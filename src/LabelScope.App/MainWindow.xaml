@@ -16,6 +16,13 @@
       <Button Content="Open settings" Click="OnOpenSettings"/>
       <Button Content="Open log folder" Click="OnOpenLog"/>
       <Separator/>
+      <CheckBox x:Name="GridBox" Content="Light grid" VerticalAlignment="Center" Margin="4,0"
+                ToolTip="Draws a thin 10 mm grid over the label picture. The grid is not part of saved or copied images."
+                Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"/>
+      <CheckBox x:Name="StackedBox" Content="Stacked layout" VerticalAlignment="Center" Margin="4,0"
+                ToolTip="Shows the ZPL below the label picture instead of beside it"
+                Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"/>
+      <Separator/>
       <Button x:Name="CheckUpdateButton" Content="Check for updates" Click="OnCheckForUpdates"
               ToolTip="Asks GitHub whether a newer version of LabelScope exists"/>
       <Button x:Name="UpdateButton" Visibility="Collapsed" FontWeight="Bold" Foreground="DarkGreen" Click="OnUpdateNow"
@@ -51,14 +58,14 @@
       <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
 
       <!-- Label picture (left) and ZPL (right), always visible together -->
-      <Grid Grid.Column="2">
+      <Grid Grid.Column="2" x:Name="PreviewGrid">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" MinWidth="200"/>
           <ColumnDefinition Width="5"/>
           <ColumnDefinition Width="*" MinWidth="200"/>
         </Grid.ColumnDefinitions>
 
-        <DockPanel Grid.Column="0">
+        <DockPanel Grid.Column="0" x:Name="PicturePane">
           <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4">
             <CheckBox x:Name="FitBox" Content="Fit to window" IsChecked="True" VerticalAlignment="Center"
                       Checked="OnZoomChanged" Unchecked="OnZoomChanged"/>
@@ -67,14 +74,18 @@
           </StackPanel>
           <TextBlock x:Name="InfoText" DockPanel.Dock="Top" Margin="6,0,6,4" Foreground="Gray"/>
           <ScrollViewer x:Name="ImageScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled" Background="#FFDDDDDD" SizeChanged="OnZoomChanged">
-            <Image x:Name="LabelImage" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top"
-                   RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+            <!-- The overlay has no size of its own, so it always covers exactly the picture. -->
+            <Grid HorizontalAlignment="Left" VerticalAlignment="Top">
+              <Image x:Name="LabelImage" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top"
+                     RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+              <Rectangle x:Name="GridOverlay" Visibility="Collapsed" IsHitTestVisible="False"/>
+            </Grid>
           </ScrollViewer>
         </DockPanel>
 
-        <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
+        <GridSplitter Grid.Column="1" x:Name="PreviewSplitter" Width="5" HorizontalAlignment="Stretch"/>
 
-        <Grid Grid.Column="2">
+        <Grid Grid.Column="2" x:Name="ZplPane">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>

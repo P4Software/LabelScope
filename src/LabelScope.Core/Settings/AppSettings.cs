@@ -21,6 +21,12 @@ public sealed class AppSettings
     /// <summary>How many labels are kept in the history list.</summary>
     public int HistoryLimit { get; set; } = 100;
 
+    /// <summary>Start with the light measuring grid shown over the label picture (the window has a box for it too).</summary>
+    public bool ShowGrid { get; set; }
+
+    /// <summary>Start with the label picture above the ZPL text instead of beside it (the window has a box for it too).</summary>
+    public bool StackedLayout { get; set; }
+
     /// <summary>Folder with custom TrueType fonts (used from a later release).</summary>
     public string FontsFolder { get; set; } = "";
 

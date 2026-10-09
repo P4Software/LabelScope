@@ -102,7 +102,7 @@ To remove the printer again, press **Remove printer**. LabelScope only ever remo
 - **Left: history list.** Every received label, newest first, showing the time, the size in dots and the sender address. A label that arrived without its closing `^XZ` is marked "(incomplete)". The list keeps the newest `HistoryLimit` labels.
 - **Middle: the label picture**, with a **Fit to window** box and a **Zoom** slider (moving the slider switches fit off). A line above the picture shows the size in dots, the number of copies requested (`^PQ`) and the number of warnings.
 - **Right: the ZPL**, shown formatted with one command group per line (a field such as `^FO50,50^A0N,60,60^FDHello^FS` stays on one line) and with line numbers, side by side with the picture. The **Copy** button above it copies the formatted text and **Copy original** copies the ZPL as it was received (with Windows line endings). The display re-flows line breaks, including breaks inside field data, because ZPL ignores them; use **Copy original** when you need the text byte for byte. Under it is the **warnings list** ("Line 7: ^GF is not supported yet and was ignored."). Click a warning to select and scroll to that line in the ZPL.
-- **Toolbar:** **Install printer**, **Remove printer**, **Save PNG**, **Copy image**, **Clear history**, **Open settings**, **Open log folder**.
+- **Toolbar:** **Install printer**, **Remove printer**, **Save PNG**, **Copy image**, **Clear history**, **Open settings**, **Open log folder**. Two boxes at the end of the toolbar change the view: **Light grid** draws a thin 10 mm grid over the label picture (it is not part of saved or copied images), and **Stacked layout** puts the ZPL below the picture instead of beside it, which suits a narrow window. `ShowGrid` and `StackedLayout` in `settings.json` set how they start; the boxes themselves are not saved.
 - **Status bar:** the first part says `Listening on 127.0.0.1:9100` (or `NOT listening` if the port could not be opened); the second part shows the printer state (`Printer "LabelScope": installed`, `Printer: not installed (press "Install printer")`, `Printer "...": name used by another printer`, `Printer: status could not be checked` or `Printer: settings need fixing`); the third part shows notes and the result of your last action, such as problems found in `settings.json`.
 
 Quick test without any other program (PowerShell):
@@ -138,6 +138,8 @@ On first start LabelScope creates `settings.json` next to the program, with an e
 | `DefaultLabelWidthMm` | `101.6` | Label width in millimetres when the ZPL has no `^PW` (4 inch). |
 | `DefaultLabelHeightMm` | `152.4` | Label height in millimetres when the ZPL has no `^LL` (6 inch). |
 | `HistoryLimit` | `100` | How many labels to keep in the list, 1 to 1000. |
+| `ShowGrid` | `false` | `true` starts with the light 10 mm measuring grid shown over the label picture. |
+| `StackedLayout` | `false` | `true` starts with the label picture above the ZPL instead of beside it. |
 | `FontsFolder` | empty | Folder with your own TrueType fonts. Read but not used yet (a later release). |
 | `LogFolder` | `logs` | Where log files are written. A relative folder is relative to the program folder. |
 | `PrinterName` | `LabelScope` | Name of the Windows printer (see [Printer details](#printer-details)). |

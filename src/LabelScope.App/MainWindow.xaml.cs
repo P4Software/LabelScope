@@ -5,6 +5,7 @@ using System.IO;
 using System.Net;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media.Imaging;
 using LabelScope.Core;
 using System.Reflection;
@@ -61,6 +62,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // The grid cell size depends on how large the picture is shown, which changes with zoom and window size.
+        LabelImage.SizeChanged += (_, _) => UpdateGrid();
         HistoryList.ItemsSource = _history;
         Activated += OnActivated;
     }
@@ -72,6 +75,11 @@ public partial class MainWindow : Window
             var load = new SettingsStore().LoadOrCreate(_settingsPath);
             _settings = load.Settings;
             ConfigureLogging();
+            // Only the starting state comes from settings.json; later clicks are never written back, because
+            // rewriting the file would destroy the comments the user may have added.
+            GridBox.IsChecked = _settings.ShowGrid;
+            StackedBox.IsChecked = _settings.StackedLayout;
+            ApplyView();
             foreach (var message in load.Messages) Log.Information("Settings: {Message}", message);
             foreach (var message in load.Messages) AddStartupNote(message);
 
@@ -296,6 +304,7 @@ public partial class MainWindow : Window
                 CopyOriginalButton.IsEnabled = false;
                 InfoText.Text = "";
                 WarningList.ItemsSource = null;
+                UpdateGrid();
                 return;
             }
 
@@ -308,6 +317,7 @@ public partial class MainWindow : Window
             LineNumbers.Text = string.Join("\n", Enumerable.Range(1, entry.Zpl.Split('\n').Length));
             WarningList.ItemsSource = entry.Warnings;
             OnZoomChanged(sender, e);
+            UpdateGrid();
         }
         catch (Exception ex)
         {
@@ -352,6 +362,108 @@ public partial class MainWindow : Window
             // Sharp pixels when enlarging, smooth when reducing.
             System.Windows.Media.RenderOptions.SetBitmapScalingMode(LabelImage, ZoomSlider.Value >= 1 ? System.Windows.Media.BitmapScalingMode.NearestNeighbor : System.Windows.Media.BitmapScalingMode.HighQuality);
         }
+    }
+
+    /// <summary>A view box was clicked (or set from settings): apply both options.</summary>
+    private void OnViewOptionChanged(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded) return; // the boxes are set from settings.json in OnLoaded, which calls ApplyView itself
+        ApplyView();
+    }
+
+    private void ApplyView()
+    {
+        ApplyLayout(StackedBox.IsChecked == true);
+        UpdateGrid();
+    }
+
+    /// <summary>
+    /// Arranges picture, splitter and ZPL pane side by side (default) or on top of each other. The same three
+    /// elements are moved between a column layout and a row layout, so nothing is created twice and the selected
+    /// label, zoom and scroll positions are kept.
+    /// </summary>
+    private void ApplyLayout(bool stacked)
+    {
+        PreviewGrid.ColumnDefinitions.Clear();
+        PreviewGrid.RowDefinitions.Clear();
+
+        if (stacked)
+        {
+            PreviewGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = 120 });
+            PreviewGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(5) });
+            PreviewGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = 120 });
+            Place(PicturePane, row: 0, column: 0);
+            Place(PreviewSplitter, row: 1, column: 0);
+            Place(ZplPane, row: 2, column: 0);
+            PreviewSplitter.Width = double.NaN;
+            PreviewSplitter.Height = 5;
+            PreviewSplitter.HorizontalAlignment = HorizontalAlignment.Stretch;
+            PreviewSplitter.VerticalAlignment = VerticalAlignment.Center;
+            PreviewSplitter.ResizeDirection = GridResizeDirection.Rows;
+        }
+        else
+        {
+            PreviewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 200 });
+            PreviewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(5) });
+            PreviewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 200 });
+            Place(PicturePane, row: 0, column: 0);
+            Place(PreviewSplitter, row: 0, column: 1);
+            Place(ZplPane, row: 0, column: 2);
+            PreviewSplitter.Height = double.NaN;
+            PreviewSplitter.Width = 5;
+            PreviewSplitter.HorizontalAlignment = HorizontalAlignment.Stretch;
+            PreviewSplitter.VerticalAlignment = VerticalAlignment.Stretch;
+            PreviewSplitter.ResizeDirection = GridResizeDirection.Columns;
+        }
+        OnZoomChanged(this, new RoutedEventArgs()); // "fit to window" depends on the space the picture now has
+    }
+
+    private static void Place(UIElement element, int row, int column)
+    {
+        Grid.SetRow(element, row);
+        Grid.SetColumn(element, column);
+    }
+
+    /// <summary>
+    /// Shows or hides the 10 mm measuring grid over the picture. The grid is a tiled drawing whose tile is one
+    /// cell, sized from the print resolution and the current display scale (pixels shown per label dot).
+    /// It is a separate element above the picture, so Save PNG (the stored PNG bytes) and Copy image (a bitmap
+    /// decoded from those bytes) never contain it.
+    /// </summary>
+    private void UpdateGrid()
+    {
+        if (GridOverlay is null || GridBox is null || LabelImage is null) return; // events fire while the window is being built
+
+        if (GridBox.IsChecked != true || LabelImage.Source is not BitmapSource src || src.PixelWidth == 0 || LabelImage.ActualWidth <= 0)
+        {
+            GridOverlay.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var cell = LabelGrid.CellDots(_settings.DefaultDpi) * (LabelImage.ActualWidth / src.PixelWidth);
+        if (cell < 6)
+        {
+            GridOverlay.Visibility = Visibility.Collapsed; // lines closer than this are just a grey wash
+            return;
+        }
+
+        // The tile is drawn in a 100 x 100 coordinate space and scaled to 'cell' pixels, so the pen thickness is
+        // given in that space: 200 / cell gives about two pixels, of which half is clipped at the tile edge.
+        // Types are qualified because the Core namespace also has a RenderOptions class.
+        var pen = new System.Windows.Media.Pen(
+            new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(90, 0, 120, 255)), 200.0 / cell);
+        var lines = new System.Windows.Media.GeometryGroup();
+        lines.Children.Add(new System.Windows.Media.LineGeometry(new Point(0, 0), new Point(100, 0)));
+        lines.Children.Add(new System.Windows.Media.LineGeometry(new Point(0, 0), new Point(0, 100)));
+        GridOverlay.Fill = new System.Windows.Media.DrawingBrush(new System.Windows.Media.GeometryDrawing(null, pen, lines))
+        {
+            TileMode = System.Windows.Media.TileMode.Tile,
+            ViewboxUnits = System.Windows.Media.BrushMappingMode.Absolute,
+            Viewbox = new Rect(0, 0, 100, 100),
+            ViewportUnits = System.Windows.Media.BrushMappingMode.Absolute,
+            Viewport = new Rect(0, 0, cell, cell),
+        };
+        GridOverlay.Visibility = Visibility.Visible;
     }
 
     /// <summary>

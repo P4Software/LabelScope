@@ -31,6 +31,14 @@ public sealed class SettingsStore
           // How many received labels to keep in the list on the left.
           "HistoryLimit": 100,
 
+          // Show a light 10 mm measuring grid over the label picture when LabelScope starts.
+          // true or false. The "Light grid" box in the window switches it on and off while the program runs.
+          "ShowGrid": false,
+
+          // Show the label picture above the ZPL text instead of beside it, when LabelScope starts.
+          // true or false. Handy on a narrow screen. The "Stacked layout" box in the window does the same while running.
+          "StackedLayout": false,
+
           // Folder with your own TrueType fonts (used by a later version). Leave empty for none.
           "FontsFolder": "",
 
