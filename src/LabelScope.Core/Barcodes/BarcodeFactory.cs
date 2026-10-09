@@ -28,6 +28,10 @@ internal static class BarcodeFactory
         ["^BU"] = EanUpcEncoder.BuildUpcA,
         ["^B8"] = EanUpcEncoder.BuildEan8,
         ["^B9"] = EanUpcEncoder.BuildUpcE,
+        ["^B2"] = OtherLinearEncoders.BuildInterleaved2of5,
+        ["^BK"] = OtherLinearEncoders.BuildCodabar,
+        ["^B1"] = OtherLinearEncoders.BuildCode11,
+        ["^BM"] = OtherLinearEncoders.BuildMsi,
         // (further symbologies are added by later tasks)
     };
 
