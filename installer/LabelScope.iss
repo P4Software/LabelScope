@@ -54,5 +54,5 @@ begin
   Result := ExpandConstant('{param:relaunch|0}') = '1';
 end;
 
-; settings.json and logs are created by the app at run time, so they are not removed on
-; purpose: uninstalling must never throw away the user's configuration.
+// settings.json and logs are created by the app at run time, so they are not removed on
+// purpose: uninstalling must never throw away the user's configuration.
