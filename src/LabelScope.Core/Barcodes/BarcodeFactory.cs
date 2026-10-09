@@ -24,7 +24,11 @@ internal static class BarcodeFactory
         ["^B3"] = Code39Family.BuildCode39,
         ["^BL"] = Code39Family.BuildLogmars,
         ["^BA"] = Code39Family.BuildCode93,
-        // (further symbologies are added by Tasks 7 to 14)
+        ["^BE"] = EanUpcEncoder.BuildEan13,
+        ["^BU"] = EanUpcEncoder.BuildUpcA,
+        ["^B8"] = EanUpcEncoder.BuildEan8,
+        ["^B9"] = EanUpcEncoder.BuildUpcE,
+        // (further symbologies are added by later tasks)
     };
 
     /// <summary>Symbologies that exist in ZPL but are planned for plan 4; see the deferral table of plan 2.</summary>
