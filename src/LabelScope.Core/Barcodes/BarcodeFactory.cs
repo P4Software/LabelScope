@@ -2,7 +2,11 @@ namespace LabelScope.Core.Barcodes;
 
 /// <summary>A barcode ready to be drawn; the painter picks the drawing routine from the concrete type.</summary>
 /// <param name="Orientation">N, R, I or B.</param>
-internal abstract record BarcodeField(char Orientation);
+internal abstract record BarcodeField(char Orientation)
+{
+    /// <summary>A plain-language remark shown to the user as a warning although the symbol was drawn (for example "drawn as model 2").</summary>
+    public string? Note { get; init; }
+}
 
 /// <summary>A linear (bar/space) barcode.</summary>
 /// <param name="Symbol">The widths and interpretation text.</param>
@@ -10,6 +14,13 @@ internal abstract record BarcodeField(char Orientation);
 /// <param name="Narrow">Module width in dots (from <c>^BY</c>); sizes the text and guard bars.</param>
 /// <param name="Orientation">N, R, I or B.</param>
 internal sealed record LinearField(LinearSymbol Symbol, BarcodeLook Look, int Narrow, char Orientation) : BarcodeField(Orientation);
+
+/// <summary>A 2D symbol made of square or rectangular modules.</summary>
+/// <param name="Modules">The dark and light modules.</param>
+/// <param name="ModuleWidth">Width of one module in dots.</param>
+/// <param name="ModuleHeight">Height of one module in dots (PDF417 rows are taller than wide).</param>
+/// <param name="Orientation">N, R, I or B.</param>
+internal sealed record MatrixField(BitMatrix Modules, int ModuleWidth, int ModuleHeight, char Orientation) : BarcodeField(Orientation);
 
 /// <summary>Maps <c>^B?</c> commands to encoders and names the ones that are planned but not built yet.</summary>
 internal static class BarcodeFactory
@@ -32,6 +43,7 @@ internal static class BarcodeFactory
         ["^BK"] = OtherLinearEncoders.BuildCodabar,
         ["^B1"] = OtherLinearEncoders.BuildCode11,
         ["^BM"] = OtherLinearEncoders.BuildMsi,
+        ["^BQ"] = QrField.Build,
         // (further symbologies are added by later tasks)
     };
 

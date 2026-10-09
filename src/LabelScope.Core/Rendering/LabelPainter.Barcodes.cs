@@ -62,31 +62,49 @@ internal sealed partial class LabelPainter
             _warnings.Add(new(req.Line, $"{req.Command}: {ex.Message} The barcode was not drawn."));
             return;
         }
+        if (field.Note is not null) _warnings.Add(new(req.Line, $"{req.Command}: {field.Note}"));
 
         switch (field)
         {
-            case LinearField linear: DrawLinear(linear, req); break;
+            case LinearField linear:
+            {
+                var lay = LinearDrawer.Measure(linear.Symbol, linear.Look, linear.Narrow);
+                PlaceAndDraw(req, linear.Orientation, lay.Width, lay.Height, lay.BaseY, ink =>
+                {
+                    _typeface ??= SKTypeface.FromFamilyName("Arial");
+                    LinearDrawer.Draw(_canvas, linear.Symbol, linear.Look, linear.Narrow, ink, _typeface);
+                });
+                break;
+            }
+            case MatrixField matrix:
+            {
+                var w = matrix.Modules.Width * matrix.ModuleWidth;
+                var h = matrix.Modules.Height * matrix.ModuleHeight;
+                // No quiet zone is added: the symbol's own corner sits at the origin. For ^FT the origin is the
+                // bottom-left corner of a 2D symbol, so the anchor is its bottom edge.
+                PlaceAndDraw(req, matrix.Orientation, w, h, h, ink =>
+                    MatrixDrawer.Draw(_canvas, matrix.Modules, matrix.ModuleWidth, matrix.ModuleHeight, ink));
+                break;
+            }
         }
     }
 
-    private void DrawLinear(LinearField f, BarcodeRequest req)
+    /// <summary>Applies the rotation transform for a w x h field, warns when it leaves the label, and runs <paramref name="draw"/>.</summary>
+    private void PlaceAndDraw(BarcodeRequest req, char orientation, int w, int h, int baseY, Action<SKPaint> draw)
     {
-        var lay = LinearDrawer.Measure(f.Symbol, f.Look, f.Narrow);
-
         _canvas.Save();
         try
         {
-            FieldPlacement.Apply(_canvas, f.Orientation, _x, _y, lay.Width, lay.Height, _baseline, lay.BaseY);
+            FieldPlacement.Apply(_canvas, orientation, _x, _y, w, h, _baseline, baseY);
 
             // Where the box really lands (after rotation) tells whether it fits; Skia clips the rest silently.
-            var box = _canvas.TotalMatrix.MapRect(new SKRect(0, 0, lay.Width, lay.Height));
+            var box = _canvas.TotalMatrix.MapRect(new SKRect(0, 0, w, h));
             if (box.Left < 0 || box.Top < 0 || box.Right > _bitmap.Width || box.Bottom > _bitmap.Height)
                 _warnings.Add(new(req.Line,
-                    $"The barcode from {req.Command} ({lay.Width} x {lay.Height} dots) does not fit on the label; the part outside is cut off. Use a smaller module width in ^BY, shorter data, or move the field."));
+                    $"The barcode from {req.Command} ({w} x {h} dots) does not fit on the label; the part outside is cut off. Use a smaller module width, shorter data, or move the field."));
 
-            _typeface ??= SKTypeface.FromFamilyName("Arial");
             using var ink = InkPaint();
-            LinearDrawer.Draw(_canvas, f.Symbol, f.Look, f.Narrow, ink, _typeface);
+            draw(ink);
         }
         finally
         {
