@@ -185,23 +185,196 @@ internal static class Code128Encoder
     /// <summary>All symbol character values (start, data, check, stop) for <paramref name="data"/>.</summary>
     internal static int[] Values(string data, char mode, bool uccCheck) => Prepare(data, mode, uccCheck).Values;
 
+    // ---- automatic packing (mode A, and the back end of mode D) ------------------------------
+
+    /// <summary>
+    /// Chooses subsets for plain text: C for runs of four or more digits, A for control characters, B otherwise.
+    /// Returns the start subset and the items with the needed switches inserted.
+    /// </summary>
+    internal static (char Start, List<Item> Items) Optimize(IReadOnlyList<Item> source)
+    {
+        var n = source.Count;
+
+        // Number of digit characters in a row starting at 'from' (FNC1 and other items end a run).
+        int DigitRun(int from)
+        {
+            var k = 0;
+            while (from + k < n && source[from + k].Kind == 'c' && char.IsAsciiDigit(source[from + k].Value)) k++;
+            return k;
+        }
+
+        // The start subset looks past leading FNC1 symbols (GS1-128 begins with one).
+        var first = 0;
+        while (first < n && source[first].Kind == 'f') first++;
+        var run0 = DigitRun(first);
+        char subset;
+        if (run0 >= 4 || (run0 >= 2 && run0 == n - first)) subset = 'C';
+        else if (first < n && source[first].Kind == 'c' && source[first].Value < ' ') subset = 'A';
+        else subset = 'B';
+        var start = subset;
+
+        var items = new List<Item>();
+        var i = 0;
+        while (i < n)
+        {
+            var it = source[i];
+            if (it.Kind != 'c') { items.Add(it); i++; continue; } // FNC1 and raw symbols pass through
+
+            var run = DigitRun(i);
+            if (subset == 'C')
+            {
+                if (run >= 2)
+                {
+                    for (var k = 0; k < run / 2 * 2; k++) items.Add(source[i + k]);
+                    i += run / 2 * 2;
+                }
+                else
+                {
+                    // A lone digit or a non-digit: leave subset C.
+                    var target = it.Value < ' ' ? 'A' : 'B';
+                    items.Add(Item.Switch(target));
+                    subset = target;
+                }
+                continue;
+            }
+
+            if (run >= 4)
+            {
+                // An odd run keeps its first digit here so the rest forms whole pairs for subset C.
+                if (run % 2 == 1) { items.Add(it); i++; }
+                items.Add(Item.Switch('C'));
+                subset = 'C';
+                continue;
+            }
+
+            // Control characters only exist in A; lowercase, '~' and DEL only in B. Anything else fits both.
+            var need = it.Value < ' ' ? 'A' : it.Value > '_' ? 'B' : subset;
+            if (need != subset) { items.Add(Item.Switch(need)); subset = need; }
+            items.Add(it);
+            i++;
+        }
+        return (start, items);
+    }
+
+    // ---- UCC Case mode (U) ---------------------------------------------------------------------
+
+    /// <summary>Mode U: 19 digits (cut or zero padded) plus a Mod 10 digit, written as Start C, FNC1 and ten pairs.</summary>
+    private static (char Start, List<Item> Items, string Text) UccCase(string data)
+    {
+        var digits = new string(data.Where(c => c != ' ').ToArray());
+        if (digits.Any(c => !char.IsAsciiDigit(c)))
+            throw new BarcodeDataException("UCC case mode (m = U) takes digits only. Remove the letters and special codes from the data.");
+
+        digits = digits.Length > 19 ? digits[..19] : digits.PadRight(19, '0');
+        digits += (char)('0' + CheckDigits.Mod10(digits));
+
+        var items = new List<Item> { Item.Function1() };
+        items.AddRange(digits.Select(Item.Char));
+        return ('C', items, digits);
+    }
+
+    // ---- UCC/EAN mode (D) ----------------------------------------------------------------------
+
+    /// <summary>Application identifiers (first two digits) whose value has a fixed length, so no FNC1 follows them.</summary>
+    private static readonly Dictionary<string, int> FixedLengthAi = BuildFixedLengthAi();
+
+    private static Dictionary<string, int> BuildFixedLengthAi()
+    {
+        var d = new Dictionary<string, int> { ["00"] = 18, ["01"] = 14, ["02"] = 14, ["20"] = 2, ["41"] = 13 };
+        for (var ai = 11; ai <= 19; ai++) d[ai.ToString()] = 6;       // dates
+        for (var ai = 31; ai <= 36; ai++) d[ai.ToString()] = 6;       // measures
+        return d;
+    }
+
+    /// <summary>Turns <c>(AI)value(AI)value</c> data (or plain digits) into items with FNC1 in the places GS1-128 needs it.</summary>
+    private static List<Item> Gs1Items(string data)
+    {
+        var items = new List<Item> { Item.Function1() };
+
+        // Plain digits (no parentheses) are taken as already formatted.
+        if (!data.Contains('('))
+        {
+            items.AddRange(data.Where(c => c != ' ').Select(Item.Char));
+            return items;
+        }
+
+        var groups = new List<(string Ai, string Value)>();
+        var i = 0;
+        while (i < data.Length)
+        {
+            if (data[i] == ' ') { i++; continue; }
+            var close = data[i] == '(' ? data.IndexOf(')', i) : -1;
+            if (close < 0)
+                throw new BarcodeDataException("UCC/EAN mode (m = D) needs data like (01)12345678901231(10)LOT7: each application identifier in parentheses, then its value.");
+            var ai = data[(i + 1)..close];
+            if (ai.Length is < 2 or > 4 || ai.Any(c => !char.IsAsciiDigit(c)))
+                throw new BarcodeDataException($"'({ai})' is not an application identifier: it must be two to four digits.");
+            var next = data.IndexOf('(', close + 1);
+            // Spaces are only layout in the data; they are not part of a GS1-128 value.
+            var value = new string((next < 0 ? data[(close + 1)..] : data[(close + 1)..next]).Where(c => c != ' ').ToArray());
+            if (value.Length == 0)
+                throw new BarcodeDataException($"The application identifier ({ai}) has no value.");
+            groups.Add((ai, value));
+            i = next < 0 ? data.Length : next;
+        }
+
+        for (var g = 0; g < groups.Count; g++)
+        {
+            var (ai, value) = groups[g];
+            // The printer computes the missing check digit of the identification keys.
+            if ((ai == "00" && value.Length == 17) || (ai is "01" or "02" && value.Length == 13))
+                value += (char)('0' + CheckDigits.Mod10(value));
+
+            items.AddRange(ai.Select(Item.Char));
+            items.AddRange(value.Select(Item.Char));
+
+            // The first two digits decide (310x to 369x measures, 410 to 417 locations, 11 to 20 dates and so on).
+            var fixedLength = FixedLengthAi.TryGetValue(ai[..2], out var len) && value.Length == len;
+            if (g < groups.Count - 1 && !fixedLength) items.Add(Item.Function1());
+        }
+        return items;
+    }
+
+    // ---- shared preparation --------------------------------------------------------------------
+
     private static (int[] Values, string Text) Prepare(string data, char mode, bool uccCheck)
     {
-        var (start, items) = mode switch
-        {
-            'N' => ParseInvocations(data),
-            _ => throw new BarcodeDataException($"Code 128 mode {mode} is not supported yet."),
-        };
+        char start;
+        List<Item> items;
+        string? text = null;
 
-        if (uccCheck)
+        switch (mode)
         {
-            // e = Y: a Mod 10 check digit is added to the data before the Mod 103 check is computed.
-            var digits = string.Concat(items.Where(i => i.Kind == 'c').Select(i => i.Value));
-            items.Add(Item.Char((char)('0' + CheckDigits.Mod10(digits))));
+            case 'U':
+                (start, items, text) = UccCase(data);
+                break;
+
+            case 'D':
+                (start, items) = Optimize(Gs1Items(data));
+                text = data;
+                break;
+
+            case 'A':
+            {
+                // Automatic mode picks subsets itself, so subset and shift codes are dropped and FNC1 is kept.
+                // >0 and >= stand for the literal '>' and '~'; they become plain characters so no data is lost.
+                var parsed = ParseInvocations(data).Items
+                    .Where(i => i.Kind is 'c' or 'f' || (i.Kind == 'v' && i.Value is (char)30 or (char)94))
+                    .Select(i => i.Kind != 'v' ? i : Item.Char(i.Value == 30 ? '>' : '~'))
+                    .ToList();
+                AppendUccCheck(parsed, uccCheck);
+                (start, items) = Optimize(parsed);
+                break;
+            }
+
+            default: // 'N' and any unknown letter
+                (start, items) = ParseInvocations(data);
+                AppendUccCheck(items, uccCheck);
+                break;
         }
 
         // The human-readable line shows literal '>' (>0) and '~' (>=) too; DEL, FNC and SHIFT have nothing to print.
-        var text = string.Concat(items.Select(i => i.Kind switch
+        text ??= string.Concat(items.Select(i => i.Kind switch
         {
             'c' => i.Value.ToString(),
             'v' when i.Value == 30 => ">",
@@ -209,6 +382,14 @@ internal static class Code128Encoder
             _ => string.Empty,
         }));
         return (Finish(Emit(start, items)), text);
+    }
+
+    /// <summary>e = Y: a Mod 10 check digit is added to the data before the Mod 103 check is computed.</summary>
+    private static void AppendUccCheck(List<Item> items, bool uccCheck)
+    {
+        if (!uccCheck) return;
+        var digits = string.Concat(items.Where(i => i.Kind == 'c').Select(i => i.Value));
+        items.Add(Item.Char((char)('0' + CheckDigits.Mod10(digits))));
     }
 
     /// <summary>Encodes <paramref name="data"/> as a Code 128 symbol with the bar widths of <paramref name="by"/>.</summary>
