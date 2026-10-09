@@ -5,7 +5,7 @@
 ; The printer itself is added from inside the app (it asks for administrator rights then).
 
 #ifndef AppVersion
-  #define AppVersion "0.1.1"
+  #define AppVersion "0.1.2"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\publish\win-x64"
@@ -43,6 +43,16 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 
 [Run]
 Filename: "{app}\LabelScope.exe"; Description: "Start LabelScope"; Flags: nowait postinstall skipifsilent
+; The in-app updater runs this installer silently with /relaunch=1. The entry above is skipped when
+; silent, so the new version is started by this one instead.
+Filename: "{app}\LabelScope.exe"; Flags: nowait; Check: IsRelaunchRequested
+
+[Code]
+{ True when the in-app updater asked for the new version to be opened after a silent install. }
+function IsRelaunchRequested: Boolean;
+begin
+  Result := ExpandConstant('{param:relaunch|0}') = '1';
+end;
 
 ; settings.json and logs are created by the app at run time, so they are not removed on
 ; purpose: uninstalling must never throw away the user's configuration.

@@ -7,7 +7,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using LabelScope.Core;
+using System.Reflection;
 using LabelScope.Core.Listening;
+using LabelScope.Core.Updating;
 using LabelScope.Core.Printing;
 using LabelScope.Core.Rendering;
 using LabelScope.Core.Settings;
@@ -76,6 +78,7 @@ public partial class MainWindow : Window
             StartListener();
             CreateInstaller();
             await RefreshPrinterStatusAsync();
+            if (_settings.CheckForUpdates) await CheckForUpdatesAsync(userAsked: false);
         }
         catch (Exception ex)
         {
@@ -638,6 +641,94 @@ public partial class MainWindow : Window
 
     private void RefreshMessageText() =>
         MessageText.Text = string.Join(" ", _startupNotes.Append(_actionMessage).Where(s => s.Length > 0));
+
+    // ---- Updates ---------------------------------------------------------------------------------------
+
+    /// <summary>The newer release found by the last check; null when none.</summary>
+    private UpdateInfo? _update;
+
+    /// <summary>The version of this running program (the part before any "+commit" suffix).</summary>
+    private static Version InstalledVersion()
+    {
+        var text = System.Reflection.Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
+        return UpdateChecker.TryParseVersion(text.Split('+')[0], out var v) ? v : new Version(0, 0);
+    }
+
+    private async void OnCheckForUpdates(object sender, RoutedEventArgs e) => await CheckForUpdatesAsync(userAsked: true);
+
+    /// <summary>
+    /// Looks for a newer version. At start-up (userAsked false) problems are only logged, because a PC without
+    /// internet is normal for this tool; when the user pressed the button they get a plain answer either way.
+    /// </summary>
+    private async Task CheckForUpdatesAsync(bool userAsked)
+    {
+        try
+        {
+            CheckUpdateButton.IsEnabled = false;
+            var result = await new UpdateChecker().CheckAsync(InstalledVersion());
+            if (result.Update is { } update)
+            {
+                _update = update;
+                UpdateButton.Content = $"Update to {update.Version.ToString(3)}";
+                UpdateButton.Visibility = Visibility.Visible;
+                ShowMessage($"A new version of LabelScope is available ({update.Version.ToString(3)}). Press \"Update to {update.Version.ToString(3)}\" in the toolbar to install it.");
+                Log.Information("Update available: {Version}", update.Version);
+            }
+            else if (result.Problem is not null)
+            {
+                Log.Information("Update check: {Problem}", result.Problem);
+                if (userAsked) ShowMessage(result.Problem);
+            }
+            else if (userAsked)
+            {
+                ShowMessage($"You have the newest version ({InstalledVersion().ToString(3)}).");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Update check failed");
+            if (userAsked) ShowMessage("LabelScope could not check for updates: " + ex.Message);
+        }
+        finally
+        {
+            CheckUpdateButton.IsEnabled = true;
+        }
+    }
+
+    private async void OnUpdateNow(object sender, RoutedEventArgs e)
+    {
+        if (_update is not { } update) return;
+        var answer = MessageBox.Show(this,
+            $"Install LabelScope {update.Version.ToString(3)} now?\n\nLabelScope will close, update itself and open again. Your settings are kept. " +
+            "Labels in the list on the left will be cleared.",
+            "Update LabelScope", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (answer != MessageBoxResult.Yes) return;
+
+        UpdateButton.IsEnabled = false;
+        try
+        {
+            var progress = new Progress<int>(p => ShowMessage($"Downloading the new version... {p}%"));
+            var file = await UpdateInstaller.DownloadAsync(update, progress, CancellationToken.None);
+            ShowMessage("Installing the new version. LabelScope will open again in a moment.");
+            Log.Information("Starting update installer for {Version}", update.Version);
+            UpdateInstaller.Launch(file);
+            Close(); // the installer waits for LabelScope to end, then replaces the files
+        }
+        catch (InvalidOperationException ex)
+        {
+            Log.Warning("Update failed: {Message}", ex.Message);
+            ShowMessage(ex.Message);
+            UpdateButton.IsEnabled = true;
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            // Raised when Windows (or antivirus) refuses to start the downloaded installer.
+            Log.Warning(ex, "Installer could not be started");
+            ShowMessage("Windows did not allow the installer to start (" + ex.Message + "). Download LabelScope-Setup.exe from the GitHub releases page and run it yourself.");
+            UpdateButton.IsEnabled = true;
+        }
+    }
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {

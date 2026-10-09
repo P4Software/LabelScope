@@ -15,6 +15,11 @@
       <Separator/>
       <Button Content="Open settings" Click="OnOpenSettings"/>
       <Button Content="Open log folder" Click="OnOpenLog"/>
+      <Separator/>
+      <Button x:Name="CheckUpdateButton" Content="Check for updates" Click="OnCheckForUpdates"
+              ToolTip="Asks GitHub whether a newer version of LabelScope exists"/>
+      <Button x:Name="UpdateButton" Visibility="Collapsed" FontWeight="Bold" Foreground="DarkGreen" Click="OnUpdateNow"
+              ToolTip="Downloads the new version, checks its signature, and installs it. Your settings are kept."/>
     </ToolBar>
 
     <StatusBar DockPanel.Dock="Bottom">

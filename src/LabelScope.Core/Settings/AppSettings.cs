@@ -29,4 +29,10 @@ public sealed class AppSettings
 
     /// <summary>Name of the Windows printer that LabelScope installs.</summary>
     public string PrinterName { get; set; } = "LabelScope";
+
+    /// <summary>
+    /// When true, LabelScope asks GitHub once at start whether a newer version exists. Nothing is installed
+    /// unless the user presses the update button. The "Check for updates" button works either way.
+    /// </summary>
+    public bool CheckForUpdates { get; set; } = true;
 }

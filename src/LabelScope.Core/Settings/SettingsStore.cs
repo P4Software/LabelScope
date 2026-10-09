@@ -38,7 +38,11 @@ public sealed class SettingsStore
           "LogFolder": "logs",
 
           // Name of the Windows printer LabelScope installs when you press "Install printer".
-          "PrinterName": "LabelScope"
+          "PrinterName": "LabelScope",
+
+          // true = at start, ask GitHub once whether a newer LabelScope exists (nothing about you is sent).
+          // LabelScope never installs anything by itself; you press the update button. false = never ask.
+          "CheckForUpdates": true
         }
         """;
 

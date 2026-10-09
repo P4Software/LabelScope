@@ -86,7 +86,7 @@ LabelScope pretends to be that printer. It installs a normal Windows printer, re
 
 **[Download LabelScope-Setup.exe](https://github.com/P4Software/LabelScope/releases/latest/download/LabelScope-Setup.exe)** (newest release, Windows 10 or 11, 64-bit).
 
-Run it and follow the steps. It installs for your user only, so it needs no administrator rights, and the installer is digitally signed (publisher: Barrdega Sistemas NA LLC). Nothing else has to be installed first. Uninstalling keeps your `settings.json`.
+Run it and follow the steps. It installs for your user only, so it needs no administrator rights, and the installer is digitally signed (publisher: Barrdega Sistemas NA LLC). Nothing else has to be installed first. Uninstalling keeps your `settings.json`. Later versions are offered inside LabelScope: when one exists, an **Update** button appears in the toolbar (or press **Check for updates**). The download is checked for the publisher's signature before it is run.
 
 ## Using it
 
@@ -141,6 +141,7 @@ On first start LabelScope creates `settings.json` next to the program, with an e
 | `FontsFolder` | empty | Folder with your own TrueType fonts. Read but not used yet (a later release). |
 | `LogFolder` | `logs` | Where log files are written. A relative folder is relative to the program folder. |
 | `PrinterName` | `LabelScope` | Name of the Windows printer (see [Printer details](#printer-details)). |
+| `CheckForUpdates` | `true` | Ask GitHub once at start whether a newer version exists. LabelScope only tells you; it installs a new version when you press **Update**. |
 
 The file may contain `//` comments. Restart LabelScope after editing it.
 
@@ -169,7 +170,7 @@ Any command that is not drawn is listed in the warnings list with its line numbe
 
 ## Privacy and security
 
-- Labels are rendered locally; LabelScope makes no internet connections.
+- Labels are rendered locally and never leave your computer. The only internet request LabelScope makes is one small question to GitHub at start-up ("is there a newer version?"); it sends nothing about you or your labels. Set `CheckForUpdates` to `false` in `settings.json` to switch even that off.
 - By default it listens on `127.0.0.1` only, so other computers cannot reach it. Set `ListenAddress` to `0.0.0.0` only on networks you trust: anyone who can reach the port can send it labels.
 - The program itself never runs as administrator. Only the printer install/remove step asks Windows for permission.
 - LabelScope never changes or removes a printer it did not create.
