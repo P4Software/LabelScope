@@ -21,6 +21,9 @@ internal static class BarcodeFactory
     private static readonly Dictionary<string, Func<BarcodeArgs, string, BarcodeField>> Encoders = new()
     {
         ["^BC"] = Code128Encoder.Build,
+        ["^B3"] = Code39Family.BuildCode39,
+        ["^BL"] = Code39Family.BuildLogmars,
+        ["^BA"] = Code39Family.BuildCode93,
         // (further symbologies are added by Tasks 7 to 14)
     };
 
