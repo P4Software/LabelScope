@@ -44,6 +44,7 @@ internal static class BarcodeFactory
         ["^B1"] = OtherLinearEncoders.BuildCode11,
         ["^BM"] = OtherLinearEncoders.BuildMsi,
         ["^BQ"] = QrField.Build,
+        ["^BX"] = DataMatrixEncoder.Build,
         // (further symbologies are added by later tasks)
     };
 
