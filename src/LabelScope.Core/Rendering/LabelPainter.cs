@@ -49,22 +49,34 @@ internal sealed partial class LabelPainter : IDisposable
     private bool _hasData;
     private int? _fontHeight, _fontWidth;
     private FieldBlock? _fieldBlock;
+    // Orientation named by ^A for the field being built (null = use the ^FW default). Reset by ^FS.
+    private char? _textOrientation;
 
     private sealed record FieldBlock(int Width, int MaxLines, int LineSpacing, char Justify);
 
-    private LabelPainter(int width, int height, List<RenderWarning> warnings)
+    private LabelPainter(int width, int height, List<RenderWarning> warnings, bool inverted)
     {
         _warnings = warnings;
         _bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         _canvas = new SKCanvas(_bitmap);
         _canvas.Clear(SKColors.White);
+        if (inverted)
+        {
+            // ^PO I prints the label upside down: every point (x, y) goes to (W - x, H - y). Doing it as one
+            // canvas transform means text, boxes and barcodes all follow without knowing about it.
+            _canvas.Translate(width, height);
+            _canvas.RotateDegrees(180);
+        }
     }
 
     /// <summary>Paints one label block and returns its image.</summary>
     public static RenderedLabel Paint(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings)
     {
         var (w, h, widthFromZpl, heightFromZpl) = ResolveSize(block, options, warnings);
-        using var painter = new LabelPainter(w, h, warnings);
+        // Only the last ^PO of a label counts, wherever it appears.
+        var inverted = block.LastOrDefault(c => c.Name == "^PO") is { } po &&
+                       po.Args.TrimStart().StartsWith("I", StringComparison.OrdinalIgnoreCase);
+        using var painter = new LabelPainter(w, h, warnings, inverted);
         foreach (var cmd in block) painter.Handle(cmd);
         return painter.ToResult(w, h, widthFromZpl, heightFromZpl, options.Dpi);
     }
@@ -129,6 +141,8 @@ internal sealed partial class LabelPainter : IDisposable
             case "^FS": EndField(); break;
             case "^GB": DrawBox(cmd, a); break;
             case "^GC": DrawCircle(a); break;
+            case "^GD": DrawDiagonal(a); break;
+            case "^PO": break; // already applied in Paint
             case "^BY": SetBarDefaults(cmd, a); break;
             case "^FW": _fieldOrientation = a.Length > 0 && a[0].Length > 0 ? FieldPlacement.Normalize(a[0][0]) : 'N'; break;
             case "^FH": _hexIndicator = a.Length > 0 && a[0].Length > 0 ? a[0][0] : '_'; break;
@@ -152,8 +166,8 @@ internal sealed partial class LabelPainter : IDisposable
     private void SetFieldFont(ZplCommand cmd, string[] a)
     {
         var first = a.Length > 0 ? a[0] : "";
-        if (first.Length > 1 && char.ToUpperInvariant(first[1]) != 'N')
-            _warnings.Add(new(cmd.Line, "Rotated text (^A orientation R, I or B) is not supported yet; it is drawn unrotated."));
+        // ^A0R: first character is the font, the second the orientation (absent = follow ^FW).
+        _textOrientation = first.Length > 1 ? FieldPlacement.Normalize(first[1]) : null;
         if (TryInt(a, 1, out var h) && h > 0) _fontHeight = Math.Min(h, MaxFontDots);
         if (TryInt(a, 2, out var w) && w > 0) _fontWidth = Math.Min(w, MaxFontDots);
     }
@@ -197,7 +211,7 @@ internal sealed partial class LabelPainter : IDisposable
             DrawText();
         }
         _data = ""; _hasData = false; _reverse = false;
-        _fontHeight = null; _fontWidth = null; _fieldBlock = null;
+        _fontHeight = null; _fontWidth = null; _fieldBlock = null; _textOrientation = null;
         _barcode = null; _hexIndicator = null; // both apply to one field only
     }
 
@@ -206,27 +220,49 @@ internal sealed partial class LabelPainter : IDisposable
         using var font = MakeFont();
         using var paint = InkPaint();
         var lineHeight = font.Size;
+        var ascent = -font.Metrics.Ascent;
+        var descent = font.Metrics.Descent;
 
+        // Lay the lines out in an upright local box first: (text, x offset inside the box).
+        var lines = new List<(string Text, float X)>();
+        float boxWidth, lineStep = 0;
         if (_fieldBlock is null)
         {
-            var baseline = _baseline ? _y : _y - font.Metrics.Ascent;
-            _canvas.DrawText(_data, _x, baseline, font, paint);
-            return;
+            lines.Add((_data, 0));
+            boxWidth = Measure(font, _data);
+        }
+        else
+        {
+            var b = _fieldBlock;
+            lineStep = lineHeight + b.LineSpacing;
+            foreach (var text in Wrap(_data, font, b.Width, b.MaxLines))
+            {
+                var textWidth = Measure(font, text);
+                lines.Add((text, b.Justify switch
+                {
+                    'C' => (b.Width - textWidth) / 2,
+                    'R' => b.Width - textWidth,
+                    _ => 0,
+                }));
+            }
+            boxWidth = b.Width;
         }
 
-        var b = _fieldBlock;
-        var lines = Wrap(_data, font, b.Width, b.MaxLines);
-        for (var i = 0; i < lines.Count; i++)
+        // First baseline sits one ascent below the top of the box; ^FT anchors exactly there.
+        var baseline = (int)Math.Round(ascent);
+        var boxHeight = (int)Math.Ceiling(baseline + (lines.Count - 1) * lineStep + descent);
+
+        _canvas.Save();
+        try
         {
-            var textWidth = Measure(font, lines[i]);
-            var x = b.Justify switch
-            {
-                'C' => _x + (b.Width - textWidth) / 2,
-                'R' => _x + b.Width - textWidth,
-                _ => _x,
-            };
-            var firstBaseline = _baseline ? _y : _y - font.Metrics.Ascent;
-            _canvas.DrawText(lines[i], x, firstBaseline + i * (lineHeight + b.LineSpacing), font, paint);
+            FieldPlacement.Apply(_canvas, _textOrientation ?? _fieldOrientation, _x, _y,
+                (int)Math.Ceiling(boxWidth), boxHeight, _baseline, baseline);
+            for (var i = 0; i < lines.Count; i++)
+                _canvas.DrawText(lines[i].Text, lines[i].X, baseline + i * lineStep, font, paint);
+        }
+        finally
+        {
+            _canvas.Restore();
         }
     }
 
@@ -292,6 +328,38 @@ internal sealed partial class LabelPainter : IDisposable
         _canvas.DrawRect(_x, y + height - thickness, width, thickness, paint);
         _canvas.DrawRect(_x, y + thickness, thickness, height - 2 * thickness, paint);
         _canvas.DrawRect(_x + width - thickness, y + thickness, thickness, height - 2 * thickness, paint);
+    }
+
+    /// <summary>
+    /// ^GD: a line across the corners of a w x h box. Drawn as a parallelogram whose horizontal width is the
+    /// thickness (the extract does not say how thickness is measured; this matches how thin lines look on paper).
+    /// </summary>
+    private void DrawDiagonal(string[] a)
+    {
+        var t = Math.Clamp(Int(a, 2, 1), 1, MaxDots);
+        var w = Math.Clamp(Int(a, 0, t), 3, MaxDots);
+        var h = Math.Clamp(Int(a, 1, t), 3, MaxDots);
+        var white = a.Length > 3 && a[3].Length > 0 && char.ToUpperInvariant(a[3][0]) == 'W';
+        var left = a.Length > 4 && a[4].Length > 0 && (char.ToUpperInvariant(a[4][0]) == 'L' || a[4][0] == (char)92);
+
+        t = Math.Min(t, w);
+        var top = _baseline ? _y - h : _y; // ^FT names the bottom-left corner of a graphic
+        using var path = new SKPath();
+        if (left)
+        {
+            path.MoveTo(_x, top); path.LineTo(_x + t, top);
+            path.LineTo(_x + w, top + h); path.LineTo(_x + w - t, top + h);
+        }
+        else
+        {
+            path.MoveTo(_x, top + h); path.LineTo(_x + t, top + h);
+            path.LineTo(_x + w, top); path.LineTo(_x + w - t, top);
+        }
+        path.Close();
+
+        using var paint = InkPaint(white);
+        paint.Style = SKPaintStyle.Fill;
+        _canvas.DrawPath(path, paint);
     }
 
     private void DrawCircle(string[] a)
