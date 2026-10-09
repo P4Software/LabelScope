@@ -14,13 +14,14 @@ namespace LabelScope.App;
 public sealed class LabelEntry
 {
     /// <summary>Creates the entry; nothing is decoded here.</summary>
-    public LabelEntry(DateTimeOffset at, string source, string zpl, bool complete, RenderedLabel label,
+    public LabelEntry(DateTimeOffset at, string source, string zpl, string originalZpl, bool complete, RenderedLabel label,
                       IReadOnlyList<RenderWarning> warnings, string? placeholderTitle = null)
     {
         PlaceholderTitle = placeholderTitle;
         At = at;
         Source = source;
         Zpl = zpl;
+        OriginalZpl = originalZpl;
         Complete = complete;
         Label = label;
         Warnings = warnings;
@@ -30,8 +31,13 @@ public sealed class LabelEntry
     public DateTimeOffset At { get; }
     /// <summary>Sender address.</summary>
     public string Source { get; }
-    /// <summary>Raw ZPL text exactly as received.</summary>
+    /// <summary>
+    /// The ZPL as shown in the window: laid out one command group per line. The picture was drawn from this very
+    /// text, so the line numbers of the warnings match what is displayed.
+    /// </summary>
     public string Zpl { get; }
+    /// <summary>The ZPL exactly as it was received, for the "Copy original" button.</summary>
+    public string OriginalZpl { get; }
     /// <summary>False when the sender disconnected before ^XZ.</summary>
     public bool Complete { get; }
     /// <summary>The rendered label (PNG bytes and size).</summary>
@@ -39,8 +45,11 @@ public sealed class LabelEntry
     /// <summary>Warnings produced while rendering.</summary>
     public IReadOnlyList<RenderWarning> Warnings { get; }
 
-    /// <summary>Approximate memory this entry keeps (PNG bytes plus ZPL text); used to bound the whole history.</summary>
-    public long ApproximateBytes => HistoryBudget.SizeOf(Label.PngBytes.Length, Zpl);
+    /// <summary>
+    /// Approximate memory this entry keeps (PNG bytes plus both ZPL texts); used to bound the whole history.
+    /// Both texts are counted because each one is a separate string in memory.
+    /// </summary>
+    public long ApproximateBytes => HistoryBudget.SizeOf(Label.PngBytes.Length, Zpl) + HistoryBudget.SizeOf(0, OriginalZpl);
 
     /// <summary>
     /// Set when the data produced no label picture: the entry then shows a placeholder picture, the raw text

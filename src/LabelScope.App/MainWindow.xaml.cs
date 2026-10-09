@@ -138,24 +138,27 @@ public partial class MainWindow : Window
         {
             if (_closing) return;
             var options = new RenderOptions(_settings.DefaultDpi, _settings.DefaultLabelWidthMm, _settings.DefaultLabelHeightMm);
+            // Format first and draw THE FORMATTED TEXT: warnings carry line numbers, and they must point at the
+            // lines the user sees. Formatting does not change the picture (ZPL ignores line breaks).
+            var formatted = ZplFormatter.Format(received.Zpl);
             RenderResult result;
             _renderGate.Wait();
-            try { result = _renderer.Render(received.Zpl, options); }
+            try { result = _renderer.Render(formatted, options); }
             finally { _renderGate.Release(); }
             Log.Information("Label received from {Source}: {Labels} image(s), {Warnings} warning(s), complete={Complete}",
                 received.Source, result.Labels.Count, result.Warnings.Count, received.Complete);
 
             var entries = result.Labels
-                .Select(l => new LabelEntry(received.ReceivedAt, received.Source, received.Zpl, received.Complete, l, result.Warnings))
+                .Select(l => new LabelEntry(received.ReceivedAt, received.Source, formatted, received.Zpl, received.Complete, l, result.Warnings))
                 .ToList();
             string? note = null;
 
             if (entries.Count == 0)
             {
-                // Never drop a job silently: show the raw text and the warnings so the user can see what arrived.
+                // Never drop a job silently: show the text and the warnings so the user can see what arrived.
                 // Without any ^XA the data holds no label at all; with one, the label exists but could not be drawn.
-                var hasStart = received.Zpl.Contains("^XA", StringComparison.OrdinalIgnoreCase);
-                entries.Add(new LabelEntry(received.ReceivedAt, received.Source, received.Zpl, received.Complete,
+                var hasStart = formatted.Contains("^XA", StringComparison.OrdinalIgnoreCase);
+                entries.Add(new LabelEntry(received.ReceivedAt, received.Source, formatted, received.Zpl, received.Complete,
                     PlaceholderLabel.Create(hasStart ? PlaceholderLabel.NotDrawnText : PlaceholderLabel.Text),
                     result.Warnings, hasStart ? PlaceholderLabel.NotDrawnTitle : PlaceholderLabel.NotFoundTitle));
                 note = hasStart
@@ -280,6 +283,8 @@ public partial class MainWindow : Window
             {
                 ZplBox.Text = "";
                 LineNumbers.Text = "";
+                CopyZplButton.IsEnabled = false;
+                CopyOriginalButton.IsEnabled = false;
                 InfoText.Text = "";
                 WarningList.ItemsSource = null;
                 return;
@@ -289,6 +294,8 @@ public partial class MainWindow : Window
             LabelImage.Source = _currentImage;
             InfoText.Text = entry.Info;
             ZplBox.Text = entry.Zpl;
+            CopyZplButton.IsEnabled = true;
+            CopyOriginalButton.IsEnabled = true;
             LineNumbers.Text = string.Join("\n", Enumerable.Range(1, entry.Zpl.Split('\n').Length));
             WarningList.ItemsSource = entry.Warnings;
             OnZoomChanged(sender, e);
@@ -528,6 +535,69 @@ public partial class MainWindow : Window
             Log.Warning(ex, "Could not copy the image");
             ShowMessage("The image could not be copied because Windows or another program is using the clipboard. Try again.");
         }
+    }
+
+    private void OnCopyZpl(object sender, RoutedEventArgs e) => CopyZpl(original: false);
+
+    private void OnCopyOriginalZpl(object sender, RoutedEventArgs e) => CopyZpl(original: true);
+
+    /// <summary>
+    /// Copies the formatted ZPL (or the text exactly as received) to the clipboard. The clipboard is shared with
+    /// every other program and can be busy, so a failure is retried once and then explained; nothing escapes.
+    /// </summary>
+    private void CopyZpl(bool original)
+    {
+        try
+        {
+            if (HistoryList.SelectedItem is not LabelEntry entry)
+            {
+                ShowMessage("There is no ZPL to copy yet. Send a label to LabelScope first.");
+                return;
+            }
+            var text = original ? entry.OriginalZpl : entry.Zpl;
+            if (text.Length == 0)
+            {
+                ShowMessage("This label contains no ZPL text to copy.");
+                return;
+            }
+
+            // Windows programs expect CRLF. Only a bare LF is converted, so the original text is not altered
+            // where it already used CRLF (or a lone CR) and no "\r\r\n" is produced.
+            var clipboardText = BareLineFeed.Replace(text, "\r\n");
+
+            if (!TrySetClipboardText(clipboardText))
+            {
+                ShowMessage("LabelScope could not use the clipboard because another program is using it. Try again.");
+                return;
+            }
+            ShowMessage(original ? "Original ZPL copied." : $"ZPL copied ({text.Count(c => c == '\n') + 1} lines).");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not copy the ZPL");
+            ShowMessage("The ZPL could not be copied. Details are in the log file.");
+        }
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex BareLineFeed = new(@"(?<!\r)\n");
+
+    /// <summary>Sets the clipboard text; when another program holds the clipboard it waits a moment and tries once more.</summary>
+    private static bool TrySetClipboardText(string text)
+    {
+        for (var attempt = 1; attempt <= 2; attempt++)
+        {
+            try
+            {
+                Clipboard.SetText(text);
+                return true;
+            }
+            catch (System.Runtime.InteropServices.COMException ex)
+            {
+                Log.Warning(ex, "Clipboard was busy (attempt {Attempt})", attempt);
+                if (attempt == 1) Thread.Sleep(100);
+            }
+        }
+        return false;
     }
 
     private void OnClearHistory(object sender, RoutedEventArgs e) => _history.Clear();
