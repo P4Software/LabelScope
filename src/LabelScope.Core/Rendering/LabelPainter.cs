@@ -1,10 +1,11 @@
 using System.Globalization;
+using LabelScope.Core.Barcodes;
 using SkiaSharp;
 
 namespace LabelScope.Core.Rendering;
 
 /// <summary>Draws the commands of a single <c>^XA…^XZ</c> block onto a bitmap.</summary>
-internal sealed class LabelPainter : IDisposable
+internal sealed partial class LabelPainter : IDisposable
 {
     /// <summary>Largest label edge we will allocate; protects against typos such as ^PW99999.</summary>
     private const int MaxDots = 8000;
@@ -128,7 +129,11 @@ internal sealed class LabelPainter : IDisposable
             case "^FS": EndField(); break;
             case "^GB": DrawBox(cmd, a); break;
             case "^GC": DrawCircle(a); break;
+            case "^BY": SetBarDefaults(cmd, a); break;
+            case "^FW": _fieldOrientation = a.Length > 0 && a[0].Length > 0 ? FieldPlacement.Normalize(a[0][0]) : 'N'; break;
+            case "^FH": _hexIndicator = a.Length > 0 && a[0].Length > 0 ? a[0][0] : '_'; break;
             default:
+                if (TryStartBarcode(cmd, a)) break;
                 if (!NoVisualEffect.Contains(cmd.Name))
                     _warnings.Add(new(cmd.Line, $"{cmd.Name} is not supported yet and was ignored."));
                 break;
@@ -180,9 +185,20 @@ internal sealed class LabelPainter : IDisposable
 
     private void EndField()
     {
-        if (_hasData && _data.Length > 0) DrawText();
+        // ^FH escapes are resolved once, here, so text and barcodes see the same characters.
+        var data = FieldData.Decode(_data, _hexIndicator);
+        if (_barcode is not null)
+        {
+            if (_hasData && !_barcode.Skip) DrawBarcode(data);
+        }
+        else if (_hasData && data.Length > 0)
+        {
+            _data = data;
+            DrawText();
+        }
         _data = ""; _hasData = false; _reverse = false;
         _fontHeight = null; _fontWidth = null; _fieldBlock = null;
+        _barcode = null; _hexIndicator = null; // both apply to one field only
     }
 
     private void DrawText()

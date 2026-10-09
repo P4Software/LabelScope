@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace LabelScope.Core.Barcodes;
 
 /// <summary>The values set by <c>^BY</c>: module width, wide-to-narrow ratio and default bar height.</summary>
@@ -26,4 +28,23 @@ internal sealed record BarDefaults(int ModuleWidth = 2, double Ratio = 3.0, int 
         new(Math.Clamp(width, 1, MaxModuleWidth),
             double.IsNaN(ratio) ? 3.0 : Math.Clamp(ratio, 2.0, 3.0),
             Math.Clamp(height, 1, MaxHeight));
+
+    /// <summary>
+    /// Applies the parameters of <c>^BYw,r,h</c>. A missing or empty parameter keeps the current value, a number
+    /// outside the allowed range is pulled into range and reported through <paramref name="clamped"/>.
+    /// </summary>
+    public BarDefaults WithArgs(string[] a, out bool clamped)
+    {
+        int Whole(int i, int fallback) =>
+            i < a.Length && int.TryParse(a[i].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : fallback;
+
+        var ratio = Ratio;
+        if (a.Length > 1 && double.TryParse(a[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var r)) ratio = r;
+        var w = Whole(0, ModuleWidth);
+        var h = Whole(2, Height);
+
+        var result = Clamped(w, ratio, h);
+        clamped = result.ModuleWidth != w || Math.Abs(result.Ratio - ratio) > 1e-9 || result.Height != h;
+        return result;
+    }
 }
