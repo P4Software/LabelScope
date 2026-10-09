@@ -24,10 +24,6 @@ internal sealed partial class LabelPainter : IDisposable
     private const int MaxFieldBlockLines = 1000;
     private const int MaxCopies = 99_999_999; // the ZPL limit for ^PQ
 
-    // Commands that change printer behaviour but not the picture; warning about them would be noise.
-    // ^PM (print mirror) is deliberately not here: it flips the picture, so ignoring it silently would mislead.
-    private static readonly HashSet<string> NoVisualEffect = new() { "^MN", "^MM", "^MD", "^MT", "^PR", "^JU" };
-
     private readonly List<RenderWarning> _warnings;
     private readonly SKBitmap _bitmap;
     private readonly SKCanvas _canvas;
@@ -45,6 +41,7 @@ internal sealed partial class LabelPainter : IDisposable
     private int _x, _y;
     private bool _baseline;       // true for ^FT (y is the text baseline), false for ^FO (y is the top)
     private bool _reverse;        // ^FR
+    private bool _reverseAll;     // ^LRY: every field is reversed until ^LRN
     private string _data = "";
     private bool _hasData;
     private int? _fontHeight, _fontWidth;
@@ -52,7 +49,7 @@ internal sealed partial class LabelPainter : IDisposable
     // Orientation named by ^A for the field being built (null = use the ^FW default). Reset by ^FS.
     private char? _textOrientation;
 
-    private sealed record FieldBlock(int Width, int MaxLines, int LineSpacing, char Justify);
+    private sealed record FieldBlock(int Width, int MaxLines, int LineSpacing, char Justify, int Line);
 
     private LabelPainter(int width, int height, List<RenderWarning> warnings, bool inverted)
     {
@@ -133,10 +130,11 @@ internal sealed partial class LabelPainter : IDisposable
             case "^FO": _x = Offset(_homeX, Coord(a, 0)); _y = Offset(_homeY, Coord(a, 1)); _baseline = false; break;
             case "^FT": _x = Offset(_homeX, Coord(a, 0)); _y = Offset(_homeY, Coord(a, 1)); _baseline = true; break;
             case "^FR": _reverse = true; break;
+            case "^LR": _reverseAll = a.Length > 0 && a[0].Trim().StartsWith("Y", StringComparison.OrdinalIgnoreCase); break;
             case "^PQ": _copies = Math.Clamp(Int(a, 0, 1), 1, MaxCopies); break;
             case "^CF": SetDefaultFont(cmd, a); break;
             case "^A": SetFieldFont(cmd, a); break;
-            case "^FB": _fieldBlock = new FieldBlock(Math.Clamp(Int(a, 0, 0), 1, MaxDots), Math.Clamp(Int(a, 1, 1), 1, MaxFieldBlockLines), Math.Clamp(Int(a, 2, 0), -MaxDots, MaxDots), Justify(a)); break;
+            case "^FB": _fieldBlock = new FieldBlock(Math.Clamp(Int(a, 0, 0), 0, MaxDots), Math.Clamp(Int(a, 1, 1), 1, MaxFieldBlockLines), Math.Clamp(Int(a, 2, 0), -MaxDots, MaxDots), Justify(a), cmd.Line); break;
             case "^FD": _data = cmd.Args; _hasData = true; break;
             case "^FS": EndField(); break;
             case "^GB": DrawBox(cmd, a); break;
@@ -148,7 +146,7 @@ internal sealed partial class LabelPainter : IDisposable
             case "^FH": _hexIndicator = a.Length > 0 && a[0].Length > 0 ? a[0][0] : '_'; break;
             default:
                 if (TryStartBarcode(cmd, a)) break;
-                if (!NoVisualEffect.Contains(cmd.Name))
+                if (!SilentCommands.IsSilent(cmd.Name, cmd.Args))
                     _warnings.Add(new(cmd.Line, $"{cmd.Name} is not supported yet and was ignored."));
                 break;
         }
@@ -189,13 +187,18 @@ internal sealed partial class LabelPainter : IDisposable
 
     // ---- fields ------------------------------------------------------------------------------
 
-    private SKPaint InkPaint(bool white = false) => new()
+    private SKPaint InkPaint(bool white = false)
     {
-        IsAntialias = true,
-        Color = _reverse || white ? SKColors.White : SKColors.Black,
-        // White drawn with Difference inverts whatever is underneath: this is what ^FR means.
-        BlendMode = _reverse ? SKBlendMode.Difference : SKBlendMode.SrcOver,
-    };
+        // ^LRY is the same as ^FR on every field, so both switches lead to the same paint.
+        var reverse = _reverse || _reverseAll;
+        return new SKPaint
+        {
+            IsAntialias = true,
+            Color = reverse || white ? SKColors.White : SKColors.Black,
+            // White drawn with Difference inverts whatever is underneath: this is what ^FR means.
+            BlendMode = reverse ? SKBlendMode.Difference : SKBlendMode.SrcOver,
+        };
+    }
 
     private void EndField()
     {
@@ -217,6 +220,14 @@ internal sealed partial class LabelPainter : IDisposable
 
     private void DrawText()
     {
+        if (_fieldBlock is { Width: 0 } zero)
+        {
+            // Zebra: a block width of 0 is "unset" and nothing prints. Drawing one long line instead would
+            // show something a printer never prints.
+            _warnings.Add(new(zero.Line, "^FB has a width of 0, which prints nothing on a Zebra printer, so this text was not drawn. Give ^FB a width in dots (for example ^FB400,3)."));
+            return;
+        }
+
         using var font = MakeFont();
         using var paint = InkPaint();
         var lineHeight = font.Size;

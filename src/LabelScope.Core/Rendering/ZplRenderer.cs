@@ -43,7 +43,8 @@ public sealed class ZplRenderer
 
                 default:
                     if (inLabel) block.Add(cmd);
-                    else warnings.Add(new(cmd.Line, $"{cmd.Name} is outside a label (^XA … ^XZ) or not supported yet, and was ignored."));
+                    else if (!SilentCommands.IsSilent(cmd.Name, cmd.Args))
+                        warnings.Add(new(cmd.Line, $"{cmd.Name} is outside a label (^XA … ^XZ) or not supported yet, and was ignored."));
                     break;
             }
         }
