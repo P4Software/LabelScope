@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <em>By <a href="https://github.com/P4Software">P4 Software</a> · Status: in development. The first release is built and is being tested on real PCs. There is no download yet; <a href="#building-from-source">build and run it from source</a>.</em>
+  <em>By <a href="https://github.com/P4Software">P4 Software</a> · Status: in development. The first release is being tested on real PCs. <a href="https://github.com/P4Software/LabelScope/releases/latest/download/LabelScope-Setup.exe">Download the Windows installer</a> once a release is published, or <a href="#building-from-source">build it from source</a>.</em>
 </p>
 
 ---
@@ -21,6 +21,7 @@
 - [Who is it for?](#who-is-it-for)
 - [How it works](#how-it-works)
 - [Features](#features)
+- [Download and install](#download-and-install)
 - [Using it](#using-it)
 - [Settings](#settings)
 - [ZPL command support](#zpl-command-support)
@@ -81,9 +82,15 @@ LabelScope pretends to be that printer. It installs a normal Windows printer, re
 | **Simple settings** | One `settings.json` file next to the program, created for you with explanations. |
 | **No installation tricks** | Double-click to run. No command-line options or environment variables. |
 
+## Download and install
+
+**[Download LabelScope-Setup.exe](https://github.com/P4Software/LabelScope/releases/latest/download/LabelScope-Setup.exe)** (newest release, Windows 10 or 11, 64-bit).
+
+Run it and follow the steps. It installs for your user only, so it needs no administrator rights, and the installer is digitally signed (publisher: Barrdega Sistemas NA LLC). Nothing else has to be installed first. Uninstalling keeps your `settings.json`.
+
 ## Using it
 
-1. Build LabelScope (see [Building from source](#building-from-source)) or copy a published build anywhere, and double-click **LabelScope.exe**. The first start creates `settings.json` and a `logs` folder next to the program.
+1. Install LabelScope (see [Download and install](#download-and-install)), build it from source, or copy a published build anywhere, and double-click **LabelScope.exe**. The first start creates `settings.json` and a `logs` folder next to the program.
 2. Press **Install printer** and answer **Yes** twice: once to LabelScope's own question, once when Windows asks for permission. This is the only time administrator rights are needed.
 3. Print from any program to **LabelScope**, or send ZPL to `127.0.0.1:9100`.
 4. The label appears in the window. Select older labels from the list on the left.
@@ -197,6 +204,7 @@ The result in `publish/win-x64` can be copied to any Windows 10 or 11 PC and sta
 ```
 src/LabelScope.Core/    Settings, TCP listener, ZPL parser and renderer, printer installer (no UI)
 src/LabelScope.App/     The Windows (WPF) application
+installer/              Inno Setup script and the build-installer.cmd that builds and signs the installer
 assets/                 Logo and icon
 ```
 
@@ -206,7 +214,8 @@ assets/                 Logo and icon
 - [ ] First release: Windows printer, listener, core ZPL commands, label and ZPL side by side (built; being tested on real PCs before it is ticked)
 - [ ] Barcodes, rotated text, light-grid and stacked-layout view options
 - [ ] Graphics, images and custom fonts
-- [ ] Advanced commands, installer package, Spanish user interface
+- [x] Windows installer (signed)
+- [ ] Advanced commands, Spanish user interface
 - [ ] Optional: save every received label automatically to PDF or image files
 
 ## Troubleshooting
