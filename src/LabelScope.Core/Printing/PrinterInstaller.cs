@@ -59,15 +59,20 @@ public sealed class PrinterInstaller
     private readonly string _name;
     private readonly int _port;
     private readonly string _portName;
+    private readonly IPrinterLookup? _lookup;
 
     /// <summary>Creates an installer for printer <paramref name="printerName"/> forwarding to local <paramref name="port"/>.</summary>
+    /// <param name="runner">Runs the PowerShell scripts (install, remove and the fallback status check).</param>
+    /// <param name="printerName">Name of the Windows printer.</param>
+    /// <param name="port">Local port the printer forwards to.</param>
+    /// <param name="lookup">Used for the status check when given; otherwise PowerShell is used.</param>
     /// <exception cref="ArgumentNullException"><paramref name="runner"/> is null.</exception>
     /// <exception cref="ArgumentException">
     /// The name is blank, longer than 60 characters, or contains a control character (such as a line break),
     /// a backslash, a slash, an exclamation mark or one of the wildcard characters * ? [ ].
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">The port is not between 1 and 65535.</exception>
-    public PrinterInstaller(IPowerShellRunner runner, string printerName, int port)
+    public PrinterInstaller(IPowerShellRunner runner, string printerName, int port, IPrinterLookup? lookup = null)
     {
         ArgumentNullException.ThrowIfNull(runner);
 
@@ -90,6 +95,7 @@ public sealed class PrinterInstaller
         _name = printerName;
         _port = port;
         _portName = string.Create(CultureInfo.InvariantCulture, $"LabelScope-{port}");
+        _lookup = lookup;
     }
 
     /// <summary>
@@ -97,6 +103,30 @@ public sealed class PrinterInstaller
     /// check itself failed; only cancellation through <paramref name="ct"/> is thrown.
     /// </summary>
     public async Task<PrinterStatus> GetStatusAsync(CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (_lookup is not null)
+        {
+            try
+            {
+                // The call is quick but blocking; keep it off the caller's (UI) thread.
+                var found = await Task.Run(() => _lookup.Find(_name), ct);
+                if (found is null) return PrinterStatus.NotInstalled;
+                return found.Comment == OwnerMarker ? PrinterStatus.Installed : PrinterStatus.NameTakenByOther;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                // The API could not answer (spooler busy, unusual Windows): fall back to the PowerShell check.
+            }
+        }
+        return await GetStatusViaPowerShellAsync(ct);
+    }
+
+    private async Task<PrinterStatus> GetStatusViaPowerShellAsync(CancellationToken ct)
     {
         // Comments about the scripts stay out here: every character inside them is paid for on the command line.
         var script = Header() +

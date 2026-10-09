@@ -387,7 +387,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            _installer = new PrinterInstaller(new PowerShellRunner(), _settings.PrinterName, _settings.ListenPort);
+            _installer = new PrinterInstaller(new PowerShellRunner(), _settings.PrinterName, _settings.ListenPort, new WinspoolPrinterLookup());
         }
         catch (ArgumentException ex) // also covers ArgumentOutOfRangeException; the message is written for the user
         {
