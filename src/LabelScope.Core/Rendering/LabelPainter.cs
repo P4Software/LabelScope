@@ -87,7 +87,8 @@ internal sealed partial class LabelPainter : IDisposable
     public static RenderedLabel Paint(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, PaintContext context)
     {
         var setup = context.Memory.Setup.Current;
-        var (width, height, widthFromZpl, heightFromZpl) = ResolveSize(block, setup, warnings);
+        var (width, height, sentWidth, sentHeight) = ResolveSize(block, setup, warnings);
+        bool widthFromZpl = width is not null, heightFromZpl = height is not null;
         // Only the last ^PO counts, wherever it appears; without one the last job's ^PO still applies.
         var po = block.LastOrDefault(c => c.Name == "^PO");
         var inverted = po is not null ? po.Args.TrimStart().StartsWith("I", StringComparison.OrdinalIgnoreCase) : setup.Inverted ?? false;
@@ -103,8 +104,8 @@ internal sealed partial class LabelPainter : IDisposable
 
         // What this label set is kept for the jobs that follow.
         context.Memory.Setup.Apply(new PrinterSetup.Values(
-            block.Any(c => c.Name == "^PW") ? width : null,
-            block.Any(c => c.Name == "^LL") ? height : null,
+            sentWidth,
+            sentHeight,
             painter._homeSet ? painter._homeX : null,
             painter._homeSet ? painter._homeY : null,
             po is not null ? inverted : null,
@@ -116,15 +117,18 @@ internal sealed partial class LabelPainter : IDisposable
     /// The label size from ^PW and ^LL (this label first, then what an earlier job set); null for a side never given.
     /// ^PW and ^LL usually come after ^XA, so the size must be known before drawing starts.
     /// </summary>
-    private static (int? Width, int? Height, bool WidthFromZpl, bool HeightFromZpl) ResolveSize(IReadOnlyList<ZplCommand> block, PrinterSetup.Values setup, List<RenderWarning> warnings)
+    /// <returns>The size to draw, and the ^PW and ^LL this label itself sent (null when it sent none), which are what
+    /// later jobs inherit: a size cut only because of the pixel cap must not shrink the jobs that follow.</returns>
+    private static (int? Width, int? Height, int? SentWidth, int? SentHeight) ResolveSize(IReadOnlyList<ZplCommand> block, PrinterSetup.Values setup, List<RenderWarning> warnings)
     {
-        var width = setup.WidthDots;
-        var height = setup.HeightDots;
+        int? sentWidth = null, sentHeight = null;
         foreach (var cmd in block)
         {
-            if (cmd.Name == "^PW" && TryInt(Split(cmd.Args), 0, out var pw)) width = Clamp(pw, cmd, warnings);
-            else if (cmd.Name == "^LL" && TryInt(Split(cmd.Args), 0, out var ll)) height = Clamp(ll, cmd, warnings);
+            if (cmd.Name == "^PW" && TryInt(Split(cmd.Args), 0, out var pw)) sentWidth = Clamp(pw, cmd, warnings);
+            else if (cmd.Name == "^LL" && TryInt(Split(cmd.Args), 0, out var ll)) sentHeight = Clamp(ll, cmd, warnings);
         }
+        var width = sentWidth ?? setup.WidthDots;
+        var height = sentHeight ?? setup.HeightDots;
 
         // Enforced before any allocation. The height is reduced because the width usually matches the print head.
         if (width is { } w && height is { } h && (long)w * h > MaxPixels)
@@ -135,7 +139,7 @@ internal sealed partial class LabelPainter : IDisposable
                 $"The label size is too large to draw ({w} x {h} dots); it was cut to {w} x {cutHeight} dots. Check ^PW and ^LL."));
             height = cutHeight;
         }
-        return (width, height, width is not null, height is not null);
+        return (width, height, sentWidth, sentHeight);
     }
 
     /// <summary>
@@ -146,7 +150,12 @@ internal sealed partial class LabelPainter : IDisposable
     {
         var w = width ?? Math.Min(MaxDots, dpi * 17 / 2);
         var h = height ?? Math.Min(MaxDots, dpi * 12);
-        if ((long)w * h > MaxPixels) h = (int)Math.Max(1, MaxPixels / w);
+        // A side the ZPL gave keeps its size; only a side still to be cut to the drawing gives way to the pixel cap.
+        if ((long)w * h > MaxPixels)
+        {
+            if (width is null) w = (int)Math.Max(1, MaxPixels / h);
+            else h = (int)Math.Max(1, MaxPixels / w);
+        }
         return (w, h);
     }
 

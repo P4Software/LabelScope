@@ -113,8 +113,35 @@ public sealed class SettingsStore
 
         // A file containing only "null" deserializes to null; treat it as an empty file.
         loaded ??= new AppSettings();
+        NoteRetiredKeys(text, messages);
         Validate(loaded, messages);
         return new SettingsLoadResult(loaded, messages);
+    }
+
+    /// <summary>
+    /// Settings that older versions had and this one ignores. Unknown keys are skipped silently by the parser, so
+    /// someone editing one of these would otherwise wonder why nothing changes.
+    /// </summary>
+    private static readonly string[] RetiredKeys = ["DefaultLabelWidthMm", "DefaultLabelHeightMm"];
+
+    private static void NoteRetiredKeys(string text, List<string> messages)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(text, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return;
+            var found = doc.RootElement.EnumerateObject()
+                .Select(p => p.Name)
+                .Where(n => RetiredKeys.Contains(n, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+            if (found.Count > 0)
+                messages.Add($"{string.Join(" and ", found)} in settings.json {(found.Count == 1 ? "is" : "are")} no longer used: " +
+                             "the label size now comes from the ZPL (^PW and ^LL). You can delete " + (found.Count == 1 ? "that line." : "those lines."));
+        }
+        catch (JsonException)
+        {
+            // Already read successfully above; a second read cannot fail in practice, and this note is optional.
+        }
     }
 
     /// <summary>Replaces bad values with defaults and records one message per problem, naming the key.</summary>

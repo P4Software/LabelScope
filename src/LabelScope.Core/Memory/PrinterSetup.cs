@@ -12,7 +12,13 @@ public sealed class PrinterSetup
     private readonly object _gate = new();
     private Values _values = Values.None;
 
-    /// <summary>The setup values; null means "never set", so the settings.json default applies.</summary>
+    /// <summary>
+    /// Held while a job is drawn. A setup job (^PW, ^LL...) and the label after it may arrive on separate connections
+    /// and be drawn at the same time; drawing jobs one after another means the label always sees the setup.
+    /// </summary>
+    internal object JobGate { get; } = new();
+
+    /// <summary>The setup values; null means "never set" (that side of the label is then sized to what is drawn).</summary>
     /// <param name="WidthDots">Last ^PW, in dots.</param>
     /// <param name="HeightDots">Last ^LL, in dots.</param>
     /// <param name="HomeX">Last ^LH x, in dots.</param>

@@ -48,6 +48,12 @@ public sealed class ZplRenderer
     /// </summary>
     public RenderResult Render(string zpl, RenderOptions options)
     {
+        // Jobs are drawn one at a time: printer setup and memory carry from one job to the next, as on a printer.
+        lock (Memory.Setup.JobGate) return RenderJob(zpl, options);
+    }
+
+    private RenderResult RenderJob(string zpl, RenderOptions options)
+    {
         var labels = new List<RenderedLabel>();
         var warnings = new List<RenderWarning>();
         var notes = new List<string>();
