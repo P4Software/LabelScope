@@ -219,7 +219,8 @@ assets/                 Logo and icon
 - [x] Name, logo and design
 - [ ] First release: Windows printer, listener, core ZPL commands, label and ZPL side by side (built; being tested on real PCs before it is ticked)
 - [x] Barcodes and rotated text (version 0.2.0)
-- [ ] Light-grid and stacked-layout view options, crash log, `^FB` width 0, quieter warnings for ZebraDesigner setup blocks, comparison of barcodes with a real printer
+- [x] Light-grid and stacked-layout view options, crash log, `^FB` width 0, `^LR`, quieter warnings for ZebraDesigner setup blocks (version 0.2.1)
+- [ ] Comparison of barcodes with a real Zebra printer
 - [ ] Graphics, images and custom fonts
 - [x] Windows installer (signed)
 - [ ] Advanced commands, Spanish user interface
