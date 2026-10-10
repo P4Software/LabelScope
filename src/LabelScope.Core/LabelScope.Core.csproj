@@ -23,4 +23,10 @@
     <PackageReference Include="ZXing.Net" Version="[0.16.9]" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Bundled open-licence fonts (SIL OFL 1.1, see THIRD-PARTY-NOTICES.txt section G), embedded unmodified so labels
+         look the same on every PC whether or not Arial or any other font is installed. -->
+    <EmbeddedResource Include="Fonts\Files\*.ttf" LogicalName="LabelScope.Fonts.%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>
