@@ -5,7 +5,13 @@ using System.Text.Json;
 namespace LabelScope.Core.Settings;
 
 /// <summary>Settings plus any plain-language notes about problems found while loading them.</summary>
-public sealed record SettingsLoadResult(AppSettings Settings, IReadOnlyList<string> Messages);
+/// <param name="Settings">The settings to use: the file's values, or the defaults when the file could not be used.</param>
+/// <param name="Messages">Plain-language notes about problems found while loading.</param>
+/// <param name="ExistingFileUnreadable">True when settings.json exists but could not be opened (locked, access
+/// denied) or could not be parsed, so <paramref name="Settings"/> are only the defaults. Saving on top of such a
+/// result would replace every value the person wrote in the file, so callers must not save then.</param>
+public sealed record SettingsLoadResult(AppSettings Settings, IReadOnlyList<string> Messages,
+                                        bool ExistingFileUnreadable = false);
 
 /// <summary>Reads settings.json; creates a commented starter file when it is missing.</summary>
 public sealed class SettingsStore
@@ -173,7 +179,7 @@ public sealed class SettingsStore
             // Another program (an editor or antivirus) can hold the file open. We only read here,
             // so the user's file is left untouched and the defaults are used until the lock is gone.
             messages.Add(Text.Get("Settings_OpenFailed", ex.Message, path));
-            return new SettingsLoadResult(new AppSettings(), messages);
+            return new SettingsLoadResult(new AppSettings(), messages, ExistingFileUnreadable: true);
         }
 
         AppSettings? loaded;
@@ -186,7 +192,7 @@ public sealed class SettingsStore
             // Never overwrite the user's file: they may only have a typo to fix.
             // An empty file also lands here ("no JSON tokens"), so it gets this same message.
             messages.Add(Text.Get("Settings_ReadFailed", ex.Message, path));
-            return new SettingsLoadResult(new AppSettings(), messages);
+            return new SettingsLoadResult(new AppSettings(), messages, ExistingFileUnreadable: true);
         }
 
         // A file containing only "null" deserializes to null; treat it as an empty file.

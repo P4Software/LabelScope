@@ -391,7 +391,9 @@ public partial class PrinterSetupWindow : Window
     /// Writes settings.json; on failure shows Core's plain-language message and returns false. The file is read
     /// again first and only this screen's values are put on top, so other keys keep what the file holds now, not
     /// what it held when the screen opened. When that read reports problems (a damaged value), its repaired values
-    /// are used for the keys this screen does not own, exactly as LabelScope would use them at start.
+    /// are used for the keys this screen does not own, exactly as LabelScope would use them at start. When the file
+    /// exists but cannot be opened or read at all, nothing is saved and the message says how to fix it: writing this
+    /// screen's values on top of the defaults would erase every other value the person wrote in the file.
     /// </summary>
     private bool TrySave(DialogValues values)
     {
@@ -400,6 +402,13 @@ public partial class PrinterSetupWindow : Window
         {
             var fresh = new SettingsStore().LoadOrCreate(_settingsPath);
             foreach (var message in fresh.Messages) Log.Information("Printer setup: settings: {Message}", message);
+            if (fresh.ExistingFileUnreadable)
+            {
+                var refused = LabelScope.Core.Localization.Text.Get("Settings_SaveRefusedUnreadable", _settingsPath);
+                Log.Warning("Printer setup: {Message}", refused);
+                ShowMessage(refused, isError: true);
+                return false;
+            }
             settings = fresh.Settings;
         }
         catch (Exception ex)

@@ -1681,7 +1681,9 @@ public partial class MainWindow : Window
     /// <summary>
     /// Saves one change made in the toolbar the same way Printer setup saves: settings.json is read again, only this
     /// change is put on top (other keys keep what the file holds now), the file is written, and the result is taken
-    /// into use. On failure the message says why and nothing changes.
+    /// into use. On failure the message says why and nothing changes. When settings.json exists but cannot be opened
+    /// or read just now, nothing is saved: writing defaults plus this one change would erase every other value the
+    /// person wrote in the file.
     /// </summary>
     /// <returns>True when the change was saved and applied.</returns>
     private bool SaveSettingsChange(Action<AppSettings> change)
@@ -1691,6 +1693,15 @@ public partial class MainWindow : Window
         {
             var fresh = new SettingsStore().LoadOrCreate(_settingsPath);
             foreach (var message in fresh.Messages) Log.Information("Toolbar: settings: {Message}", message);
+            if (fresh.ExistingFileUnreadable)
+            {
+                var refused = Text.Get("Settings_SaveRefusedUnreadable", _settingsPath);
+                Log.Warning("Toolbar: {Message}", refused);
+                ShowMessage(refused);
+                UpdateSizePicker();
+                SelectLanguageInPicker();
+                return false;
+            }
             settings = fresh.Settings;
         }
         catch (Exception ex)
