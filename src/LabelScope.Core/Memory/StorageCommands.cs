@@ -17,6 +17,9 @@ internal static class StorageCommands
             case "~DG":
                 DownloadGraphic(cmd, context, warnings);
                 return true;
+            case "~DY":
+                DownloadObject(cmd, context, warnings);
+                return true;
             case "^ID":
                 Delete(cmd, context);
                 return true;
@@ -80,6 +83,111 @@ internal static class StorageCommands
         if (name.IsLongerThanZebraAllows)
             warnings.Add(new(cmd.Line, $"{label}: The name is longer than the 8 characters a printer accepts, so a real printer may refuse or shorten it. LabelScope stored it anyway; use a name of 8 characters or fewer."));
         context.MemoryNotes.Add($"Stored the graphic {(name.Drive is null ? name.OnDrive('R') : name).Display} ({image.Width} x {image.Height} dots) in LabelScope's printer memory.");
+    }
+
+    // ~DY types that never change a picture (certificates, WML menus, web pages, feedback files): accepted quietly,
+    // because a warning about them would only hide real problems (plan Decision 12).
+    private static readonly HashSet<string> NonPictureTypes = ["NRD", "PAC", "C", "F", "H"];
+
+    /// <summary>~DYd:f,b,x,t,w,data: a general download. Bitmaps (.GRF), PNG pictures and TrueType fonts are stored.</summary>
+    private static void DownloadObject(ZplCommand cmd, PaintContext context, List<RenderWarning> warnings)
+    {
+        var a = ZplArgs.SplitFirst(cmd.Args, 5);
+        var type = a.Length > 2 ? a[2].Trim().ToUpperInvariant() : "";
+        if (NonPictureTypes.Contains(type)) return;
+
+        // The ~DY file name has no extension of its own: the type letter decides it ("any other value = .GRF").
+        var extension = type switch { "P" => "PNG", "T" => "TTF", "E" => "TTE", "X" => "PCX", _ => "GRF" };
+        var name = ObjectName.Parse(a[0], extension, 'R') with { Extension = extension };
+        var label = $"~DY {name.Display}";
+        void Warn(string message) => warnings.Add(new(cmd.Line, $"{label}: {message}"));
+
+        switch (ZplArgs.Letter(a, 1, ' '))
+        {
+            case 'A' or 'P':
+                break;
+            case 'B':
+                Warn("Binary downloads (data format B) are planned for a later release of LabelScope; nothing was stored. The same file can be sent as ASCII hex (format A) or ZB64.");
+                return;
+            case 'C':
+                Warn("AR-compressed downloads (data format C) use a compression method that Zebra does not publish, so nothing was stored.");
+                return;
+            default:
+                Warn("The download needs a data format (A, B, C or P) after the name; nothing was stored.");
+                return;
+        }
+        if (type == "E") { Warn("TrueType extension files (.TTE) are not supported; nothing was stored. Send the font as a .TTF (type T) instead."); return; }
+        if (type == "X") { Warn("PCX pictures are not supported; nothing was stored. Send the picture as a PNG (type P) or a GRF bitmap (type G) instead."); return; }
+        if (a.Length < 6) { Warn("The download has no data; nothing was stored."); return; }
+
+        ZplArgs.TryLong(a, 3, out var total);
+        // The declared size is checked before any data is read, so a hostile "t" cannot make a big buffer.
+        var cap = extension == "PNG" ? PngImage.MaxFileBytes : extension == "TTF" ? FontFile.MaxFileBytes : 0;
+        if (cap > 0 && total > cap)
+        {
+            Warn($"The {(extension == "PNG" ? "PNG" : "font")} is {total} bytes and LabelScope reads {(extension == "PNG" ? "pictures" : "fonts")} up to {cap} bytes ({cap / (1024 * 1024)} MB). Nothing was stored.");
+            return;
+        }
+        var notes = new List<string>();
+        void FlushNotes() { foreach (var n in notes) Warn(n); notes.Clear(); }
+        try
+        {
+            switch (extension)
+            {
+                case "PNG":
+                {
+                    var file = GraphicData.DecodeFile(a[5], total, notes);
+                    if (file.LongLength > PngImage.MaxFileBytes)
+                    {
+                        Warn($"The PNG is {file.LongLength} bytes and LabelScope reads pictures up to {PngImage.MaxFileBytes} bytes (5 MB). Nothing was stored.");
+                        return;
+                    }
+                    var image = PngImage.Decode(file, notes);
+                    FlushNotes();
+                    StoreGraphic(cmd, context, warnings, name, image, label);
+                    break;
+                }
+                case "TTF":
+                {
+                    var file = GraphicData.DecodeFile(a[5], total, notes);
+                    FlushNotes();
+                    if (file.LongLength > FontFile.MaxFileBytes)
+                    {
+                        Warn($"The font is {file.LongLength} bytes and LabelScope reads fonts up to {FontFile.MaxFileBytes} bytes (16 MB). Nothing was stored.");
+                        return;
+                    }
+                    // Only the header is checked here: the bytes are kept for later use and never parsed by a library now.
+                    if (FontFile.Check(file) is { } notFont) { Warn(notFont); return; }
+                    var refusal = context.Memory.Store(name, new StoredFont(file));
+                    if (refusal is not null) { Warn(refusal); return; }
+                    context.MemoryNotes.Add($"Stored the font {name.Display} ({PrinterMemory.FormatBytes(file.LongLength)}) in LabelScope's printer memory.");
+                    break;
+                }
+                default:
+                {
+                    // Declared and initialised up front: TryRows only runs when the bytes-per-row value parsed.
+                    var rows = 0;
+                    string? problem = null, sizeNote = null;
+                    if (!ZplArgs.TryLong(a, 4, out var perRow) || !GraphicLimits.TryRows(total, perRow, out rows, out problem, out sizeNote))
+                    {
+                        Warn(problem is null
+                            ? "The bitmap needs the total byte count and the bytes per row; nothing was stored."
+                            : $"The bitmap was not stored because {problem}.");
+                        return;
+                    }
+                    if (sizeNote is not null) notes.Add(sizeNote);
+                    var image = GraphicData.DecodeBitmap(a[5], (int)perRow, rows, notes);
+                    FlushNotes();
+                    StoreGraphic(cmd, context, warnings, name, image, label);
+                    break;
+                }
+            }
+        }
+        catch (GraphicDataException ex)
+        {
+            FlushNotes();
+            Warn($"{ex.Message} Nothing was stored.");
+        }
     }
 
     /// <summary>^IDd:o.x: deletes stored objects; '*' is a wildcard. A printer ignores a name that matches nothing.</summary>
