@@ -1,5 +1,6 @@
 using System.Globalization;
 using LabelScope.Core.Barcodes;
+using LabelScope.Core.Fonts;
 using LabelScope.Core.Memory;
 using SkiaSharp;
 
@@ -26,12 +27,11 @@ internal sealed partial class LabelPainter : IDisposable
     private const int MaxCopies = 99_999_999; // the ZPL limit for ^PQ
 
     private readonly List<RenderWarning> _warnings;
+    // Dots per inch of the simulated printer: the bitmap fonts (and the OCR fonts) have a different matrix per dpi.
+    private readonly int _dpi;
     private readonly PaintContext _context;
     private readonly SKBitmap _bitmap;
     private readonly SKCanvas _canvas;
-
-    // One typeface per painter instead of one per text field; created on first use and disposed with the painter.
-    private SKTypeface? _typeface;
 
     // Printer state that persists between fields.
     private int _homeX, _homeY;
@@ -53,9 +53,10 @@ internal sealed partial class LabelPainter : IDisposable
 
     private sealed record FieldBlock(int Width, int MaxLines, int LineSpacing, char Justify, int Line);
 
-    private LabelPainter(int width, int height, List<RenderWarning> warnings, bool inverted, PaintContext context)
+    private LabelPainter(int width, int height, int dpi, List<RenderWarning> warnings, bool inverted, PaintContext context)
     {
         _warnings = warnings;
+        _dpi = dpi;
         _context = context;
         _bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         _canvas = new SKCanvas(_bitmap);
@@ -76,7 +77,7 @@ internal sealed partial class LabelPainter : IDisposable
         // Only the last ^PO of a label counts, wherever it appears.
         var inverted = block.LastOrDefault(c => c.Name == "^PO") is { } po &&
                        po.Args.TrimStart().StartsWith("I", StringComparison.OrdinalIgnoreCase);
-        using var painter = new LabelPainter(w, h, warnings, inverted, context);
+        using var painter = new LabelPainter(w, h, options.Dpi, warnings, inverted, context);
         foreach (var cmd in block) painter.Handle(cmd);
         painter.SaveImageIfAsked();
         return painter.ToResult(w, h, widthFromZpl, heightFromZpl, options.Dpi);
@@ -146,7 +147,7 @@ internal sealed partial class LabelPainter : IDisposable
             case "^CF": SetDefaultFont(cmd, a); break;
             case "^A": SetFieldFont(cmd, a); break;
             case "^FB": _fieldBlock = new FieldBlock(Math.Clamp(Int(a, 0, 0), 0, MaxDots), Math.Clamp(Int(a, 1, 1), 1, MaxFieldBlockLines), Math.Clamp(Int(a, 2, 0), -MaxDots, MaxDots), Justify(a), cmd.Line); break;
-            case "^FD": _data = cmd.Args; _hasData = true; break;
+            case "^FD": _data = cmd.Args; _hasData = true; _dataLine = cmd.Line; break;
             case "^FS": EndField(); break;
             case "^GB": DrawBox(cmd, a); break;
             case "^XG": RecallGraphic(cmd, a, scalable: true); break;
@@ -179,25 +180,11 @@ internal sealed partial class LabelPainter : IDisposable
     private void SetFieldFont(ZplCommand cmd, string[] a)
     {
         var first = a.Length > 0 ? a[0] : "";
-        // ^A0R: first character is the font, the second the orientation (absent = follow ^FW).
+        // ^A0R: the first character is the font, the second the orientation (absent = follow ^FW).
+        _fieldFont = first.Length > 0 ? char.ToUpperInvariant(first[0]) : null;
         _textOrientation = first.Length > 1 ? FieldPlacement.Normalize(first[1]) : null;
         if (TryInt(a, 1, out var h) && h > 0) _fontHeight = Math.Min(h, MaxFontDots);
         if (TryInt(a, 2, out var w) && w > 0) _fontWidth = Math.Min(w, MaxFontDots);
-    }
-
-    /// <summary>
-    /// Approximation until the bundled-font release: Arial scaled so that its size equals the ZPL font height.
-    /// </summary>
-    private SKFont MakeFont()
-    {
-        var height = _fontHeight ?? _defaultHeight;
-        var width = _fontWidth ?? _defaultWidth;
-        // SKFont does not take ownership of the typeface, so the painter keeps and disposes it.
-        _typeface ??= SKTypeface.FromFamilyName("Arial");
-        var font = new SKFont(_typeface, height);
-        // ZPL gives width in dots per character; Arial's average character is about 0.6 of its height.
-        if (width > 0) font.ScaleX = Math.Clamp(width / (0.6f * height), 0.3f, 3f);
-        return font;
     }
 
     // ---- fields ------------------------------------------------------------------------------
@@ -229,7 +216,7 @@ internal sealed partial class LabelPainter : IDisposable
             DrawText();
         }
         _data = ""; _hasData = false; _reverse = false;
-        _fontHeight = null; _fontWidth = null; _fieldBlock = null; _textOrientation = null;
+        _fontHeight = null; _fontWidth = null; _fieldFont = null; _fieldBlock = null; _textOrientation = null;
         _barcode = null; _hexIndicator = null; // both apply to one field only
     }
 
@@ -243,40 +230,42 @@ internal sealed partial class LabelPainter : IDisposable
             return;
         }
 
-        using var font = MakeFont();
+        // Built for this field only and disposed with it: SKFont is not thread-safe and labels render concurrently.
+        using var font = MakeFont(_dataLine);
+        var text = font.Prepare(_data, out var missing);
+        if (missing > 0)
+            _warnings.Add(new(_dataLine, $"{missing} character(s) in this text are not in the font, so they print as spaces, as on a printer. Check the field data, or choose a font that has these characters."));
         using var paint = InkPaint();
-        var lineHeight = font.Size;
-        var ascent = -font.Metrics.Ascent;
-        var descent = font.Metrics.Descent;
+        var lineHeight = font.LineHeight;
 
         // Lay the lines out in an upright local box first: (text, x offset inside the box).
         var lines = new List<(string Text, float X)>();
         float boxWidth, lineStep = 0;
         if (_fieldBlock is null)
         {
-            lines.Add((_data, 0));
-            boxWidth = Measure(font, _data);
+            lines.Add((text, 0));
+            boxWidth = font.Measure(text);
         }
         else
         {
             var b = _fieldBlock;
             lineStep = lineHeight + b.LineSpacing;
-            foreach (var text in Wrap(_data, font, b.Width, b.MaxLines))
+            foreach (var line in Wrap(text, font, b.Width, b.MaxLines))
             {
-                var textWidth = Measure(font, text);
-                lines.Add((text, b.Justify switch
+                var lineWidth = font.Measure(line);
+                lines.Add((line, b.Justify switch
                 {
-                    'C' => (b.Width - textWidth) / 2,
-                    'R' => b.Width - textWidth,
+                    'C' => (b.Width - lineWidth) / 2,
+                    'R' => b.Width - lineWidth,
                     _ => 0,
                 }));
             }
             boxWidth = b.Width;
         }
 
-        // First baseline sits one ascent below the top of the box; ^FT anchors exactly there.
-        var baseline = (int)Math.Round(ascent);
-        var boxHeight = (int)Math.Ceiling(baseline + (lines.Count - 1) * lineStep + descent);
+        // First baseline sits one baseline-height below the top of the box; ^FT anchors exactly there.
+        var baseline = (int)Math.Round(font.Baseline);
+        var boxHeight = (int)Math.Ceiling(baseline + (lines.Count - 1) * lineStep + font.Descent);
 
         _canvas.Save();
         try
@@ -284,7 +273,7 @@ internal sealed partial class LabelPainter : IDisposable
             FieldPlacement.Apply(_canvas, _textOrientation ?? _fieldOrientation, _x, _y,
                 (int)Math.Ceiling(boxWidth), boxHeight, _baseline, baseline);
             for (var i = 0; i < lines.Count; i++)
-                _canvas.DrawText(lines[i].Text, lines[i].X, baseline + i * lineStep, font, paint);
+                font.Draw(_canvas, lines[i].Text, lines[i].X, baseline + i * lineStep, paint);
         }
         finally
         {
@@ -293,7 +282,7 @@ internal sealed partial class LabelPainter : IDisposable
     }
 
     /// <summary>Greedy word wrap; "\&amp;" in ZPL field data forces a line break.</summary>
-    private static List<string> Wrap(string text, SKFont font, int width, int maxLines)
+    private static List<string> Wrap(string text, ZplFont font, int width, int maxLines)
     {
         var lines = new List<string>();
         foreach (var paragraph in text.Split("\\&"))
@@ -302,7 +291,7 @@ internal sealed partial class LabelPainter : IDisposable
             foreach (var word in paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
                 var candidate = current.Length == 0 ? word : current + " " + word;
-                if (current.Length > 0 && Measure(font, candidate) > width)
+                if (current.Length > 0 && font.Measure(candidate) > width)
                 {
                     lines.Add(current);
                     current = word;
@@ -312,16 +301,6 @@ internal sealed partial class LabelPainter : IDisposable
             lines.Add(current);
         }
         return lines.Take(maxLines).ToList();
-    }
-
-    /// <summary>
-    /// Text width in dots. SkiaSharp 2.88 has no string overload on SKFont.MeasureText, so a short-lived
-    /// SKPaint built from the font does the measuring (it carries the size, typeface and horizontal scale).
-    /// </summary>
-    private static float Measure(SKFont font, string text)
-    {
-        using var paint = new SKPaint(font);
-        return paint.MeasureText(text);
     }
 
     private static char Justify(string[] a) =>
@@ -444,6 +423,6 @@ internal sealed partial class LabelPainter : IDisposable
     {
         _canvas.Dispose();
         _bitmap.Dispose();
-        _typeface?.Dispose();
+        // No typeface is disposed here: the bundled typefaces live for the whole process and are shared read-only.
     }
 }

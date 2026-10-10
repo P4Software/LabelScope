@@ -73,7 +73,9 @@ internal sealed class CellFont : ZplFont
         var advance = measure.MeasureText("0");
 
         var size = spec.Baseline * magY * 100f / capHeight;
-        _font = new SKFont(face, size) { ScaleX = spec.Width * magX / (advance * size / 100f) };
+        // A Zebra bitmap font prints whole dots, black or white, never grey. Anti-aliased, the thin strokes of the
+        // regular-weight face fall between dots at 1x and come out light grey, so cell fonts are drawn aliased.
+        _font = new SKFont(face, size) { ScaleX = spec.Width * magX / (advance * size / 100f), Edging = SKFontEdging.Alias };
     }
 
     /// <inheritdoc />

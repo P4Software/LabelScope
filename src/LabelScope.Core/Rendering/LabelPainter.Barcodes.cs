@@ -1,4 +1,5 @@
 using LabelScope.Core.Barcodes;
+using LabelScope.Core.Fonts;
 using SkiaSharp;
 
 namespace LabelScope.Core.Rendering;
@@ -87,11 +88,10 @@ internal sealed partial class LabelPainter
             case LinearField linear:
             {
                 var lay = LinearDrawer.Measure(linear.Symbol, linear.Look, linear.Narrow);
+                // The interpretation line uses the bundled fixed-width font (plan 3 Decision 7), so it no longer
+                // depends on Arial being installed.
                 PlaceAndDraw(req, linear.Orientation, lay.Width, lay.Height, lay.BaseY, ink =>
-                {
-                    _typeface ??= SKTypeface.FromFamilyName("Arial");
-                    LinearDrawer.Draw(_canvas, linear.Symbol, linear.Look, linear.Narrow, ink, _typeface);
-                });
+                    LinearDrawer.Draw(_canvas, linear.Symbol, linear.Look, linear.Narrow, ink, BundledFonts.Mono));
                 break;
             }
             case MatrixField matrix:
