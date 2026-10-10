@@ -127,6 +127,14 @@
   <data name="Painter_TextTooLong" xml:space="preserve"><value>Este campo de texto tiene {0} caracteres; solo se dibujan los primeros {1}. Divida el texto en varios campos de {1} caracteres o menos.</value></data>
   <data name="Painter_MissingGlyphs" xml:space="preserve"><value>{0} carácter(es) de este texto no están en la fuente, así que se imprimen como espacios, igual que en una impresora. Revise los datos del campo o elija una fuente que tenga esos caracteres.</value></data>
   <data name="Painter_RoundedCorners" xml:space="preserve"><value>Las esquinas redondeadas de ^GB todavía no son compatibles; se dibujan esquinas rectas.</value></data>
+  <data name="Painter_CharSetUnknown" xml:space="preserve"><value>^CI{0}: este no es un juego de caracteres que conozca una impresora Zebra (van del 0 al 36), así que se ignoró y el texto se dibujó tal como llegó. Revise el número después de ^CI.</value></data>
+  <data name="Painter_CharSetRemap" xml:space="preserve"><value>^CI{0}: el cambio de caracteres sueltos (los números después del juego de caracteres) todavía no es compatible y se ignoró, así que esos caracteres se dibujan tal como se enviaron.</value></data>
+  <data name="Painter_CharSetNotUtf8" xml:space="preserve"><value>Esta etiqueta indica que su texto está en UTF-8 (^CI28), pero los datos recibidos no son UTF-8 válido, así que LabelScope los leyó como Windows-1252. Las letras con tilde pueden salir mal; configure el programa que envía para que use UTF-8.</value></data>
+  <data name="Painter_CharSetPartial" xml:space="preserve"><value>^CI{0} ({1}) todavía no es totalmente compatible; las letras con tilde pueden verse distintas en la impresora. El texto se dibujó tal como llegó; revise una etiqueta impresa o envíe el texto en UTF-8 con ^CI28.</value></data>
+  <data name="CharSet_SingleByte" xml:space="preserve"><value>juego internacional de un byte de Zebra</value></data>
+  <data name="CharSet_CodePage" xml:space="preserve"><value>página de códigos {0}</value></data>
+  <data name="CharSet_Asian" xml:space="preserve"><value>codificación asiática</value></data>
+  <data name="CharSet_Ucs2" xml:space="preserve"><value>UCS-2, ya en desuso</value></data>
   <data name="Placeholder_NoLabel" xml:space="preserve"><value>No hay etiqueta (^XA ... ^XZ) en estos datos</value></data>
   <data name="Placeholder_NotDrawn" xml:space="preserve"><value>Esta etiqueta no se pudo dibujar</value></data>
   <data name="Placeholder_NotFoundTitle" xml:space="preserve"><value>No se encontró ninguna etiqueta</value></data>

@@ -103,6 +103,13 @@ public sealed class LabelJob
     public bool Complete { get; init; } = true;
 
     /// <summary>
+    /// True when the job's bytes were not valid UTF-8 and were read as Windows-1252. Kept with the job because every
+    /// redraw must pass it on (<see cref="RenderOptions.TextReadAsWindows1252"/>), or a ^CI28 label would lose its
+    /// warning after a change of language or label size.
+    /// </summary>
+    public bool ReadAsWindows1252 { get; init; }
+
+    /// <summary>
     /// The drawn labels, warnings and memory notes. Replace it after drawing <see cref="Zpl"/> again (language or label
     /// size changed); the <see cref="Log"/> follows at once. It may be replaced from any thread (a re-render can finish
     /// on a worker thread while the window reads the job): every reader sees either the old or the new result whole.
@@ -165,7 +172,7 @@ public sealed class LabelJob
     }
 
     /// <summary>The raw facts to write to jobs.json; the drawn result is not saved because it is redrawn on load.</summary>
-    public SavedJob ToSaved() => new(Id, Name, RemoteAddress, ResolvedHost, Origin, ReceivedAt, Zpl, Complete);
+    public SavedJob ToSaved() => new(Id, Name, RemoteAddress, ResolvedHost, Origin, ReceivedAt, Zpl, Complete, ReadAsWindows1252);
 
     /// <summary>Rebuilds a job read from jobs.json, with <paramref name="result"/> from drawing its ZPL again.</summary>
     public static LabelJob FromSaved(SavedJob saved, RenderResult result)
@@ -181,6 +188,7 @@ public sealed class LabelJob
             ReceivedAt = saved.ReceivedAt,
             Zpl = saved.Zpl ?? "",
             Complete = saved.Complete,
+            ReadAsWindows1252 = saved.ReadAsWindows1252,
             Result = result,
         };
     }

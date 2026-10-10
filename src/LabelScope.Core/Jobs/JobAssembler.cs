@@ -67,7 +67,12 @@ public sealed class JobAssembler
     /// <param name="formatted">The new label's ZPL as formatted for display; the label was drawn from this text.</param>
     /// <param name="result">What drawing <paramref name="formatted"/> produced.</param>
     /// <param name="complete">False when the connection ended before this label's ^XZ.</param>
-    public LabelJob? TryAppend(long connectionId, string zpl, string formatted, RenderResult result, bool complete)
+    /// <param name="readAsWindows1252">
+    /// True when the label's bytes were read as Windows-1252. A label read differently from the job starts a new job:
+    /// the job keeps one flag for every redraw, and a mixed job would give other ^CI28 warnings after a redraw.
+    /// </param>
+    public LabelJob? TryAppend(long connectionId, string zpl, string formatted, RenderResult result, bool complete,
+                               bool readAsWindows1252 = false)
     {
         ArgumentNullException.ThrowIfNull(zpl);
         ArgumentNullException.ThrowIfNull(formatted);
@@ -82,6 +87,7 @@ public sealed class JobAssembler
         // The boundary check described in the remarks: only then is the line shift right.
         var pieceHasBinary = BinaryDownloads.ContainsAny(zpl);
         if (open.HasBinary || pieceHasBinary || !open.EndsWithLabelEnd || !StartsWithCommand(formatted)) return null;
+        if (previous.ReadAsWindows1252 != readAsWindows1252) return null;
 
         var offset = open.FormattedLines + 1; // the blank line between labels
         var before = previous.Result;
@@ -104,6 +110,7 @@ public sealed class JobAssembler
             ReceivedAt = previous.ReceivedAt,
             Zpl = previous.Zpl + "\n" + zpl,
             Complete = complete,
+            ReadAsWindows1252 = readAsWindows1252,
             Result = merged,
         };
         // Replacing the entry lets go of the previous job object; the window replaces its card's job the same way.

@@ -8,7 +8,15 @@ namespace LabelScope.Core.Rendering;
 /// <param name="Dpi">Dots per inch of the simulated printer.</param>
 /// <param name="LabelWidthMm">Width of the loaded label in millimetres (default 4 inches).</param>
 /// <param name="LabelHeightMm">Length of the loaded label in millimetres (default 6 inches).</param>
-public sealed record RenderOptions(int Dpi = 203, double LabelWidthMm = 101.6, double LabelHeightMm = 152.4);
+public sealed record RenderOptions(int Dpi = 203, double LabelWidthMm = 101.6, double LabelHeightMm = 152.4)
+{
+    /// <summary>
+    /// True when the job's bytes were not valid UTF-8 and were read as Windows-1252 instead (see
+    /// <see cref="Listening.ZplStreamSplitter.Decode(byte[], int, int, out bool)"/>). A label that says its text is UTF-8 (^CI28) then gets a warning
+    /// that accented letters may be wrong. Set per job, from what the listener or Open file reported.
+    /// </summary>
+    public bool TextReadAsWindows1252 { get; init; }
+}
 
 /// <summary>One rendered label.</summary>
 /// <param name="PngBytes">The label image as PNG.</param>

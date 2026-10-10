@@ -12,6 +12,7 @@ internal static class SilentCommands
     // Deliberately NOT here (each can change the picture or how the rest of the job is read, see IsSilent):
     // ^PM (mirror), ^JM (half density doubles the format), ^MC (^MCN keeps the previous label as background),
     // ~CC / ~CD / ~CT (they change the command prefix and delimiter characters).
+    // ^CI is not here either: the painter and the renderer handle it themselves (CharacterSets).
     private static readonly HashSet<string> Always = new()
     {
         "^MN", "^MM", "^MD", "^MT", "^PR", "^JU", "^JZ", "^XB", "^FX",
@@ -30,8 +31,6 @@ internal static class SilentCommands
             "^LT" or "^LS" => a.Length == 0 || a.Split(',').All(IsZero),
             // Print mirror: only the default (N) leaves the picture alone.
             "^PM" => a.Length == 0 || char.ToUpperInvariant(a[0]) == 'N',
-            // Code page 0 is the default; others change how text is read, which LabelScope does not support yet, so they warn.
-            "^CI" => a.Length == 0 || IsZero(a),
             // Half density (B) doubles the size of the whole format; A is the native density.
             "^JM" => a.Length == 0 || char.ToUpperInvariant(a[0]) == 'A',
             // Map clear: N keeps the finished label as the background of the next one. Y is the default.

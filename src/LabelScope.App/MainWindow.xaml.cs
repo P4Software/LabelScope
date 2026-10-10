@@ -279,8 +279,9 @@ public partial class MainWindow : Window
         try
         {
             if (_closing) return;
-            // One read of the field: Printer setup may replace the settings object while this thread runs.
-            var options = OptionsFor(_settings);
+            // One read of the field: Printer setup may replace the settings object while this thread runs. How the bytes
+            // were read goes with the label, so a ^CI28 label whose data was not UTF-8 says so.
+            var options = OptionsFor(_settings) with { TextReadAsWindows1252 = received.ReadAsWindows1252 };
             // Format first and draw THE FORMATTED TEXT: warnings and fields carry line numbers, and they must point
             // at the lines the user sees. Formatting does not change the picture (ZPL ignores line breaks).
             // Formatting copies the whole text, so it waits for the same gate as drawing: a flood of very large
@@ -297,7 +298,8 @@ public partial class MainWindow : Window
             Log.Information("Label received from {Source}: {Labels} image(s), {Warnings} warning(s), complete={Complete}, connection {Connection}",
                 received.Source, result.Labels.Count, result.Warnings.Count, received.Complete, received.ConnectionId);
 
-            var job = _assembler.TryAppend(received.ConnectionId, received.Zpl, formatted, result, received.Complete);
+            var job = _assembler.TryAppend(received.ConnectionId, received.Zpl, formatted, result, received.Complete,
+                received.ReadAsWindows1252);
             // An appended label belongs to the part being filled; carried along so a card that has to be made again
             // (its earlier versions were trimmed or skipped) still says which part it is.
             var part = job is null ? 1 : _assembler.CurrentPart(received.ConnectionId);
@@ -314,6 +316,7 @@ public partial class MainWindow : Window
                     ReceivedAt = received.ReceivedAt,
                     Zpl = received.Zpl,
                     Complete = received.Complete,
+                    ReadAsWindows1252 = received.ReadAsWindows1252,
                     Result = result,
                 };
                 _assembler.Remember(received.ConnectionId, job, formatted, part);
@@ -548,7 +551,7 @@ public partial class MainWindow : Window
                     if (_closing || Volatile.Read(ref _renderGeneration) != generation) return false;
                     RenderResult result;
                     _renderGate.Wait();
-                    try { result = renderer.Render(ZplFormatter.Format(job.Zpl), options); }
+                    try { result = renderer.Render(ZplFormatter.Format(job.Zpl), options with { TextReadAsWindows1252 = job.ReadAsWindows1252 }); }
                     finally { _renderGate.Release(); }
                     // A newer pass started meanwhile: its result wins, this one is dropped.
                     if (Volatile.Read(ref _renderGeneration) != generation) return false;
@@ -609,7 +612,7 @@ public partial class MainWindow : Window
                     var options = OptionsFor(_settings);
                     RenderResult result;
                     _renderGate.Wait();
-                    try { result = renderer.Render(ZplFormatter.Format(s.Zpl), options); }
+                    try { result = renderer.Render(ZplFormatter.Format(s.Zpl), options with { TextReadAsWindows1252 = s.ReadAsWindows1252 }); }
                     finally { _renderGate.Release(); }
                     list.Add(LabelJob.FromSaved(s, result));
                 }
@@ -1718,13 +1721,15 @@ public partial class MainWindow : Window
             if (dialog.ShowDialog(this) != true) return;
             var path = dialog.FileName;
             string? text;
+            var readAsWindows1252 = false;
             try
             {
-                text = await Task.Run(() =>
+                (text, readAsWindows1252) = await Task.Run(() =>
                 {
                     // Checked before reading so a huge file is never loaded into memory.
-                    if (new FileInfo(path).Length > MaxOpenFileBytes) return null;
-                    return DecodeLikePrinter(File.ReadAllBytes(path));
+                    if (new FileInfo(path).Length > MaxOpenFileBytes) return ((string?)null, false);
+                    var decoded = DecodeLikePrinter(File.ReadAllBytes(path), out var windows1252);
+                    return (decoded, windows1252);
                 });
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
@@ -1744,7 +1749,7 @@ public partial class MainWindow : Window
                 ShowMessage(UiText.Get("Ui_FileEmpty"));
                 return;
             }
-            RenderLocalJob(text, JobOrigin.OpenedFromFile, System.IO.Path.GetFileName(path));
+            RenderLocalJob(text, JobOrigin.OpenedFromFile, System.IO.Path.GetFileName(path), readAsWindows1252);
         }
         catch (Exception ex)
         {
@@ -1756,22 +1761,16 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Turns file bytes into text the way the printer listener does (strict UTF-8, otherwise Windows-1252), so a
-    /// file opened here and the same file printed to LabelScope give the same label, accented text included.
+    /// file opened here and the same file printed to LabelScope give the same label, accented text and ^CI28 warning
+    /// included.
     /// </summary>
-    private static string DecodeLikePrinter(byte[] bytes)
+    /// <param name="bytes">The file.</param>
+    /// <param name="readAsWindows1252">True when the file was not valid UTF-8 and was read as Windows-1252.</param>
+    private static string DecodeLikePrinter(byte[] bytes, out bool readAsWindows1252)
     {
         // A UTF-8 byte-order mark is not part of the ZPL.
         var start = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? 3 : 0;
-        try
-        {
-            return new System.Text.UTF8Encoding(false, throwOnInvalidBytes: true).GetString(bytes, start, bytes.Length - start);
-        }
-        catch (System.Text.DecoderFallbackException)
-        {
-            // Not valid UTF-8: older programs send Windows-1252, as the listener assumes too.
-            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
-            return System.Text.Encoding.GetEncoding(1252).GetString(bytes, start, bytes.Length - start);
-        }
+        return ZplStreamSplitter.Decode(bytes, start, bytes.Length - start, out readAsWindows1252);
     }
 
     /// <summary>Shows the ZPL on the clipboard as a new job.</summary>
@@ -1797,11 +1796,15 @@ public partial class MainWindow : Window
     /// Renders text that did not come over the network through the very same path as a printed job (render gate,
     /// formatting, placeholder rules, list). That path waits for the gate, so it runs off the UI thread.
     /// </summary>
-    private void RenderLocalJob(string zpl, JobOrigin origin, string? name)
+    /// <param name="zpl">The text.</param>
+    /// <param name="origin">Opened from a file or pasted.</param>
+    /// <param name="name">The file name, or null to name the job from its ZPL.</param>
+    /// <param name="readAsWindows1252">True when a file's bytes were read as Windows-1252; a paste is always text.</param>
+    private void RenderLocalJob(string zpl, JobOrigin origin, string? name, bool readAsWindows1252 = false)
     {
         // A text without ^XZ at its end is treated like a connection that stopped early, as for printed jobs.
         var complete = zpl.LastIndexOf("^XZ", StringComparison.OrdinalIgnoreCase) >= 0;
-        var job = new ReceivedLabel(zpl, DateTimeOffset.Now, "", complete);
+        var job = new ReceivedLabel(zpl, DateTimeOffset.Now, "", complete, ReadAsWindows1252: readAsWindows1252);
         _ = Task.Run(() => ProcessIncoming(job, origin, name));
     }
 

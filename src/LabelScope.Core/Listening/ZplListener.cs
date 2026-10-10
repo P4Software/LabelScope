@@ -13,7 +13,12 @@ namespace LabelScope.Core.Listening;
 /// ^XA..^XZ labels), so the window can show them as one job. Numbers start at 1 and are never reused while the
 /// listener runs; 0 means the label did not arrive over the network (a file or a paste).
 /// </param>
-public sealed record ReceivedLabel(string Zpl, DateTimeOffset ReceivedAt, string Source, bool Complete, long ConnectionId = 0);
+/// <param name="ReadAsWindows1252">
+/// True when the label's bytes were not valid UTF-8 and were read as Windows-1252; pass it on to
+/// <see cref="Rendering.RenderOptions.TextReadAsWindows1252"/> so a label that announces UTF-8 (^CI28) is warned about.
+/// </param>
+public sealed record ReceivedLabel(string Zpl, DateTimeOffset ReceivedAt, string Source, bool Complete, long ConnectionId = 0,
+                                   bool ReadAsWindows1252 = false);
 
 /// <summary>Raised when the listener cannot start; the message is written for the end user.</summary>
 public sealed class ListenerStartException : Exception
@@ -213,8 +218,8 @@ public sealed class ZplListener : IDisposable
                         // can wait for the render gate for a long time under load, and that wait must not count as the
                         // sender being idle (it would cut off an active sender and flush its label as incomplete).
                         idle.CancelAfter(Timeout.InfiniteTimeSpan);
-                        foreach (var zpl in splitter.Feed(buffer, read))
-                            Raise(LabelReceived, new ReceivedLabel(zpl, DateTimeOffset.Now, source, true, connectionId));
+                        foreach (var label in splitter.FeedDecoded(buffer, read))
+                            Raise(LabelReceived, new ReceivedLabel(label.Text, DateTimeOffset.Now, source, true, connectionId, label.ReadAsWindows1252));
                     }
                 }
                 catch (ZplTooLargeException ex)
@@ -230,9 +235,9 @@ public sealed class ZplListener : IDisposable
                 }
 
                 // The spooler can cut a job off; show what we got instead of silently losing it.
-                var rest = splitter.Flush();
+                var rest = splitter.FlushDecoded();
                 if (rest is not null)
-                    Raise(LabelReceived, new ReceivedLabel(rest, DateTimeOffset.Now, source, false, connectionId));
+                    Raise(LabelReceived, new ReceivedLabel(rest.Text, DateTimeOffset.Now, source, false, connectionId, rest.ReadAsWindows1252));
             }
             finally
             {

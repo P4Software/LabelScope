@@ -2,6 +2,11 @@ using System.Text;
 
 namespace LabelScope.Core.Listening;
 
+/// <summary>One label's text and how its bytes were read.</summary>
+/// <param name="Text">The decoded ZPL.</param>
+/// <param name="ReadAsWindows1252">True when the bytes were not valid UTF-8 and were read as Windows-1252.</param>
+public sealed record DecodedZpl(string Text, bool ReadAsWindows1252);
+
 /// <summary>
 /// Turns a stream of bytes from one TCP connection into complete ZPL labels.
 /// A label ends at <c>^XZ</c>. One connection may carry many labels, and any label may
@@ -54,13 +59,20 @@ public sealed class ZplStreamSplitter
     /// The unfinished label grew beyond <see cref="MaxPendingChars"/> bytes. The pending data is
     /// discarded and the splitter stays usable for the next data.
     /// </exception>
-    public IReadOnlyList<string> Feed(byte[] data, int count)
+    public IReadOnlyList<string> Feed(byte[] data, int count) => FeedDecoded(data, count).Select(d => d.Text).ToList();
+
+    /// <summary>
+    /// Like <see cref="Feed"/>, and also says for each label whether its bytes were read as Windows-1252, which a label
+    /// that announces UTF-8 (^CI28) needs to warn about.
+    /// </summary>
+    /// <exception cref="ZplTooLargeException">As for <see cref="Feed"/>.</exception>
+    public IReadOnlyList<DecodedZpl> FeedDecoded(byte[] data, int count)
     {
         EnsureCapacity(_length + count);
         Buffer.BlockCopy(data, 0, _bytes, _length, count);
         _length += count;
 
-        var completed = new List<string>();
+        var completed = new List<DecodedZpl>();
         var start = 0;
 
         // Only the newly added data is scanned; the back-up covers a marker split across chunks.
@@ -105,28 +117,46 @@ public sealed class ZplStreamSplitter
     /// Returns text left over when the connection closed without a final <c>^XZ</c>
     /// (or null if there is none) and resets the splitter.
     /// </summary>
-    public string? Flush()
+    public string? Flush() => FlushDecoded()?.Text;
+
+    /// <summary>Like <see cref="Flush"/>, and also says whether the bytes were read as Windows-1252.</summary>
+    public DecodedZpl? FlushDecoded()
     {
         var rest = Decode(0, _length);
         _length = 0;
         _scanned = 0;
-        return rest.Length == 0 ? null : rest;
+        return rest.Text.Length == 0 ? null : rest;
     }
 
-    // UTF-8 first (strict), Windows-1252 otherwise. Windows-1252 maps every byte to some character, so this never throws.
-    private string Decode(int start, int count)
+    private DecodedZpl Decode(int start, int count)
     {
-        string text;
+        var text = Decode(_bytes, start, count, out var windows1252);
+        // A leading byte order mark would otherwise show up as an invisible character in the ZPL.
+        return new DecodedZpl(text.Trim().Trim('\uFEFF').Trim(), windows1252);
+    }
+
+    /// <summary>
+    /// Reads ZPL bytes the way the printer port does: strictly as UTF-8 first, and as Windows-1252 when that fails.
+    /// Windows-1252 maps every byte to some character, so this never throws. Open file can use it too, so a file opened
+    /// and the same file printed give the same label.
+    /// </summary>
+    /// <param name="bytes">The bytes.</param>
+    /// <param name="start">Index of the first byte.</param>
+    /// <param name="count">Number of bytes.</param>
+    /// <param name="readAsWindows1252">True when the bytes were not valid UTF-8.</param>
+    public static string Decode(byte[] bytes, int start, int count, out bool readAsWindows1252)
+    {
+        ArgumentNullException.ThrowIfNull(bytes);
         try
         {
-            text = StrictUtf8.GetString(_bytes, start, count);
+            readAsWindows1252 = false;
+            return StrictUtf8.GetString(bytes, start, count);
         }
         catch (DecoderFallbackException)
         {
-            text = Windows1252.GetString(_bytes, start, count);
+            readAsWindows1252 = true;
+            return Windows1252.GetString(bytes, start, count);
         }
-        // A leading byte order mark would otherwise show up as an invisible character in the ZPL.
-        return text.Trim().Trim('\uFEFF').Trim();
     }
 
     // Grows the pending buffer by doubling so repeated small chunks cost amortised O(1) per byte.

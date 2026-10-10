@@ -16,8 +16,10 @@ namespace LabelScope.Core.Jobs;
 /// <param name="ReceivedAt">When the job arrived.</param>
 /// <param name="Zpl">The ZPL exactly as received.</param>
 /// <param name="Complete">False when the sender stopped before the last ^XZ.</param>
+/// <param name="ReadAsWindows1252">True when the job's bytes were not valid UTF-8 and were read as Windows-1252;
+/// absent (false) in files written before it was kept, which only loses a ^CI28 warning.</param>
 public sealed record SavedJob(Guid Id, string Name, string? RemoteAddress, string? ResolvedHost, JobOrigin Origin,
-                              DateTimeOffset ReceivedAt, string Zpl, bool Complete);
+                              DateTimeOffset ReceivedAt, string Zpl, bool Complete, bool ReadAsWindows1252 = false);
 
 /// <summary>
 /// Keeps the job list between runs ("Keep jobs after closing LabelScope") in jobs.json, as

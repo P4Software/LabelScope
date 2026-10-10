@@ -56,6 +56,14 @@ internal sealed partial class LabelPainter : IDisposable
     // Orientation named by ^A for the field being built (null = use the ^FW default). Reset by ^FS.
     private char? _textOrientation;
 
+    // ^CI in effect for this label (null = none sent: the power-up default, never warned about) and its line.
+    private int? _charSet;
+    private int _charSetLine;
+    // Whether the job's bytes were read as Windows-1252 (RenderOptions.TextReadAsWindows1252).
+    private bool _readAsWindows1252;
+    // Each ^CI warning is given at most once per label: one label with twenty accented fields is one problem.
+    private bool _notUtf8Warned, _partialWarned;
+
     private sealed record FieldBlock(int Width, int MaxLines, int LineSpacing, char Justify, int Line);
 
     private LabelPainter(int width, int height, int dpi, List<RenderWarning> warnings, bool inverted, PaintContext context, PrinterSetup.Values setup)
@@ -92,6 +100,13 @@ internal sealed partial class LabelPainter : IDisposable
         var inverted = po is not null ? po.Args.TrimStart().StartsWith("I", StringComparison.OrdinalIgnoreCase) : setup.Inverted ?? false;
 
         using var painter = new LabelPainter(width, height, options.Dpi, warnings, inverted, context, setup);
+        painter._readAsWindows1252 = options.TextReadAsWindows1252;
+        // A ^CI sent just before this label's ^XA applies to it, and to it only (see PaintContext).
+        if (context.PendingCharacterSet is { } pending)
+        {
+            context.PendingCharacterSet = null;
+            painter.UseCharacterSet(pending.Set, pending.Line);
+        }
         foreach (var cmd in block) painter.Handle(cmd);
         painter.SaveImageIfAsked();
 
@@ -205,6 +220,7 @@ internal sealed partial class LabelPainter : IDisposable
             case "^PO": break; // already applied in Paint
             case "^BY": SetBarDefaults(cmd, a); break;
             case "^FW": _fieldOrientation = a.Length > 0 && a[0].Length > 0 ? FieldPlacement.Normalize(a[0][0]) : 'N'; break;
+            case "^CI": SetCharacterSet(cmd, a); break;
             case "^FH": _hexIndicator = a.Length > 0 && a[0].Length > 0 ? a[0][0] : '_'; break;
             default:
                 if (TryStartBarcode(cmd, a)) break;
@@ -260,6 +276,57 @@ internal sealed partial class LabelPainter : IDisposable
         return v == 0 ? null : (int)Math.Min(v, int.MaxValue);
     }
 
+    // ---- character sets ----------------------------------------------------------------------
+
+    /// <summary>
+    /// ^CIa,s1,d1,...: the character set for the fields that follow. The text is already characters (see
+    /// <see cref="CharacterSets"/>), so a known set changes nothing in the picture; it only decides which warnings apply.
+    /// </summary>
+    private void SetCharacterSet(ZplCommand cmd, string[] a)
+    {
+        if (CheckCharacterSetCommand(cmd, a, _warnings) is { } set) UseCharacterSet(set, cmd.Line);
+    }
+
+    /// <summary>
+    /// Checks a ^CI command anywhere in a job and returns its set, or null (with a warning) when the number is no
+    /// character set. Remapping pairs after the set are warned about and otherwise ignored.
+    /// </summary>
+    internal static int? CheckCharacterSetCommand(ZplCommand cmd, string[] a, List<RenderWarning> warnings)
+    {
+        if (!CharacterSets.TryParse(a, out var set) || (!CharacterSets.IsUnicode(set) && CharacterSets.Describe(set) is null))
+        {
+            warnings.Add(new(cmd.Line, Text.Get("Painter_CharSetUnknown", CharacterSets.Shown(a))));
+            return null;
+        }
+        if (CharacterSets.HasRemapping(a))
+            warnings.Add(new(cmd.Line, Text.Get("Painter_CharSetRemap", set)));
+        return set;
+    }
+
+    private void UseCharacterSet(int set, int line)
+    {
+        _charSet = set;
+        _charSetLine = line;
+        // The label promises UTF-8, but the bytes were not UTF-8: the sender most likely sent Windows-1252, which is
+        // what LabelScope drew, while a printer would print other letters.
+        if (set == CharacterSets.Utf8 && _readAsWindows1252 && !_notUtf8Warned)
+        {
+            _notUtf8Warned = true;
+            _warnings.Add(new(line, Text.Get("Painter_CharSetNotUtf8")));
+        }
+    }
+
+    /// <summary>
+    /// A byte-based ^CI set (0-27, 31-36) matches the printer only for plain ASCII; the first field with other
+    /// characters gives the label's one warning, at the ^CI line, naming the set.
+    /// </summary>
+    private void CheckCharacterSet(string data)
+    {
+        if (_partialWarned || _charSet is not { } set || CharacterSets.IsUnicode(set) || !CharacterSets.HasNonAscii(data)) return;
+        _partialWarned = true;
+        _warnings.Add(new(_charSetLine, Text.Get("Painter_CharSetPartial", set, CharacterSets.Describe(set) ?? "")));
+    }
+
     // ---- fields ------------------------------------------------------------------------------
 
     private SKPaint InkPaint(bool white = false)
@@ -277,8 +344,10 @@ internal sealed partial class LabelPainter : IDisposable
 
     private void EndField()
     {
-        // ^FH escapes are resolved once, here, so text and barcodes see the same characters.
-        var data = FieldData.Decode(_data, _hexIndicator);
+        // ^FH escapes are resolved once, here, so text and barcodes see the same characters. Under ^CI28 the escaped
+        // bytes are UTF-8, as on a printer.
+        var data = FieldData.Decode(_data, _hexIndicator, utf8: _charSet == CharacterSets.Utf8);
+        if (_hasData) CheckCharacterSet(data);
         if (_barcode is not null)
         {
             if (_hasData && !_barcode.Skip) DrawBarcode(data);

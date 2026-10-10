@@ -127,6 +127,14 @@
   <data name="Painter_TextTooLong" xml:space="preserve"><value>This text field is {0} characters long; only the first {1} are drawn. Split the text into several fields of {1} characters or fewer.</value></data>
   <data name="Painter_MissingGlyphs" xml:space="preserve"><value>{0} character(s) in this text are not in the font, so they print as spaces, as on a printer. Check the field data, or choose a font that has these characters.</value></data>
   <data name="Painter_RoundedCorners" xml:space="preserve"><value>Rounded corners on ^GB are not supported yet; square corners are drawn.</value></data>
+  <data name="Painter_CharSetUnknown" xml:space="preserve"><value>^CI{0}: this is not a character set a Zebra printer knows (the sets are 0 to 36), so it was ignored and the text was drawn as received. Check the number after ^CI.</value></data>
+  <data name="Painter_CharSetRemap" xml:space="preserve"><value>^CI{0}: changing single characters (the numbers after the character set) is not supported yet and was ignored, so those characters are drawn as sent.</value></data>
+  <data name="Painter_CharSetNotUtf8" xml:space="preserve"><value>This label says its text is UTF-8 (^CI28), but the data received is not valid UTF-8, so LabelScope read it as Windows-1252. Accented letters may be wrong; set the sending program to send UTF-8.</value></data>
+  <data name="Painter_CharSetPartial" xml:space="preserve"><value>^CI{0} ({1}) is not fully supported yet; accented letters may differ from the printer. The text was drawn as received; check a printed label, or send the text as UTF-8 with ^CI28.</value></data>
+  <data name="CharSet_SingleByte" xml:space="preserve"><value>Zebra single-byte international set</value></data>
+  <data name="CharSet_CodePage" xml:space="preserve"><value>code page {0}</value></data>
+  <data name="CharSet_Asian" xml:space="preserve"><value>Asian encoding</value></data>
+  <data name="CharSet_Ucs2" xml:space="preserve"><value>UCS-2, no longer used</value></data>
   <data name="Placeholder_NoLabel" xml:space="preserve"><value>No label (^XA ... ^XZ) in this data</value></data>
   <data name="Placeholder_NotDrawn" xml:space="preserve"><value>This label could not be drawn</value></data>
   <data name="Placeholder_NotFoundTitle" xml:space="preserve"><value>No label found</value></data>

@@ -95,6 +95,12 @@ public sealed class ZplRenderer
 
                     default:
                         if (inLabel) block.Add(cmd);
+                        // ^CI before a label's ^XA is common (ZebraDesigner sends it there); it applies to that label.
+                        else if (cmd.Name == "^CI")
+                        {
+                            if (LabelPainter.CheckCharacterSetCommand(cmd, cmd.Args.Split(','), warnings) is { } set)
+                                context.PendingCharacterSet = (set, cmd.Line);
+                        }
                         // Downloads usually travel outside any label; they act on printer memory right here, in stream order.
                         else if (HandleStorageSafely(cmd, context, warnings)) { }
                         else if (!SilentCommands.IsSilent(cmd.Name, cmd.Args))
