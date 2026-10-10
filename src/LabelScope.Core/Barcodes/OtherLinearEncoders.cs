@@ -15,10 +15,10 @@ internal static class OtherLinearEncoders
 
     private static string DigitsOnly(string data)
     {
-        if (data.Length == 0) throw new BarcodeDataException("There is no data for the barcode.");
+        if (data.Length == 0) throw new BarcodeDataException(Text.Get("Barcode_NoData"));
         foreach (var c in data)
             if (!char.IsAsciiDigit(c))
-                throw new BarcodeDataException($"This barcode accepts digits only, but the data contains '{c}'.");
+                throw new BarcodeDataException(Text.Get("Barcode_DigitsOnly", c));
         return data;
     }
 
@@ -73,12 +73,12 @@ internal static class OtherLinearEncoders
     /// <summary>Codabar with the given start and stop letters (A to D).</summary>
     public static LinearSymbol EncodeCodabar(string data, char start, char stop, BarDefaults by)
     {
-        if (data.Length == 0) throw new BarcodeDataException("There is no data for the barcode.");
+        if (data.Length == 0) throw new BarcodeDataException(Text.Get("Barcode_NoData"));
         if (!CodabarStartStop.TryGetValue(start, out var startPattern) || !CodabarStartStop.TryGetValue(stop, out var stopPattern))
-            throw new BarcodeDataException("The Codabar start and stop characters must be A, B, C or D.");
+            throw new BarcodeDataException(Text.Get("Barcode_Codabar_StartStop"));
         foreach (var c in data)
             if (CodabarChars.IndexOf(c) < 0)
-                throw new BarcodeDataException($"Codabar cannot hold the character '{c}'. It takes digits and - $ : / . +; the start and stop letters are set with the k and l parameters.");
+                throw new BarcodeDataException(Text.Get("Barcode_Codabar_BadChar", c));
 
         var runs = new RunList().AddPattern(startPattern, by.Narrow, by.Wide);
         foreach (var c in data)
@@ -111,7 +111,7 @@ internal static class OtherLinearEncoders
     /// <summary>Code 11 with one (C) or two (C and K) check digits.</summary>
     public static LinearSymbol EncodeCode11(string data, bool oneCheck, BarDefaults by)
     {
-        if (data.Length == 0) throw new BarcodeDataException("There is no data for the barcode.");
+        if (data.Length == 0) throw new BarcodeDataException(Text.Get("Barcode_NoData"));
         var (c, k) = CheckDigits.Code11(data);   // throws for characters outside 0-9 and '-'
         var text = data + Code11Chars[c] + (oneCheck ? "" : Code11Chars[k].ToString());
 
@@ -149,7 +149,7 @@ internal static class OtherLinearEncoders
             'D' => Mod11ThenMod10(d),
             'B' => d + CheckDigits.Mod10Ibm(d),
             // An unknown letter must not quietly become another check scheme: the printed code would not match what the label asked for.
-            _ => throw new BarcodeDataException($"The MSI check digit option '{checkMode}' is not valid. Use A, B, C or D."),
+            _ => throw new BarcodeDataException(Text.Get("Barcode_Msi_BadCheck", checkMode)),
         };
 
         var runs = new RunList().AddPattern("wn", by.Narrow, by.Wide);

@@ -163,15 +163,15 @@ internal static partial class QrEncoder
     /// <exception cref="BarcodeDataException">The data is empty, does not fit the forced mode, or exceeds version 40.</exception>
     public static QrCodewords BuildCodewords(string data, QrLevel level, char mode)
     {
-        if (data.Length == 0) throw new BarcodeDataException("There is no data for the QR code. Add the text to encode after ^FD.");
+        if (data.Length == 0) throw new BarcodeDataException(Text.Get("Barcode_Qr_NoData"));
 
         mode = mode == '\0' ? DetectMode(data) : char.ToUpperInvariant(mode);
         if (mode is not ('N' or 'A' or 'B'))
-            throw new BarcodeDataException($"QR code input mode '{mode}' is not supported. Use N (numeric), A (alphanumeric) or B (byte), or leave the mode out to choose automatically.");
+            throw new BarcodeDataException(Text.Get("Barcode_Qr_BadMode", mode));
         if (mode == 'N' && !IsNumeric(data))
-            throw new BarcodeDataException("The QR code was set to numeric input, but the data contains characters that are not digits. Remove them or use automatic input.");
+            throw new BarcodeDataException(Text.Get("Barcode_Qr_NotNumeric"));
         if (mode == 'A' && !IsAlphanumeric(data))
-            throw new BarcodeDataException("The QR code was set to alphanumeric input (digits, capital letters and space $ % * + - . / :), but the data contains other characters. Remove them or use automatic input.");
+            throw new BarcodeDataException(Text.Get("Barcode_Qr_NotAlphanumeric"));
 
         for (var version = 1; version <= 40; version++)
         {
@@ -187,7 +187,7 @@ internal static partial class QrEncoder
 
             return new QrCodewords(version, AddErrorCorrection(bytes.ToArray(), version, level));
         }
-        throw new BarcodeDataException("The data is too long for a QR code (the largest symbol holds about 7000 digits, 4000 letters or 2900 bytes at the lowest error correction). Shorten the data or choose a lower error correction level.");
+        throw new BarcodeDataException(Text.Get("Barcode_Qr_TooLong"));
     }
 
     /// <summary>Splits the data into blocks, adds Reed-Solomon codewords to each and interleaves them as the standard requires.</summary>

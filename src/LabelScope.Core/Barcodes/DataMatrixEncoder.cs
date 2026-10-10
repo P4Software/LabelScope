@@ -70,7 +70,7 @@ internal static class DataMatrixEncoder
             // A lone escape character at the very end has no meaning; guessing "literal" could print data the
             // label did not intend, so it is reported instead.
             if (i == runes.Count - 1)
-                throw new BarcodeDataException($"The data ends with the Data Matrix escape character '{escape}'. Write it twice ({escape}{escape}) for the character itself, or remove it.");
+                throw new BarcodeDataException(Text.Get("Barcode_DataMatrix_EndsWithEscape", escape));
 
             // Compare whole rune values: casting a rune above U+FFFF to char would truncate it to an unrelated letter.
             var next = runes[++i].Value;
@@ -81,15 +81,15 @@ internal static class DataMatrixEncoder
             {
                 var digits = runes.Skip(i + 1).Take(3).Select(x => x.Value).ToList();
                 if (digits.Count != 3 || !digits.All(v => v is >= '0' and <= '9'))
-                    throw new BarcodeDataException($"The Data Matrix escape {escape}d must be followed by three digits from 000 to 255.");
+                    throw new BarcodeDataException(Text.Get("Barcode_DataMatrix_EscapeDigits", escape));
                 var value = digits.Aggregate(0, (acc, v) => acc * 10 + (v - '0'));
                 if (value > 255)
-                    throw new BarcodeDataException($"The Data Matrix escape {escape}d must be followed by three digits from 000 to 255.");
+                    throw new BarcodeDataException(Text.Get("Barcode_DataMatrix_EscapeDigits", escape));
                 tokens.Add(value);
                 i += 3;
                 continue;
             }
-            throw new BarcodeDataException($"The Data Matrix escape '{escape}{char.ConvertFromUtf32(next)}' is not supported yet (structured append, FNC3, code pages and PAD are planned for a later release). Remove it to preview the rest of the data.");
+            throw new BarcodeDataException(Text.Get("Barcode_DataMatrix_EscapeUnsupported", escape, char.ConvertFromUtf32(next)));
         }
         return tokens;
     }
@@ -132,14 +132,14 @@ internal static class DataMatrixEncoder
     {
         // A requested size beyond the largest symbol of the shape is its own mistake; calling it "too much data"
         // would send the user looking in the wrong place. Only the dimension that is out of range is named.
-        var shape = rectangular ? "rectangular" : "square";
+        var shape = rectangular ? Text.Get("Barcode_DataMatrix_Rectangular") : Text.Get("Barcode_DataMatrix_Square");
         var largest = Sizes.Where(s => s.IsRectangular == rectangular).MaxBy(s => s.Rows * s.Cols)!;
         var tooLarge = new List<string>();
-        if (minRows > largest.Rows) tooLarge.Add($"{minRows} rows");
-        if (minCols > largest.Cols) tooLarge.Add($"{minCols} columns");
+        if (minRows > largest.Rows) tooLarge.Add(Text.Get("Barcode_DataMatrix_Rows", minRows));
+        if (minCols > largest.Cols) tooLarge.Add(Text.Get("Barcode_DataMatrix_Columns", minCols));
         if (tooLarge.Count > 0)
             throw new BarcodeDataException(
-                $"The requested {string.Join(" and ", tooLarge)} is more than the largest {shape} Data Matrix symbol ({largest.Rows} x {largest.Cols}) has. Ask for a smaller size, or leave rows and columns empty for the automatic size.");
+                Text.Get("Barcode_DataMatrix_SizeTooLarge", string.Join(Text.Get("Barcode_DataMatrix_And"), tooLarge), shape, largest.Rows, largest.Cols));
 
         if (minRows > 0 || minCols > 0)
         {
@@ -148,14 +148,14 @@ internal static class DataMatrixEncoder
             var forced = Sizes.First(s => s.IsRectangular == rectangular && s.Rows >= minRows && s.Cols >= minCols);
             if (forced.DataCodewords < codewords)
                 throw new BarcodeDataException(
-                    $"The data does not fit the requested {forced.Rows} x {forced.Cols} Data Matrix symbol (it holds {forced.DataCodewords} codewords, the data needs {codewords}); the printer prints no symbol in this case. Ask for a larger size, or leave rows and columns empty for the automatic size.");
+                    Text.Get("Barcode_DataMatrix_DoesNotFitForced", forced.Rows, forced.Cols, forced.DataCodewords, codewords));
             return forced;
         }
 
         var size = Sizes.FirstOrDefault(s => s.IsRectangular == rectangular && s.DataCodewords >= codewords);
         return size ?? throw new BarcodeDataException(rectangular
-            ? "The data is too long for a rectangular Data Matrix symbol (the largest, 16 x 48, holds about 49 letters or 98 digits). Shorten the data or use the square shape."
-            : "The data is too long for a Data Matrix symbol (the largest square symbol holds about 1550 letters or 3100 digits). Shorten the data.");
+            ? Text.Get("Barcode_DataMatrix_TooLongRectangular")
+            : Text.Get("Barcode_DataMatrix_TooLong"));
     }
 
     // ---- codewords -----------------------------------------------------------------------------------
@@ -315,7 +315,7 @@ internal static class DataMatrixEncoder
     {
         var escape = a.Text(6) is { Length: > 0 } g ? g[0] : '~';
         var tokens = ParseEscapes(data, escape);
-        if (tokens.Count == 0) throw new BarcodeDataException("There is no data for the barcode.");
+        if (tokens.Count == 0) throw new BarcodeDataException(Text.Get("Barcode_NoData"));
         var dataCodewords = EncodeAscii(tokens);
 
         // Quality: only 200 is drawn as written. Omitted (Zebra's default 0) and 0 to 140 are the older
@@ -328,7 +328,7 @@ internal static class DataMatrixEncoder
         {
             // Zebra's documented default is 0 (ECC 000), which LabelScope does not draw; say so every time, since
             // the printed label would carry a different, older symbol.
-            notes.Add("No quality was given, so the printer uses its default 0: an older ECC 000 symbol that many scanners cannot read. LabelScope draws it as ECC 200 instead. Add 200 as the third parameter (for example ^BXN,5,200) to get the recommended type.");
+            notes.Add(Text.Get("Barcode_DataMatrix_NoQuality"));
         }
         else
         {
@@ -336,14 +336,14 @@ internal static class DataMatrixEncoder
             if (quality != 200)
             {
                 notes.Add(DocumentedQualities.Contains(quality)
-                    ? $"Quality {quality} is an older ECC 000 to 140 symbol that many scanners cannot read; LabelScope draws it as ECC 200 instead, so the printed pattern differs. Use quality 200 for the recommended type."
-                    : $"Quality '{qualityText}' is not one of the documented values 0, 50, 80, 100, 140 or 200; the symbol is drawn as ECC 200. Use 200 for the recommended Data Matrix type.");
+                    ? Text.Get("Barcode_DataMatrix_OldQuality", quality)
+                    : Text.Get("Barcode_DataMatrix_UnknownQuality", qualityText));
 
                 // Below 200 Zebra only accepts odd sizes (an even column count prints nothing), and those sizes do
                 // not exist in ECC 200, so the requested size is dropped for the automatic one.
                 if (minRows > 0 || minCols > 0)
                 {
-                    notes.Add("The requested rows and columns were ignored and the automatic size was used.");
+                    notes.Add(Text.Get("Barcode_DataMatrix_SizeIgnored"));
                     minRows = minCols = 0;
                 }
             }
@@ -354,7 +354,7 @@ internal static class DataMatrixEncoder
         // A requested size that is not one of the standard sizes (25 x 25, an odd column count) is rounded up to
         // the next one; the label then prints a different size than written, so the user is told.
         if ((minRows > 0 && minRows != size.Rows) || (minCols > 0 && minCols != size.Cols))
-            notes.Add($"The requested size ({Dim(minRows, "rows")} by {Dim(minCols, "columns")}) is not a Data Matrix size; the next larger size, {size.Rows} x {size.Cols}, was drawn.");
+            notes.Add(Text.Get("Barcode_DataMatrix_SizeRounded", Dim(minRows, "Rows"), Dim(minCols, "Columns"), size.Rows, size.Cols));
         var matrix = BuildSymbol(size, Codewords(dataCodewords, size));
 
         // h = module size; empty or 0 means "fit the ^BY height into the rows", at least one dot.
@@ -369,6 +369,10 @@ internal static class DataMatrixEncoder
         };
     }
 
-    /// <summary>"24 rows" for a requested dimension, "automatic rows" for one left empty.</summary>
-    private static string Dim(int value, string unit) => value > 0 ? $"{value} {unit}" : $"automatic {unit}";
+    /// <summary>
+    /// "24 rows" for a requested dimension, "automatic rows" for one left empty, in the current language.
+    /// <paramref name="unit"/> is "Rows" or "Columns" and picks the matching message keys.
+    /// </summary>
+    private static string Dim(int value, string unit) =>
+        value > 0 ? Text.Get("Barcode_DataMatrix_" + unit, value) : Text.Get("Barcode_DataMatrix_Auto" + unit);
 }

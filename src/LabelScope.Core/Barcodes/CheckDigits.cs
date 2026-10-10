@@ -10,7 +10,7 @@ internal static class CheckDigits
     private static int Digit(char c) =>
         c is >= '0' and <= '9'
             ? c - '0'
-            : throw new BarcodeDataException($"This barcode accepts digits only, but the data contains '{c}'.");
+            : throw new BarcodeDataException(Text.Get("Barcode_DigitsOnly", c));
 
     /// <summary>
     /// Mod 10 as used by UPC, EAN, GS1 and Zebra: the rightmost data digit is weighted 3, the next 1, and so on.
@@ -70,7 +70,7 @@ internal static class CheckDigits
         foreach (var c in data)
         {
             var v = Code39Set.IndexOf(c);
-            if (v < 0) throw new BarcodeDataException($"Code 39 cannot hold the character '{c}'.");
+            if (v < 0) throw new BarcodeDataException(Text.Get("Barcode_Code39_BadCharShort", c));
             sum += v;
         }
         return Code39Set[sum % 43];
@@ -80,7 +80,7 @@ internal static class CheckDigits
     public static (int C, int K) Code11(string data)
     {
         var values = data.Select(c => c == '-' ? 10 : c is >= '0' and <= '9' ? c - '0'
-            : throw new BarcodeDataException($"Code 11 holds digits and hyphens only, but the data contains '{c}'.")).ToList();
+            : throw new BarcodeDataException(Text.Get("Barcode_Code11_BadChar", c))).ToList();
         var c11 = Weighted(values, 10, 11);
         values.Add(c11);
         return (c11, Weighted(values, 9, 11));

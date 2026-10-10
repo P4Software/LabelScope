@@ -23,7 +23,7 @@ internal static class QrField
     public static BarcodeField Build(BarcodeArgs a, string data)
     {
         if (MixedMode.IsMatch(data))
-            throw new BarcodeDataException("The mixed-mode (structured append) QR header is not supported yet. Remove the D header to preview the data as one symbol.");
+            throw new BarcodeDataException(Text.Get("Barcode_Qr_MixedMode"));
 
         // d: empty means Q, an invalid letter means M (reference). Used only when the data has no header.
         var level = Level(a.Letter(3, 'Q'));
@@ -52,7 +52,7 @@ internal static class QrField
         return new MatrixField(matrix, size, size, 'N')
         {
             Note = a.Int(1, 2) == 1
-                ? "QR model 1 is drawn as model 2. Both scan the same, but the pattern differs from a model 1 symbol."
+                ? Text.Get("Barcode_Qr_Model1")
                 : null,
         };
     }
@@ -61,7 +61,7 @@ internal static class QrField
     private static (char Mode, string Data) ManualMode(string rest)
     {
         if (rest.Length == 0)
-            throw new BarcodeDataException("The QR data says the input mode is manual but no mode letter (N, A or B) follows. Add the mode letter, or use automatic input (A).");
+            throw new BarcodeDataException(Text.Get("Barcode_Qr_ManualNoMode"));
 
         switch (char.ToUpperInvariant(rest[0]))
         {
@@ -69,18 +69,18 @@ internal static class QrField
             case 'A': return ('A', rest[1..]);
             case 'B':
                 if (rest.Length < 5 || !rest[1..5].All(char.IsAsciiDigit))
-                    throw new BarcodeDataException("QR byte mode needs a four digit character count after B, for example B0005hello.");
+                    throw new BarcodeDataException(Text.Get("Barcode_Qr_ByteCountMissing"));
                 var count = int.Parse(rest[1..5]);
                 var payload = rest[5..];
                 // A count that does not match would either cut the data or leave characters unexplained; both
                 // would print a symbol that reads differently from what the label meant, so neither is drawn.
                 if (payload.Length != count)
-                    throw new BarcodeDataException($"The QR byte mode count says {count} characters but {payload.Length} follow. Make the four digit count after B match the data.");
+                    throw new BarcodeDataException(Text.Get("Barcode_Qr_ByteCountMismatch", count, payload.Length));
                 return ('B', payload);
             case 'K':
-                throw new BarcodeDataException("QR Kanji mode is not supported yet. Use automatic input (A) or byte mode (B) to preview the data.");
+                throw new BarcodeDataException(Text.Get("Barcode_Qr_Kanji"));
             default:
-                throw new BarcodeDataException("The QR input mode letter must be N, A, B or K. Fix the letter after the comma, or use automatic input (A).");
+                throw new BarcodeDataException(Text.Get("Barcode_Qr_BadModeLetter"));
         }
     }
 }

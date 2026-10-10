@@ -25,7 +25,7 @@ internal static class Pdf417Encoder
     /// <exception cref="BarcodeDataException">No data, an impossible size, or data that does not fit the size.</exception>
     public static BitMatrix Encode(string data, int security, int columns, int rows, bool truncate)
     {
-        if (data.Length == 0) throw new BarcodeDataException("There is no data for the barcode.");
+        if (data.Length == 0) throw new BarcodeDataException(Text.Get("Barcode_NoData"));
         columns = columns <= 0 ? 0 : Math.Clamp(columns, MinColumns, MaxColumns);
         rows = rows <= 0 ? 0 : Math.Clamp(rows, MinRows, MaxRows);
         security = Math.Clamp(security, 0, MaxSecurity);
@@ -40,14 +40,14 @@ internal static class Pdf417Encoder
         if (columns > 0 && rows > 0)
             return TryEncode(bytes, security, columns, rows, rows, truncate)
                 ?? throw new BarcodeDataException(
-                    $"The data does not fit a PDF417 symbol of {columns} columns x {rows} rows at security level {security}; the printer prints no symbol in this case. Ask for more columns or rows, lower the security level, or shorten the data.");
+                    Text.Get("Barcode_Pdf417_DoesNotFitSize", columns, rows, security));
 
         // Columns only: the fewest rows (at least 3) that hold the data in those columns.
         if (columns > 0)
         {
             var fixedColumns = TryEncode(bytes, security, columns, MinRows, MaxRows, truncate)
                 ?? throw new BarcodeDataException(
-                    $"The data does not fit {columns} PDF417 columns (at most {MaxRows} rows) at security level {security}; the printer prints no symbol in this case. Ask for more columns, lower the security level, or shorten the data.");
+                    Text.Get("Barcode_Pdf417_DoesNotFitColumns", columns, MaxRows, security));
             if (columns * fixedColumns.Height > MaxCells) throw new BarcodeDataException(TooManyCells(columns, fixedColumns.Height));
             return fixedColumns;
         }
@@ -80,13 +80,13 @@ internal static class Pdf417Encoder
         if (rows == 0 && widest is not null && MaxColumns * widest.Height <= MaxCells) return widest;
 
         throw new BarcodeDataException(rows > 0
-            ? $"The data does not fit {rows} PDF417 rows (at most {MaxColumns} columns) at security level {security}; the printer prints no symbol in this case. Ask for more rows, lower the security level, or shorten the data."
-            : $"The data is too long for a PDF417 symbol at security level {security}. At the default level about 2700 digits, 1800 letters or 1100 bytes (accented or other special characters) fit at most, and fewer fit at higher security levels. Shorten the data or lower the security level (the s value of ^B7).");
+            ? Text.Get("Barcode_Pdf417_DoesNotFitRows", rows, MaxColumns, security)
+            : Text.Get("Barcode_Pdf417_TooLong", security));
     }
 
     /// <summary>The message for a size above <see cref="MaxCells"/>.</summary>
     private static string TooManyCells(int columns, int rows) =>
-        $"{columns} columns x {rows} rows is more than a PDF417 symbol can hold (columns x rows must not exceed {MaxCells}); the printer prints no symbol in this case. Ask for fewer columns or rows.";
+        Text.Get("Barcode_Pdf417_TooManyCells", columns, rows, MaxCells);
 
     /// <summary>
     /// Turns the text into one character per byte: Latin-1 characters stay as they are, any other character becomes
@@ -167,15 +167,15 @@ internal static class Pdf417Encoder
         // written, so the user is told. 0 (or empty) for columns and rows means automatic.
         var notes = new List<string>();
         if (security is < 0 or > MaxSecurity)
-            notes.Add($"Security level {security} is outside 0 to {MaxSecurity}; level {Math.Clamp(security, 0, MaxSecurity)} was used.");
+            notes.Add(Text.Get("Barcode_Pdf417_SecurityClamped", security, MaxSecurity, Math.Clamp(security, 0, MaxSecurity)));
         if (columns < 0 || columns > MaxColumns)
             notes.Add(columns < 0
-                ? $"{columns} columns is not valid; the number of columns was chosen automatically."
-                : $"{columns} columns is more than {MaxColumns}; {MaxColumns} columns were used.");
+                ? Text.Get("Barcode_Pdf417_ColumnsInvalid", columns)
+                : Text.Get("Barcode_Pdf417_ColumnsClamped", columns, MaxColumns));
         if (rows < 0 || (rows > 0 && rows < MinRows) || rows > MaxRows)
             notes.Add(rows < 0
-                ? $"{rows} rows is not valid; the number of rows was chosen automatically."
-                : $"{rows} rows is outside {MinRows} to {MaxRows}; {Math.Clamp(rows, MinRows, MaxRows)} rows were used.");
+                ? Text.Get("Barcode_Pdf417_RowsInvalid", rows)
+                : Text.Get("Barcode_Pdf417_RowsClamped", rows, MinRows, MaxRows, Math.Clamp(rows, MinRows, MaxRows)));
 
         var matrix = Encode(data, security, columns, rows, a.Flag(5, false));
 

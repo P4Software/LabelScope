@@ -11,6 +11,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Every user-visible message is looked up with Text.Get, so the namespace is available in every file. -->
+    <Using Include="LabelScope.Core.Localization" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Lets the tests drive the listener's internal accept loop with an injected failure. -->
     <InternalsVisibleTo Include="LabelScope.Core.Tests" />
   </ItemGroup>

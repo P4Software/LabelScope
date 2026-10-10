@@ -28,10 +28,10 @@ internal static class EanUpcEncoder
     /// <summary>Digits only, left-padded with zeros to <paramref name="count"/> or cut to the first <paramref name="count"/>.</summary>
     private static string Normalize(string data, int count)
     {
-        if (data.Length == 0) throw new BarcodeDataException("There is no data for the barcode.");
+        if (data.Length == 0) throw new BarcodeDataException(Text.Get("Barcode_NoData"));
         foreach (var c in data)
             if (!char.IsAsciiDigit(c))
-                throw new BarcodeDataException($"This barcode accepts digits only, but the data contains '{c}'.");
+                throw new BarcodeDataException(Text.Get("Barcode_DigitsOnly", c));
         return data.Length < count ? data.PadLeft(count, '0') : data[..count];
     }
 
@@ -134,7 +134,7 @@ internal static class EanUpcEncoder
         if (m[2] >= '3' && m[3] == '0' && m[4] == '0' && p[..3] == "000") return $"{m[0]}{m[1]}{m[2]}{p[3..]}3";  // 300 to 900
         if (m[3] != '0' && m[4] == '0' && p[..4] == "0000") return $"{m[..4]}{p[4]}4";                          // 10 to 90
         if (m[4] != '0' && p[..4] == "0000" && p[4] >= '5') return $"{m}{p[4]}";                                // product 5 to 9
-        throw new BarcodeDataException("This UPC-E number cannot be written in the short form: the manufacturer and product numbers do not follow the zero-suppression rules.");
+        throw new BarcodeDataException(Text.Get("Barcode_UpcE_NoShortForm"));
     }
 
     /// <summary>The inverse of <see cref="CompressUpcE"/>: manufacturer and product number of a 6 digit UPC-E.</summary>
@@ -153,12 +153,12 @@ internal static class EanUpcEncoder
     /// <summary>Encodes UPC-E from 10 digits (shortened here) or from the 6 digit short form.</summary>
     public static LinearSymbol EncodeUpcE(string data, bool showCheck, BarDefaults by)
     {
-        if (data.Length == 0) throw new BarcodeDataException("There is no data for the barcode.");
+        if (data.Length == 0) throw new BarcodeDataException(Text.Get("Barcode_NoData"));
         var digits = Normalize(data, data.Length);
         string six;
         if (digits.Length == 6) six = digits;
         else if (digits.Length == 10) six = CompressUpcE(digits);
-        else throw new BarcodeDataException("UPC-E needs 10 digits (5 manufacturer + 5 product) or the 6 digit short form.");
+        else throw new BarcodeDataException(Text.Get("Barcode_UpcE_Length"));
 
         var (m, p) = ExpandUpcE(six);
         var check = CheckDigits.Mod10("0" + m + p);

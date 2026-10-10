@@ -6,4 +6,76 @@
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <!-- Spanish texts. Every key of Strings.resx must exist here with the same {n} placeholders. -->
   <data name="Common_Ready" xml:space="preserve"><value>Listo</value></data>
+  <data name="Barcode_NoData" xml:space="preserve"><value>No hay datos para el código de barras.</value></data>
+  <data name="Barcode_DigitsOnly" xml:space="preserve"><value>Este código de barras solo acepta dígitos, pero los datos contienen '{0}'.</value></data>
+  <data name="Barcode_Code39_BadCharShort" xml:space="preserve"><value>Code 39 no admite el carácter '{0}'.</value></data>
+  <data name="Barcode_Code11_BadChar" xml:space="preserve"><value>Code 11 solo admite dígitos y guiones, pero los datos contienen '{0}'.</value></data>
+  <data name="Barcode_Code128_EndsWithSpecial" xml:space="preserve"><value>Los datos terminan con '&gt;', que inicia un código especial de Code 128. Agregue el carácter del código después, o quite el '&gt;'.</value></data>
+  <data name="Barcode_Code128_BadSpecial" xml:space="preserve"><value>'&gt;{0}' no es un código especial de Code 128. Quítelo, o escriba &gt;0 para un '&gt;' literal.</value></data>
+  <data name="Barcode_Code128_UnpairedDigit" xml:space="preserve"><value>En el subconjunto C de Code 128 los dígitos van en pares, pero a un dígito le falta su pareja. Agregue un dígito o cambie de subconjunto antes de él.</value></data>
+  <data name="Barcode_Code128_ShiftNeedsChar" xml:space="preserve"><value>El código de cambio &gt;4 de Code 128 debe ir seguido directamente de un carácter. Ponga el carácter justo después de &gt;4.</value></data>
+  <data name="Barcode_Code128_ShiftSubset" xml:space="preserve"><value>El código de cambio &gt;4 de Code 128 solo funciona en el subconjunto A o B. Cambie primero a uno de ellos.</value></data>
+  <data name="Barcode_Code128_SpecialInSubsetC" xml:space="preserve"><value>Este código especial de Code 128 no se puede usar en el subconjunto C, que solo admite pares de dígitos. Use &gt;6 para cambiar primero al subconjunto B.</value></data>
+  <data name="Barcode_Code128_TildeDelSubsetB" xml:space="preserve"><value>'~' y DEL solo existen en el subconjunto B; empiece los datos con &gt;: o use &gt;6 para cambiar al subconjunto B antes de este código.</value></data>
+  <data name="Barcode_Code128_LastDigitUnpaired" xml:space="preserve"><value>En el subconjunto C de Code 128 los dígitos van en pares, pero al último dígito le falta su pareja.</value></data>
+  <data name="Barcode_Code128_SubsetCDigitsOnly" xml:space="preserve"><value>El subconjunto C de Code 128 solo admite dígitos, pero los datos contienen {0}. Use &gt;6 para cambiar primero al subconjunto B.</value></data>
+  <data name="Barcode_Code128_NotInSubsetA" xml:space="preserve"><value>En el subconjunto A de Code 128 no se puede escribir {0}. Use &gt;6 para cambiar al subconjunto B antes de él.</value></data>
+  <data name="Barcode_Code128_NotInSubsetB" xml:space="preserve"><value>En el subconjunto B de Code 128 no se puede escribir {0}. Use &gt;7 para cambiar al subconjunto A antes de él.</value></data>
+  <data name="Barcode_Code128_ControlChar" xml:space="preserve"><value>el carácter de control 0x{0:X2}</value></data>
+  <data name="Barcode_Code128_Char" xml:space="preserve"><value>el carácter '{0}'</value></data>
+  <data name="Barcode_Code128_UccDigitsOnly" xml:space="preserve"><value>El modo UCC case (m = U) solo acepta dígitos. Quite las letras y los códigos especiales de los datos.</value></data>
+  <data name="Barcode_Code128_UccEanFormat" xml:space="preserve"><value>El modo UCC/EAN (m = D) necesita datos como (01)12345678901231(10)LOT7: cada identificador de aplicación entre paréntesis, seguido de su valor.</value></data>
+  <data name="Barcode_Code128_BadAi" xml:space="preserve"><value>'({0})' no es un identificador de aplicación: debe tener de dos a cuatro dígitos.</value></data>
+  <data name="Barcode_Code128_AiNoValue" xml:space="preserve"><value>El identificador de aplicación ({0}) no tiene valor.</value></data>
+  <data name="Barcode_Code39_StarInData" xml:space="preserve"><value>Code 39 usa '*' como marca de inicio y fin, así que no puede formar parte de los datos.</value></data>
+  <data name="Barcode_Code39_BadChar" xml:space="preserve"><value>Code 39 no admite el carácter '{0}'. Acepta dígitos, letras mayúsculas y - . espacio $ / + %; las minúsculas y otros símbolos se escriben como pares de dos caracteres, por ejemplo +A para a.</value></data>
+  <data name="Barcode_Code93_BadChar" xml:space="preserve"><value>Code 93 no admite el carácter '{0}'. Se permiten dígitos, letras mayúsculas y - . espacio $ / + %; los demás caracteres se escriben con los caracteres de cambio &amp; ' ( ) seguidos de una letra mayúscula.</value></data>
+  <data name="Barcode_DataMatrix_EndsWithEscape" xml:space="preserve"><value>Los datos terminan con el carácter de escape de Data Matrix '{0}'. Escríbalo dos veces ({0}{0}) para el carácter en sí, o quítelo.</value></data>
+  <data name="Barcode_DataMatrix_EscapeDigits" xml:space="preserve"><value>El escape {0}d de Data Matrix debe ir seguido de tres dígitos entre 000 y 255.</value></data>
+  <data name="Barcode_DataMatrix_EscapeUnsupported" xml:space="preserve"><value>El escape de Data Matrix '{0}{1}' todavía no es compatible (structured append, FNC3, páginas de códigos y PAD están previstos para una versión posterior). Quítelo para ver el resto de los datos.</value></data>
+  <data name="Barcode_DataMatrix_Rectangular" xml:space="preserve"><value>rectangular</value></data>
+  <data name="Barcode_DataMatrix_Square" xml:space="preserve"><value>cuadrado</value></data>
+  <data name="Barcode_DataMatrix_Rows" xml:space="preserve"><value>{0} filas</value></data>
+  <data name="Barcode_DataMatrix_Columns" xml:space="preserve"><value>{0} columnas</value></data>
+  <data name="Barcode_DataMatrix_AutoRows" xml:space="preserve"><value>filas automáticas</value></data>
+  <data name="Barcode_DataMatrix_AutoColumns" xml:space="preserve"><value>columnas automáticas</value></data>
+  <data name="Barcode_DataMatrix_And" xml:space="preserve"><value> y </value></data>
+  <data name="Barcode_DataMatrix_SizeTooLarge" xml:space="preserve"><value>Se pidieron {0}, más de lo que tiene el símbolo Data Matrix {1} más grande ({2} x {3}). Pida un tamaño menor, o deje vacías las filas y columnas para usar el tamaño automático.</value></data>
+  <data name="Barcode_DataMatrix_DoesNotFitForced" xml:space="preserve"><value>Los datos no caben en el símbolo Data Matrix de {0} x {1} solicitado (admite {2} palabras de código y los datos necesitan {3}); en este caso la impresora no imprime ningún símbolo. Pida un tamaño mayor, o deje vacías las filas y columnas para usar el tamaño automático.</value></data>
+  <data name="Barcode_DataMatrix_TooLongRectangular" xml:space="preserve"><value>Los datos son demasiado largos para un símbolo Data Matrix rectangular (el más grande, de 16 x 48, admite unas 49 letras o 98 dígitos). Acorte los datos o use la forma cuadrada.</value></data>
+  <data name="Barcode_DataMatrix_TooLong" xml:space="preserve"><value>Los datos son demasiado largos para un símbolo Data Matrix (el símbolo cuadrado más grande admite unas 1550 letras o 3100 dígitos). Acorte los datos.</value></data>
+  <data name="Barcode_DataMatrix_NoQuality" xml:space="preserve"><value>No se indicó la calidad, así que la impresora usa su valor predeterminado 0: un símbolo ECC 000 antiguo que muchos lectores no pueden leer. LabelScope lo dibuja como ECC 200. Agregue 200 como tercer parámetro (por ejemplo ^BXN,5,200) para obtener el tipo recomendado.</value></data>
+  <data name="Barcode_DataMatrix_OldQuality" xml:space="preserve"><value>La calidad {0} es un símbolo ECC 000 a 140 antiguo que muchos lectores no pueden leer; LabelScope lo dibuja como ECC 200, así que el patrón impreso es distinto. Use la calidad 200 para obtener el tipo recomendado.</value></data>
+  <data name="Barcode_DataMatrix_UnknownQuality" xml:space="preserve"><value>La calidad '{0}' no es uno de los valores documentados 0, 50, 80, 100, 140 o 200; el símbolo se dibuja como ECC 200. Use 200 para obtener el tipo de Data Matrix recomendado.</value></data>
+  <data name="Barcode_DataMatrix_SizeIgnored" xml:space="preserve"><value>Se ignoraron las filas y columnas solicitadas y se usó el tamaño automático.</value></data>
+  <data name="Barcode_DataMatrix_SizeRounded" xml:space="preserve"><value>El tamaño solicitado ({0} por {1}) no es un tamaño de Data Matrix; se dibujó el siguiente tamaño mayor, {2} x {3}.</value></data>
+  <data name="Barcode_UpcE_NoShortForm" xml:space="preserve"><value>Este número UPC-E no se puede escribir en la forma corta: los números de fabricante y de producto no siguen las reglas de supresión de ceros.</value></data>
+  <data name="Barcode_UpcE_Length" xml:space="preserve"><value>UPC-E necesita 10 dígitos (5 de fabricante + 5 de producto) o la forma corta de 6 dígitos.</value></data>
+  <data name="Barcode_Codabar_StartStop" xml:space="preserve"><value>Los caracteres de inicio y fin de Codabar deben ser A, B, C o D.</value></data>
+  <data name="Barcode_Codabar_BadChar" xml:space="preserve"><value>Codabar no admite el carácter '{0}'. Acepta dígitos y - $ : / . +; las letras de inicio y fin se indican con los parámetros k y l.</value></data>
+  <data name="Barcode_Msi_BadCheck" xml:space="preserve"><value>La opción de dígito de control MSI '{0}' no es válida. Use A, B, C o D.</value></data>
+  <data name="Barcode_Pdf417_DoesNotFitSize" xml:space="preserve"><value>Los datos no caben en un símbolo PDF417 de {0} columnas x {1} filas con nivel de seguridad {2}; en este caso la impresora no imprime ningún símbolo. Pida más columnas o filas, baje el nivel de seguridad o acorte los datos.</value></data>
+  <data name="Barcode_Pdf417_DoesNotFitColumns" xml:space="preserve"><value>Los datos no caben en {0} columnas de PDF417 (como máximo {1} filas) con nivel de seguridad {2}; en este caso la impresora no imprime ningún símbolo. Pida más columnas, baje el nivel de seguridad o acorte los datos.</value></data>
+  <data name="Barcode_Pdf417_DoesNotFitRows" xml:space="preserve"><value>Los datos no caben en {0} filas de PDF417 (como máximo {1} columnas) con nivel de seguridad {2}; en este caso la impresora no imprime ningún símbolo. Pida más filas, baje el nivel de seguridad o acorte los datos.</value></data>
+  <data name="Barcode_Pdf417_TooLong" xml:space="preserve"><value>Los datos son demasiado largos para un símbolo PDF417 con nivel de seguridad {0}. Con el nivel predeterminado caben como máximo unos 2700 dígitos, 1800 letras o 1100 bytes (caracteres acentuados u otros especiales), y caben menos con niveles de seguridad más altos. Acorte los datos o baje el nivel de seguridad (el valor s de ^B7).</value></data>
+  <data name="Barcode_Pdf417_TooManyCells" xml:space="preserve"><value>{0} columnas x {1} filas es más de lo que admite un símbolo PDF417 (columnas x filas no debe superar {2}); en este caso la impresora no imprime ningún símbolo. Pida menos columnas o filas.</value></data>
+  <data name="Barcode_Pdf417_SecurityClamped" xml:space="preserve"><value>El nivel de seguridad {0} está fuera del rango de 0 a {1}; se usó el nivel {2}.</value></data>
+  <data name="Barcode_Pdf417_ColumnsInvalid" xml:space="preserve"><value>{0} columnas no es un valor válido; el número de columnas se eligió automáticamente.</value></data>
+  <data name="Barcode_Pdf417_ColumnsClamped" xml:space="preserve"><value>{0} columnas es más que {1}; se usaron {1} columnas.</value></data>
+  <data name="Barcode_Pdf417_RowsInvalid" xml:space="preserve"><value>{0} filas no es un valor válido; el número de filas se eligió automáticamente.</value></data>
+  <data name="Barcode_Pdf417_RowsClamped" xml:space="preserve"><value>{0} filas está fuera del rango de {1} a {2}; se usaron {3} filas.</value></data>
+  <data name="Barcode_Qr_NoData" xml:space="preserve"><value>No hay datos para el código QR. Agregue el texto que se va a codificar después de ^FD.</value></data>
+  <data name="Barcode_Qr_BadMode" xml:space="preserve"><value>El modo de entrada '{0}' del código QR no es compatible. Use N (numérico), A (alfanumérico) o B (byte), u omita el modo para que se elija automáticamente.</value></data>
+  <data name="Barcode_Qr_NotNumeric" xml:space="preserve"><value>El código QR se configuró con entrada numérica, pero los datos contienen caracteres que no son dígitos. Quítelos o use la entrada automática.</value></data>
+  <data name="Barcode_Qr_NotAlphanumeric" xml:space="preserve"><value>El código QR se configuró con entrada alfanumérica (dígitos, letras mayúsculas y espacio $ % * + - . / :), pero los datos contienen otros caracteres. Quítelos o use la entrada automática.</value></data>
+  <data name="Barcode_Qr_TooLong" xml:space="preserve"><value>Los datos son demasiado largos para un código QR (el símbolo más grande admite unos 7000 dígitos, 4000 letras o 2900 bytes con la corrección de errores más baja). Acorte los datos o elija un nivel de corrección de errores más bajo.</value></data>
+  <data name="Barcode_Qr_MixedMode" xml:space="preserve"><value>El encabezado QR de modo mixto (structured append) todavía no es compatible. Quite el encabezado D para ver los datos como un solo símbolo.</value></data>
+  <data name="Barcode_Qr_Model1" xml:space="preserve"><value>El modelo 1 de QR se dibuja como modelo 2. Ambos se leen igual, pero el patrón es distinto del de un símbolo modelo 1.</value></data>
+  <data name="Barcode_Qr_ManualNoMode" xml:space="preserve"><value>Los datos QR indican que el modo de entrada es manual, pero no sigue ninguna letra de modo (N, A o B). Agregue la letra de modo, o use la entrada automática (A).</value></data>
+  <data name="Barcode_Qr_ByteCountMissing" xml:space="preserve"><value>El modo byte de QR necesita un conteo de caracteres de cuatro dígitos después de B, por ejemplo B0005hello.</value></data>
+  <data name="Barcode_Qr_ByteCountMismatch" xml:space="preserve"><value>El conteo del modo byte de QR indica {0} caracteres, pero siguen {1}. Haga que el conteo de cuatro dígitos después de B coincida con los datos.</value></data>
+  <data name="Barcode_Qr_Kanji" xml:space="preserve"><value>El modo Kanji de QR todavía no es compatible. Use la entrada automática (A) o el modo byte (B) para ver los datos.</value></data>
+  <data name="Barcode_Qr_BadModeLetter" xml:space="preserve"><value>La letra del modo de entrada QR debe ser N, A, B o K. Corrija la letra después de la coma, o use la entrada automática (A).</value></data>
+  <data name="Barcode_Name_UpcEanExtension" xml:space="preserve"><value>extensión UPC/EAN</value></data>
+  <data name="Barcode_Name_Postal" xml:space="preserve"><value>código postal</value></data>
 </root>

@@ -76,7 +76,7 @@ internal static class Code128Encoder
                 continue;
             }
             if (i + 1 >= data.Length)
-                throw new BarcodeDataException("The data ends with '>', which starts a Code 128 special code. Add the code character after it, or remove the '>'.");
+                throw new BarcodeDataException(Text.Get("Barcode_Code128_EndsWithSpecial"));
 
             var code = data[i + 1];
             i += 2;
@@ -85,7 +85,7 @@ internal static class Code128Encoder
             else if (code == '8') items.Add(Item.Function1());
             else if (code == '4') items.Add(Item.Shift());
             else if (ExtraInvocations.TryGetValue(code, out var symbol)) items.Add(Item.Raw(symbol));
-            else throw new BarcodeDataException($"'>{code}' is not a Code 128 special code. Remove it, or write >0 for a literal '>'.");
+            else throw new BarcodeDataException(Text.Get("Barcode_Code128_BadSpecial", code));
         }
         return (start, items);
     }
@@ -102,11 +102,11 @@ internal static class Code128Encoder
         {
             // A half pair must be completed by the very next digit.
             if (pending >= 0 && !(item.Kind == 'c' && subset == 'C' && char.IsAsciiDigit(item.Value)))
-                throw new BarcodeDataException("In Code 128 subset C digits come in pairs, but a digit has no partner. Add a digit or switch subset before it.");
+                throw new BarcodeDataException(Text.Get("Barcode_Code128_UnpairedDigit"));
 
             // SHIFT applies to the one character right after it; anything else there is a mistake in the data.
             if (shifted && item.Kind != 'c')
-                throw new BarcodeDataException("The Code 128 shift code >4 must be followed directly by a character. Put the character right after >4.");
+                throw new BarcodeDataException(Text.Get("Barcode_Code128_ShiftNeedsChar"));
 
             switch (item.Kind)
             {
@@ -121,7 +121,7 @@ internal static class Code128Encoder
                 case 'f': values.Add(Fnc1); break;
                 case 'h':
                     if (subset == 'C')
-                        throw new BarcodeDataException("The Code 128 shift code >4 only works in subset A or B. Switch to one of them first.");
+                        throw new BarcodeDataException(Text.Get("Barcode_Code128_ShiftSubset"));
                     values.Add(ShiftValue);
                     shifted = true;
                     break;
@@ -129,10 +129,10 @@ internal static class Code128Encoder
                     // Values 30 to 97 here are characters (>, ~, DEL) or FNC2/FNC3. Subset C codes 96 and 97 are digit
                     // pairs, so none of them may be written there or they would silently turn into digits.
                     if (subset == 'C')
-                        throw new BarcodeDataException("This Code 128 special code cannot be used in subset C, which holds digit pairs only. Use >6 to switch to subset B first.");
+                        throw new BarcodeDataException(Text.Get("Barcode_Code128_SpecialInSubsetC"));
                     // In subset A the values 94 and 95 are the control characters RS and US, not '~' and DEL.
                     if (subset == 'A' && item.Value is (char)94 or (char)95)
-                        throw new BarcodeDataException("'~' and DEL exist only in subset B; start the data with >: or use >6 to switch to subset B before this code.");
+                        throw new BarcodeDataException(Text.Get("Barcode_Code128_TildeDelSubsetB"));
                     values.Add(item.Value);
                     break;
                 default:
@@ -142,9 +142,9 @@ internal static class Code128Encoder
             }
         }
         if (pending >= 0)
-            throw new BarcodeDataException("In Code 128 subset C digits come in pairs, but the last digit has no partner.");
+            throw new BarcodeDataException(Text.Get("Barcode_Code128_LastDigitUnpaired"));
         if (shifted)
-            throw new BarcodeDataException("The Code 128 shift code >4 must be followed directly by a character. Put the character right after >4.");
+            throw new BarcodeDataException(Text.Get("Barcode_Code128_ShiftNeedsChar"));
         return values;
     }
 
@@ -154,23 +154,23 @@ internal static class Code128Encoder
         {
             case 'C':
                 if (!char.IsAsciiDigit(c))
-                    throw new BarcodeDataException($"Code 128 subset C holds digits only, but the data contains {Describe(c)}. Use >6 to switch to subset B first.");
+                    throw new BarcodeDataException(Text.Get("Barcode_Code128_SubsetCDigitsOnly", Describe(c)));
                 if (pending < 0) pending = c - '0';
                 else { values.Add(pending * 10 + (c - '0')); pending = -1; }
                 break;
             case 'A':
                 if (c is >= ' ' and <= '_') values.Add(c - 32);
                 else if (c < ' ') values.Add(c + 64);
-                else throw new BarcodeDataException($"{Describe(c)} cannot be written in Code 128 subset A. Use >6 to switch to subset B before it.");
+                else throw new BarcodeDataException(Text.Get("Barcode_Code128_NotInSubsetA", Describe(c)));
                 break;
             default:
                 if (c is >= ' ' and <= (char)127) values.Add(c - 32);
-                else throw new BarcodeDataException($"{Describe(c)} cannot be written in Code 128 subset B. Use >7 to switch to subset A before it.");
+                else throw new BarcodeDataException(Text.Get("Barcode_Code128_NotInSubsetB", Describe(c)));
                 break;
         }
     }
 
-    private static string Describe(char c) => c < ' ' ? $"the control character 0x{(int)c:X2}" : $"the character '{c}'";
+    private static string Describe(char c) => c < ' ' ? Text.Get("Barcode_Code128_ControlChar", (int)c) : Text.Get("Barcode_Code128_Char", c);
 
     /// <summary>Appends the Mod 103 check character and the stop character.</summary>
     internal static int[] Finish(List<int> values)
@@ -265,7 +265,7 @@ internal static class Code128Encoder
     {
         var digits = new string(data.Where(c => c != ' ').ToArray());
         if (digits.Any(c => !char.IsAsciiDigit(c)))
-            throw new BarcodeDataException("UCC case mode (m = U) takes digits only. Remove the letters and special codes from the data.");
+            throw new BarcodeDataException(Text.Get("Barcode_Code128_UccDigitsOnly"));
 
         digits = digits.Length > 19 ? digits[..19] : digits.PadRight(19, '0');
         digits += (char)('0' + CheckDigits.Mod10(digits));
@@ -307,15 +307,15 @@ internal static class Code128Encoder
             if (data[i] == ' ') { i++; continue; }
             var close = data[i] == '(' ? data.IndexOf(')', i) : -1;
             if (close < 0)
-                throw new BarcodeDataException("UCC/EAN mode (m = D) needs data like (01)12345678901231(10)LOT7: each application identifier in parentheses, then its value.");
+                throw new BarcodeDataException(Text.Get("Barcode_Code128_UccEanFormat"));
             var ai = data[(i + 1)..close];
             if (ai.Length is < 2 or > 4 || ai.Any(c => !char.IsAsciiDigit(c)))
-                throw new BarcodeDataException($"'({ai})' is not an application identifier: it must be two to four digits.");
+                throw new BarcodeDataException(Text.Get("Barcode_Code128_BadAi", ai));
             var next = data.IndexOf('(', close + 1);
             // Spaces are only layout in the data; they are not part of a GS1-128 value.
             var value = new string((next < 0 ? data[(close + 1)..] : data[(close + 1)..next]).Where(c => c != ' ').ToArray());
             if (value.Length == 0)
-                throw new BarcodeDataException($"The application identifier ({ai}) has no value.");
+                throw new BarcodeDataException(Text.Get("Barcode_Code128_AiNoValue", ai));
             groups.Add((ai, value));
             i = next < 0 ? data.Length : next;
         }

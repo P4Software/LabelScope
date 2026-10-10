@@ -62,7 +62,13 @@ internal static class BarcodeFactory
     public static bool IsSupported(string command) => Encoders.ContainsKey(command);
 
     /// <summary>The symbology name when the command is planned for a later release; otherwise null.</summary>
-    public static string? DeferredName(string command) => Deferred.GetValueOrDefault(command);
+    /// <remarks>Brand names stay as they are; the two descriptive names are looked up in the current language.</remarks>
+    public static string? DeferredName(string command) => command switch
+    {
+        "^BS" => Text.Get("Barcode_Name_UpcEanExtension"),
+        "^BZ" => Text.Get("Barcode_Name_Postal"),
+        _ => Deferred.GetValueOrDefault(command),
+    };
 
     /// <summary>Encodes <paramref name="data"/> for <paramref name="command"/>.</summary>
     /// <exception cref="BarcodeDataException">The data cannot be written in this symbology.</exception>

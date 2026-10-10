@@ -47,14 +47,14 @@ internal static class Code39Family
     public static LinearSymbol EncodeCode39(string data, bool mod43, bool upperCase, BarDefaults by)
     {
         if (upperCase) data = data.ToUpperInvariant();
-        if (data.Length == 0) throw new BarcodeDataException("There is no data for the barcode.");
+        if (data.Length == 0) throw new BarcodeDataException(Text.Get("Barcode_NoData"));
 
         foreach (var c in data)
         {
             if (c == '*')
-                throw new BarcodeDataException("Code 39 uses '*' as its start and stop mark, so it cannot be part of the data.");
+                throw new BarcodeDataException(Text.Get("Barcode_Code39_StarInData"));
             if (CheckDigits.Code39Set.IndexOf(c) < 0)
-                throw new BarcodeDataException($"Code 39 cannot hold the character '{c}'. It takes digits, capital letters and - . space $ / + %; lowercase letters and other symbols are written as two-character pairs, for example +A for a.");
+                throw new BarcodeDataException(Text.Get("Barcode_Code39_BadChar", c));
         }
 
         var full = mod43 ? data + CheckDigits.Mod43(data) : data;
@@ -101,7 +101,7 @@ internal static class Code39Family
             '\'' => 44,
             '(' => 45,
             ')' => 46,
-            _ => throw new BarcodeDataException($"Code 93 cannot hold the character '{c}'. Digits, capital letters and - . space $ / + % are allowed; other characters are written with the shift characters & ' ( ) followed by a capital letter."),
+            _ => throw new BarcodeDataException(Text.Get("Barcode_Code93_BadChar", c)),
         };
     }
 
@@ -111,7 +111,7 @@ internal static class Code39Family
     /// <exception cref="BarcodeDataException">The data contains a character Code 93 cannot hold.</exception>
     public static LinearSymbol EncodeCode93(string data, bool printCheck, BarDefaults by)
     {
-        if (data.Length == 0) throw new BarcodeDataException("There is no data for the barcode.");
+        if (data.Length == 0) throw new BarcodeDataException(Text.Get("Barcode_NoData"));
         var values = data.Select(Code93Value).ToArray();
         var (c, k) = CheckDigits.Code93(values);
 
