@@ -9,7 +9,9 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media.Imaging;
 using LabelScope.Core;
 using System.Reflection;
+using LabelScope.Core.Fonts;
 using LabelScope.Core.Listening;
+using LabelScope.Core.Memory;
 using LabelScope.Core.Updating;
 using LabelScope.Core.Printing;
 using LabelScope.Core.Rendering;
@@ -24,7 +26,12 @@ public partial class MainWindow : Window
 {
     private readonly string _settingsPath = Path.Combine(AppContext.BaseDirectory, "settings.json");
     private readonly ObservableCollection<LabelEntry> _history = new();
-    private readonly ZplRenderer _renderer = new();
+    // One printer memory for the whole session: a graphic downloaded in one job is used by labels in later jobs,
+    // as on a real printer (plan 3 Decision 1). Nothing is saved when LabelScope closes.
+    private readonly PrinterMemory _memory = new();
+
+    // Rebuilt once in OnLoaded with the fonts from the FontsFolder setting, before the listener starts.
+    private ZplRenderer _renderer;
     private AppSettings _settings = new();
     private ZplListener? _listener;
     private PrinterInstaller? _installer;
@@ -62,6 +69,17 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _renderer = new ZplRenderer(_memory);
+        // Changed is raised on whichever thread stored the object (a socket thread); the text belongs to the UI thread.
+        // BeginInvoke never blocks the renderer, and a failure here must not reach the render thread.
+        _memory.Changed += (_, _) =>
+        {
+            try
+            {
+                if (!Dispatcher.HasShutdownStarted) Dispatcher.BeginInvoke(UpdateMemoryText);
+            }
+            catch (Exception ex) { Log.Warning(ex, "Could not schedule the printer-memory text update"); }
+        };
         // The grid cell size depends on how large the picture is shown, which changes with zoom and window size.
         LabelImage.SizeChanged += (_, _) => UpdateGrid();
         HistoryList.ItemsSource = _history;
@@ -82,6 +100,16 @@ public partial class MainWindow : Window
             ApplyView();
             foreach (var message in load.Messages) Log.Information("Settings: {Message}", message);
             foreach (var message in load.Messages) AddStartupNote(message);
+
+            // The font list is read once, here, and the same library and memory serve every job. The renderer is
+            // replaced before the listener starts, so no job can ever see the old one.
+            var fontMessages = new List<string>();
+            var fonts = FontLibrary.FromFolder(_settings.FontsFolder, AppContext.BaseDirectory, fontMessages);
+            foreach (var message in fontMessages) Log.Information("Fonts: {Message}", message);
+            foreach (var message in fontMessages) AddStartupNote(message);
+            if (fonts.Count > 0) Log.Information("Fonts: {Count} font file(s) found in the FontsFolder", fonts.Count);
+            _renderer = new ZplRenderer(_memory, fonts);
+            UpdateMemoryText();
 
             StartListener();
             CreateInstaller();
@@ -173,19 +201,28 @@ public partial class MainWindow : Window
             if (entries.Count == 0)
             {
                 // Never drop a job silently: show the text and the warnings so the user can see what arrived.
-                // Without any ^XA the data holds no label at all; with one, the label exists but could not be drawn.
+                // Without any ^XA the data holds no label; a download (~DG, ~DY) is then a "stored in memory" job,
+                // which is a success and not a mistake. With a ^XA the label exists but could not be drawn.
                 var hasStart = formatted.Contains("^XA", StringComparison.OrdinalIgnoreCase);
+                var storedOnly = !hasStart && result.MemoryNotes.Count > 0;
+                var (text, title) = storedOnly ? (PlaceholderLabel.StoredText, PlaceholderLabel.StoredTitle)
+                    : hasStart ? (PlaceholderLabel.NotDrawnText, PlaceholderLabel.NotDrawnTitle)
+                    : (PlaceholderLabel.Text, PlaceholderLabel.NotFoundTitle);
                 entries.Add(new LabelEntry(received.ReceivedAt, received.Source, formatted, received.Zpl, received.Complete,
-                    PlaceholderLabel.Create(hasStart ? PlaceholderLabel.NotDrawnText : PlaceholderLabel.Text),
-                    result.Warnings, hasStart ? PlaceholderLabel.NotDrawnTitle : PlaceholderLabel.NotFoundTitle));
-                note = hasStart
-                    ? "Data arrived but no label picture could be drawn from it. The ZPL text and the reasons are shown on the right."
+                    PlaceholderLabel.Create(text), result.Warnings, title));
+                note = storedOnly ? StatusText.ForMemoryNotes(result.MemoryNotes)
+                    : hasStart ? "Data arrived but no label picture could be drawn from it. The ZPL text and the reasons are shown on the right."
                     : "Data arrived but it contained no label (^XA ... ^XZ). The ZPL text is shown on the right.";
             }
             else if (!received.Complete)
             {
                 // Only claimed when a picture really was made.
                 note = "A label arrived incomplete (no ^XZ at the end). It is shown as far as it arrived.";
+            }
+            else
+            {
+                // A label job that also stored or deleted objects (for example ^IS) says so.
+                note = StatusText.ForMemoryNotes(result.MemoryNotes);
             }
 
             // BeginInvoke, never Invoke: a closing window must not be able to block the socket thread.
@@ -733,6 +770,28 @@ public partial class MainWindow : Window
     }
 
     private void OnClearHistory(object sender, RoutedEventArgs e) => _history.Clear();
+
+    /// <summary>Asks, then empties printer memory. Labels that need a cleared graphic will warn until it is sent again.</summary>
+    private void OnClearMemory(object sender, RoutedEventArgs e)
+    {
+        var summary = _memory.Summary;
+        if (summary.IsEmpty)
+        {
+            ShowMessage("LabelScope's printer memory is already empty.");
+            return;
+        }
+        var answer = MessageBox.Show(this,
+            $"Delete what LabelScope keeps in its printer memory ({summary.Describe()})?\n\n" +
+            "Labels that use these graphics or fonts will show a warning until the download is sent again.",
+            "Clear printer memory", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+        if (answer != MessageBoxResult.Yes) return;
+        _memory.Clear();
+        Log.Information("Printer memory cleared by the user");
+        ShowMessage("LabelScope's printer memory was cleared.");
+    }
+
+    /// <summary>Shows what printer memory holds; runs on the UI thread.</summary>
+    private void UpdateMemoryText() => MemoryText.Text = "Printer memory: " + _memory.Summary.Describe();
 
     private void OnOpenSettings(object sender, RoutedEventArgs e) => Open(_settingsPath);
 

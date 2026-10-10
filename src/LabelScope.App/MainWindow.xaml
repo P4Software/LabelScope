@@ -12,6 +12,8 @@
       <Button Content="Save PNG" Click="OnSavePng"/>
       <Button Content="Copy image" Click="OnCopyImage"/>
       <Button Content="Clear history" Click="OnClearHistory"/>
+      <Button x:Name="ClearMemoryButton" Content="Clear printer memory" Click="OnClearMemory"
+              ToolTip="Deletes the graphics and fonts that LabelScope keeps from ~DG and ~DY downloads (a real printer keeps them until it is switched off)"/>
       <Separator/>
       <Button Content="Open settings" Click="OnOpenSettings"/>
       <Button Content="Open log folder" Click="OnOpenLog"/>
@@ -33,6 +35,9 @@
       <TextBlock x:Name="ListeningText" Text="Starting..."/>
       <Separator/>
       <TextBlock x:Name="PrinterText" Text="Printer: checking..."/>
+      <Separator/>
+      <TextBlock x:Name="MemoryText" Text="Printer memory: empty"
+                 ToolTip="Graphics and fonts sent to LabelScope with ~DG, ~DY or ^IS are kept here until LabelScope closes"/>
       <Separator/>
       <TextBlock x:Name="MessageText" TextWrapping="Wrap"/>
     </StatusBar>

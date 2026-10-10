@@ -18,6 +18,12 @@ public static class PlaceholderLabel
     /// <summary>The history title for a label that exists but could not be drawn.</summary>
     public const string NotDrawnTitle = "Label not drawn";
 
+    /// <summary>The text drawn when a job only stored graphics or fonts (for example a ~DG download) and has no label.</summary>
+    public const string StoredText = "Stored in LabelScope's printer memory";
+
+    /// <summary>The history title for a job that only stored or deleted objects in printer memory.</summary>
+    public const string StoredTitle = "Stored in memory";
+
     /// <summary>Draws <paramref name="text"/> (default <see cref="Text"/>) in grey on white and returns it as a PNG, so it fits the normal history entry.</summary>
     public static RenderedLabel Create(string text = Text)
     {
