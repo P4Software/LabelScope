@@ -1,4 +1,3 @@
-// src/LabelScope.Core/Barcodes/EanUpcEncoder.cs
 namespace LabelScope.Core.Barcodes;
 
 /// <summary>EAN-13 (<c>^BE</c>), UPC-A (<c>^BU</c>), EAN-8 (<c>^B8</c>) and UPC-E (<c>^B9</c>) encoders.</summary>

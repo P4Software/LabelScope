@@ -3,9 +3,9 @@ using System.IO.Compression;
 namespace LabelScope.Core.Graphics;
 
 /// <summary>
-/// Zebra's ZB64 encodings (reference part 7): ":B64:data:crc" is Base64, ":Z64:data:crc" is zlib-compressed
+/// Zebra's ZB64 encodings (as the ZPL guide describes them): ":B64:data:crc" is Base64, ":Z64:data:crc" is zlib-compressed
 /// (LZ77, "as in PKZIP and PNG") and then Base64. The four-digit check value is read but not verified, because
-/// Zebra does not publish the CRC algorithm (plan Decision 2); zlib's own Adler-32 still protects Z64 data.
+/// Zebra does not publish the CRC algorithm, so it cannot be checked; zlib's own Adler-32 still protects Z64 data.
 /// </summary>
 internal static class Zb64
 {

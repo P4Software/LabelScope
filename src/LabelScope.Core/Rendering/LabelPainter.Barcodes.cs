@@ -88,7 +88,7 @@ internal sealed partial class LabelPainter
             case LinearField linear:
             {
                 var lay = LinearDrawer.Measure(linear.Symbol, linear.Look, linear.Narrow);
-                // The interpretation line uses the bundled fixed-width font (plan 3 Decision 7), so it no longer
+                // The interpretation line uses the bundled fixed-width font, like a printer's own fixed-width font, so it no longer
                 // depends on Arial being installed.
                 PlaceAndDraw(req, linear.Orientation, lay.Width, lay.Height, lay.BaseY, ink =>
                     LinearDrawer.Draw(_canvas, linear.Symbol, linear.Look, linear.Narrow, ink, BundledFonts.Mono));

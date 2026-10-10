@@ -1,9 +1,8 @@
-// src/LabelScope.Core/Graphics/HexGraphicDecoder.cs
 namespace LabelScope.Core.Graphics;
 
 /// <summary>
 /// Reads ZPL's ASCII hexadecimal graphic data, including Zebra's "alternative data compression scheme" used by ~DG,
-/// ~DB and ^GF format A (reference part 7): repeat letters G-Y (1-19) and g-z (20-400) before a hex digit, ","
+/// ~DB and ^GF format A (as the ZPL guide describes it): repeat letters G-Y (1-19) and g-z (20-400) before a hex digit, ","
 /// (rest of the row white), "!" (rest of the row black) and ":" (repeat the previous row).
 /// </summary>
 internal static class HexGraphicDecoder
@@ -133,8 +132,8 @@ internal static class HexGraphicDecoder
     private static void CopyFromRowAbove(byte[] bits, long pos, long count, long nibblesPerRow)
     {
         // A row is a whole number of bytes, so the nibble above sits in the same half of its byte. After an odd start
-        // the rest goes byte by byte in one copy: a 5000-row graphic of ':' rows stays fast (the hostile-input sweep
-        // repeats one 1000-byte row 4999 times). The source is a row above, so the two ranges never overlap.
+        // the rest goes byte by byte in one copy: a 5000-row graphic of ':' rows stays fast (for example one 1000-byte
+        // row repeated 4999 times). The source is a row above, so the two ranges never overlap.
         var end = pos + count;
         if (pos < end && (pos & 1) == 1)
         {

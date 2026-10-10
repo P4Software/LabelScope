@@ -1,4 +1,3 @@
-// src/LabelScope.Core/Fonts/ZplFont.cs
 using System.Text;
 using SkiaSharp;
 
@@ -229,7 +228,8 @@ internal static class ZplFontFactory
     }
 
     /// <summary>
-    /// Bitmap magnification (plan Decision 9): the nearest whole multiple of the cell (ties round up), 1 to 10. A size
+    /// Bitmap magnification: the nearest whole multiple of the cell (ties round up), 1 to 10, because a bitmap font
+    /// can only be enlarged by whole dots, as on a printer. A size
     /// given in one direction only sets both, as the guide says the other follows the standard matrix.
     /// </summary>
     internal static (int MagX, int MagY, bool Clamped) Magnify(CellFontSpec spec, int height, int width)

@@ -49,7 +49,7 @@ internal static class BarcodeFactory
         // (further symbologies are added by later tasks)
     };
 
-    /// <summary>Symbologies that exist in ZPL but are planned for plan 4; see the deferral table of plan 2.</summary>
+    /// <summary>Symbologies that exist in ZPL but LabelScope does not draw yet; a label using one gets a warning naming it.</summary>
     private static readonly Dictionary<string, string> Deferred = new()
     {
         ["^B0"] = "Aztec", ["^BO"] = "Aztec", ["^B4"] = "Code 49", ["^B5"] = "PLANET Code",

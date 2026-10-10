@@ -1,8 +1,9 @@
 namespace LabelScope.Core.Graphics;
 
 /// <summary>
-/// Cheap structural check of a downloaded font file. The font is only stored here (Task 15 loads it), so the check
-/// reads a few header bytes and never hands untrusted data to a font parser.
+/// Cheap structural check of a downloaded font file, made when it is stored. The font is parsed later, once, when a
+/// label first uses it (see StoredFont), so this check reads a few header bytes and never hands untrusted data to a
+/// font parser.
 /// </summary>
 internal static class FontFile
 {

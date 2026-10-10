@@ -8,8 +8,8 @@ internal static class FieldData
     /// <summary>
     /// Applies <c>^FH</c>: the <paramref name="hexIndicator"/> character followed by two hex digits stands for one
     /// byte. The parser cuts fields at <c>^</c> and <c>~</c>, so this is the only way to put them in data.
-    /// An incomplete escape ("_1" at the end, "_ZZ") is kept as written. Bytes map to Latin-1 characters; code
-    /// pages are handled by <c>^CI</c> support in plan 4.
+    /// An incomplete escape ("_1" at the end, "_ZZ") is kept as written. Bytes map to Latin-1 characters; other code
+    /// pages (<c>^CI</c> other than 0) are not supported yet.
     /// </summary>
     public static string Decode(string raw, char? hexIndicator)
     {

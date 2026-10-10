@@ -187,7 +187,7 @@ internal sealed partial class LabelPainter : IDisposable
         _fieldFont = first.Length > 0 ? char.ToUpperInvariant(first[0]) : null;
         _textOrientation = first.Length > 1 ? FieldPlacement.Normalize(first[1]) : null;
         // ^A@o,h,w,d:f.x names a font file; without a name the last one given in this label stays active (the guide).
-        // It is kept for this label only (plan Decision 10), so it lives in the painter and is not reset by ^FS.
+        // It is kept for this label only, as a printer forgets it when the format ends, so it lives in the painter and is not reset by ^FS.
         if (_fieldFont == '@')
         {
             var file = a.Length > 3 ? a[3].Trim() : "";

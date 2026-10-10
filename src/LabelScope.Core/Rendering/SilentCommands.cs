@@ -30,7 +30,7 @@ internal static class SilentCommands
             "^LT" or "^LS" => a.Length == 0 || a.Split(',').All(IsZero),
             // Print mirror: only the default (N) leaves the picture alone.
             "^PM" => a.Length == 0 || char.ToUpperInvariant(a[0]) == 'N',
-            // Code page 0 is the default; others change how text is read (plan 4).
+            // Code page 0 is the default; others change how text is read, which LabelScope does not support yet, so they warn.
             "^CI" => a.Length == 0 || IsZero(a),
             // Half density (B) doubles the size of the whole format; A is the native density.
             "^JM" => a.Length == 0 || char.ToUpperInvariant(a[0]) == 'A',

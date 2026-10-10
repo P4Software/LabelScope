@@ -1,4 +1,3 @@
-// src/LabelScope.Core/Barcodes/OtherLinearEncoders.cs
 using System.Text;
 
 namespace LabelScope.Core.Barcodes;

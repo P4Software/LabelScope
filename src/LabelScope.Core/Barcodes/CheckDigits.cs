@@ -1,4 +1,3 @@
-// src/LabelScope.Core/Barcodes/CheckDigits.cs
 namespace LabelScope.Core.Barcodes;
 
 /// <summary>The check digit formulas used by the supported symbologies.</summary>

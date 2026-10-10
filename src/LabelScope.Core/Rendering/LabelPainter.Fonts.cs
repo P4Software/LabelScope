@@ -23,11 +23,11 @@ internal sealed partial class LabelPainter
     private readonly HashSet<string> _warnedFontNotes = [];
 
     // ^A@: the font file named last in this label (the guide: it stays active for later ^A@ without a name). The
-    // painter lives for one label, so the name resets per label (plan Decision 10).
+    // painter lives for one label, so the name resets per label, as a printer forgets it when the format ends.
     private ObjectName? _lastFontFile;
 
     // Font files already warned about in this label, by display name: ZebraDesigner repeats one resident font name
-    // on every field, and one warning per file says it all (plan Decision 15).
+    // on every field, and one warning per file says it all; a warning per field would bury every other message.
     private readonly HashSet<string> _warnedFiles = [];
 
     /// <summary>
@@ -74,7 +74,7 @@ internal sealed partial class LabelPainter
             }
 
             // A TrueType or OpenType name LabelScope cannot supply (usually a font resident in the printer, as
-            // ZebraDesigner names them) is drawn with the bundled scalable font, the closest stand-in (Decision 15).
+            // ZebraDesigner names them) is drawn with the bundled scalable font, the closest stand-in, so the label still shows.
             if (problem != FontProblem.None || f.Extension is "TTF" or "OTF" or "TTE")
             {
                 WarnFileOnce(f, line, problem switch

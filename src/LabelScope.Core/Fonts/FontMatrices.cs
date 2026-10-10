@@ -10,7 +10,7 @@ namespace LabelScope.Core.Fonts;
 internal sealed record CellFontSpec(char Id, int Height, int Width, int Gap, int Baseline, bool UppercaseOnly);
 
 /// <summary>
-/// Zebra's built-in font sizes (reference part 7: the guide's "Font Matrices" and "Proportional and Fixed Spacing"
+/// Zebra's built-in font sizes (from the ZPL guide's "Font Matrices" and "Proportional and Fixed Spacing"
 /// pages). These drive line widths, wrapping and placement; the letter shapes come from the bundled fonts.
 /// </summary>
 internal static class FontMatrices
@@ -35,18 +35,18 @@ internal static class FontMatrices
     // for 8 dots/mm only, so the gap at the other densities is worked out from the "characters per inch" column of
     // the same page: width + gap = dots per inch / characters per inch, rounded to whole dots, where dots per inch is
     // dots/mm x 25.4 (the columns are headed 152, 300 and 600 dpi, but a 12 dots/mm head has 304.8 dots per inch).
-    // Our reference extract (part 7) flags the 300 and 600 dpi E and H entries as inconsistent and advises using only
-    // the 203 dpi column as an oracle. This table departs from that advice on purpose, entry by entry:
+    // The guide's 300 and 600 dpi E and H entries are not consistent with each other, which suggests trusting only the
+    // 203 dpi column. This table uses the other columns where they check out, entry by entry:
     // - 6 dots/mm (152.4 dpi): the whole column fits. A, B, C, F and G give their 8 dots/mm cells exactly (6, 9, 12,
     //   16, 48), so E 152.4 / 11.7 = 13.0 -> 10 + 3 and H 152.4 / 10.2 = 14.9 -> 15 = 11 + 4 are used.
     // - 12 dots/mm (304.8 dpi): A, B, C, F and G fit again at 304.8 (G: 304.8 / 6.36 = 47.9 -> 48; at 300 it would be
     //   47.2, which is why 304.8 and not 300 is right). H 304.8 / 10.20 = 29.9 -> 30 = 22 + 8 fits a 22-dot cell with
     //   a gap in proportion to its 8 dots/mm gap, so it is used. E's 23.4 gives 13 dots, narrower than its own 20-dot
-    //   cell: that is the misprint the reference warns about, so E keeps the gap scaled from 8 dots/mm (5 x 20 / 15
+    //   cell: that is evidently a misprint, so E keeps the gap scaled from 8 dots/mm (5 x 20 / 15
     //   = 6.7 -> 7).
     // - 24 dots/mm (609.6 dpi): the same E and H matrices as 12 dots/mm, so the same gaps. The 600 dpi E and H entries
     //   fit no cell of these fonts (H would be 57 dots per character) and are not used.
-    // These values are checked against a real printer in the plan's Task 18.
+    // The heights and widths are the guide's own; only the gaps are derived as described above.
     private static readonly Dictionary<(int Dpmm, char Id), (int Height, int Width, int Gap)> OtherDensities = new()
     {
         [(6, 'E')] = (21, 10, 3), [(6, 'H')] = (17, 11, 4),
@@ -76,7 +76,7 @@ internal static class FontMatrices
                     continue;
                 }
                 // Zebra gives the baseline for 8 dots/mm only; for a different matrix it is scaled with the height,
-                // an estimate compared with a real printer in the plan's Task 18.
+                // an estimate that keeps the baseline at the same fraction of the character height.
                 cells[(dpmm, spec.Id)] = spec with
                 {
                     Height = m.Height,

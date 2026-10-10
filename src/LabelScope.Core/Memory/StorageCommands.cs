@@ -96,7 +96,7 @@ internal static class StorageCommands
     }
 
     // ~DY types that never change a picture (certificates, WML menus, web pages, feedback files): accepted quietly,
-    // because a warning about them would only hide real problems (plan Decision 12).
+    // because they never change a label, and a warning about them would only hide real problems.
     private static readonly HashSet<string> NonPictureTypes = ["NRD", "PAC", "C", "F", "H"];
 
     /// <summary>~DYd:f,b,x,t,w,data: a general download. Bitmaps (.GRF), PNG pictures and TrueType fonts are stored.</summary>
@@ -202,8 +202,8 @@ internal static class StorageCommands
     }
 
     /// <summary>
-    /// ^CWa,d:o.x: gives a downloaded or folder font a one-character name (plan Decision 10: kept for the session in
-    /// printer memory). The file is not looked up here: the name is accepted now, and the font is found, or reported
+    /// ^CWa,d:o.x: gives a downloaded or folder font a one-character name, kept for the session in printer memory as
+    /// a printer keeps it until it is switched off. The file is not looked up here: the name is accepted now, and the font is found, or reported
     /// missing, when a label uses the letter.
     /// </summary>
     private static void AssignFontLetter(ZplCommand cmd, PaintContext context, List<RenderWarning> warnings)

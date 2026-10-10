@@ -58,7 +58,7 @@ internal sealed partial class LabelPainter
         }
         foreach (var note in notes) Warn(cmd, "^GF: " + note);
 
-        // Graphics have no rotation parameter, so ^FW does not turn them (Decision 5).
+        // Graphics have no rotation parameter, so ^FW does not turn them (the guide lists ^FW for text and barcodes only).
         DrawImage(cmd.Name, cmd.Line, image, 1, 1, _x, _y, 'N', _baseline);
     }
 
@@ -101,7 +101,7 @@ internal sealed partial class LabelPainter
                           $"LabelScope draws graphics up to {GraphicLimits.MaxDots} dots per side and {GraphicLimits.MaxGraphicDots} dots in total, so it was not drawn. Use a smaller magnification.");
                 return;
             }
-            // ^FW never turns graphics (Decision 5).
+            // ^FW never turns graphics: the guide lists it for text and barcodes only.
             DrawImage(cmd.Name, cmd.Line, graphic.Image, magX, magY, _x, _y, 'N', _baseline);
             return;
         }
@@ -242,8 +242,8 @@ internal sealed partial class LabelPainter
                 _warnings.Add(new(line, $"{command}: The graphic ({w} x {h} dots) does not fit on the label; the part outside is cut off."));
 
             // Only the dots that land on the label (and hold ink) become a drawing mask. A stored 40-million-dot
-            // graphic recalled by many fields of a small label would otherwise cost a 40 MB mask per field: the
-            // hostile-input sweep measured 22 seconds for 50 recalls. The same dots, at the same whole-dot scale,
+            // graphic recalled by many fields of a small label would otherwise cost a 40 MB mask per field: 50 such
+            // recalls took 22 seconds. The same dots, at the same whole-dot scale,
             // are drawn either way, so the picture does not change.
             if (!_canvas.TotalMatrix.TryInvert(out var inverse)) return;
             var visible = inverse.MapRect(new SKRect(0, 0, _bitmap.Width, _bitmap.Height));

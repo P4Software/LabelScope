@@ -61,7 +61,7 @@ public static class ZplParser
 
             var commandName0 = name.ToString();
             // Binary data (^GFB, ~DY format B) is skipped by its declared byte count: its bytes may contain '^' and
-            // '~', which would otherwise become garbage commands (Decision 4 defers drawing it).
+            // '~', which would otherwise become garbage commands. Binary data is not drawn yet; it only must not break the job.
             if (BinaryDownloads.TryMeasure(zpl, j, commandName0, out var dataStart, out var dataLength))
             {
                 var header = new StringBuilder();
