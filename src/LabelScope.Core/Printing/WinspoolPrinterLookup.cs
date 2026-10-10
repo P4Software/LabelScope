@@ -52,7 +52,7 @@ public sealed class WinspoolPrinterLookup : IPrinterLookup
     private static List<PrinterEntry> Enumerate()
     {
         if (!OperatingSystem.IsWindows())
-            throw new InvalidOperationException("The Windows print system is not available on this computer.");
+            throw new InvalidOperationException(Text.Get("Lookup_NoPrintSystem"));
 
         const uint flags = PrinterEnumLocal | PrinterEnumConnections;
 
@@ -79,7 +79,7 @@ public sealed class WinspoolPrinterLookup : IPrinterLookup
 
                 var error = Marshal.GetLastWin32Error();
                 if (error != ErrorInsufficientBuffer)
-                    throw new InvalidOperationException("Windows could not list the printers: " + new Win32Exception(error).Message);
+                    throw new InvalidOperationException(Text.Get("Lookup_ListFailed", new Win32Exception(error).Message));
                 size = needed;
             }
             finally
@@ -87,6 +87,6 @@ public sealed class WinspoolPrinterLookup : IPrinterLookup
                 if (buffer != IntPtr.Zero) Marshal.FreeHGlobal(buffer);
             }
         }
-        throw new InvalidOperationException("Windows could not list the printers because the list kept changing. Try again.");
+        throw new InvalidOperationException(Text.Get("Lookup_ListKeptChanging"));
     }
 }

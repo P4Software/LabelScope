@@ -20,13 +20,13 @@ internal static class BundledFonts
     private static SKTypeface Load(string file)
     {
         using var stream = typeof(BundledFonts).Assembly.GetManifestResourceStream("LabelScope.Fonts." + file)
-            ?? throw new InvalidOperationException($"The built-in font {file} is missing from LabelScope.Core.dll. Reinstall LabelScope.");
+            ?? throw new InvalidOperationException(Text.Get("Fonts_BundledMissing", file));
         using var buffer = new MemoryStream();
         stream.CopyTo(buffer);
         // The typeface reads its glyphs from these bytes lazily, but it holds its own native reference to them
         // (SkiaSharp's C API passes the data on with sk_ref_sp), so the managed wrapper can be released here.
         using var data = SKData.CreateCopy(buffer.ToArray());
         return SKTypeface.FromData(data)
-            ?? throw new InvalidOperationException($"The built-in font {file} could not be read. Reinstall LabelScope.");
+            ?? throw new InvalidOperationException(Text.Get("Fonts_BundledUnreadable", file));
     }
 }

@@ -78,4 +78,210 @@
   <data name="Barcode_Qr_BadModeLetter" xml:space="preserve"><value>The QR input mode letter must be N, A, B or K. Fix the letter after the comma, or use automatic input (A).</value></data>
   <data name="Barcode_Name_UpcEanExtension" xml:space="preserve"><value>UPC/EAN extension</value></data>
   <data name="Barcode_Name_Postal" xml:space="preserve"><value>postal code</value></data>
+  <data name="Common_Prefixed" xml:space="preserve"><value>{0}: {1}</value></data>
+  <data name="Painter_ByAdjusted" xml:space="preserve"><value>^BY values were outside the allowed range and were adjusted: module width 1 to 10, ratio 2.0 to 3.0, height 1 to 32000.</value></data>
+  <data name="Painter_BarcodeDeferred" xml:space="preserve"><value>{0} ({1}) is planned for a later release of LabelScope; nothing was drawn for this field.</value></data>
+  <data name="Painter_BarcodeDataTooLong" xml:space="preserve"><value>{0}: The barcode data is {1} characters long; no barcode holds more than about 7000. The barcode was not drawn.</value></data>
+  <data name="Painter_BarcodeNotDrawn" xml:space="preserve"><value>{0}: {1} The barcode was not drawn.</value></data>
+  <data name="Painter_BarcodeInternalError" xml:space="preserve"><value>{0}: This barcode could not be drawn because of an internal error; the rest of the label is shown.</value></data>
+  <data name="Painter_BarcodeOffLabel" xml:space="preserve"><value>The barcode from {0} ({1} x {2} dots) does not fit on the label; the part outside is cut off. Use a smaller module width, shorter data, or move the field.</value></data>
+  <data name="Painter_FontUnreadable" xml:space="preserve"><value>The font {0} could not be read as a TrueType or OpenType font, so LabelScope drew the text with its built-in scalable font. Replace it with a working font file (in the FontsFolder, then restart LabelScope, or by sending the download again), then send the label again.</value></data>
+  <data name="Painter_FontUnopenable" xml:space="preserve"><value>The font file for {0} in the FontsFolder could not be opened (another program may be using it, or it was moved), so LabelScope drew the text with its built-in scalable font. Check that the file is in the FontsFolder and not in use, then send the label again.</value></data>
+  <data name="Painter_FontOverBudget" xml:space="preserve"><value>The font {0} was not loaded because LabelScope already holds {1} of fonts from the FontsFolder, so LabelScope drew the text with its built-in scalable font. Use fewer large fonts in your labels; restarting LabelScope frees the fonts it holds.</value></data>
+  <data name="Painter_FontTte" xml:space="preserve"><value>The font {0} is a TrueType extension file (.TTE), which LabelScope cannot read, so LabelScope drew the text with its built-in scalable font. Use the .TTF font file instead.</value></data>
+  <data name="Painter_FontMissingScalable" xml:space="preserve"><value>The font {0} is not in LabelScope's printer memory or in the FontsFolder, so LabelScope drew the text with its built-in scalable font. Labels made in ZebraDesigner often name fonts that are stored inside the printer, which LabelScope cannot have. To use the real font, copy {1}.{2} into the folder named by FontsFolder in settings.json and restart LabelScope, or send the job that downloads it, then send the label again.</value></data>
+  <data name="Painter_FontWhyCf" xml:space="preserve"><value>the ^CF font, as the ZPL guide says for a missing font</value></data>
+  <data name="Painter_FontWhyBuiltIn" xml:space="preserve"><value>the built-in font {0}</value></data>
+  <data name="Painter_FontWhyFallbackA" xml:space="preserve"><value>font A, the printer's fallback for an unknown font</value></data>
+  <data name="Painter_FontMissingBitmap" xml:space="preserve"><value>The font {0} is not in LabelScope's printer memory or in the FontsFolder, and LabelScope reads only TrueType and OpenType fonts (.TTF, .OTF), so it used font {1} instead ({2}). Name a .TTF font or a built-in font letter to choose the font yourself.</value></data>
+  <data name="Painter_FontUnknownLetter" xml:space="preserve"><value>Font {0} is not one of the fonts built into Zebra printers (0, A to H, P to V) and was not assigned with ^CW, so LabelScope used font A. The ZPL guide says a printer falls back to font A for an unknown font.</value></data>
+  <data name="Painter_FontSizeNote" xml:space="preserve"><value>{0} Use a smaller height or width in ^A or ^CF to print this text as the label intends.</value></data>
+  <data name="Painter_GfBinary" xml:space="preserve"><value>^GF: Binary graphic data (format B) is planned for a later release of LabelScope; this graphic was not drawn. Programs such as ZebraDesigner can send the same graphic as ASCII hex (format A).</value></data>
+  <data name="Painter_GfCompressed" xml:space="preserve"><value>^GF: Compressed binary graphic data (format C) uses a compression method that Zebra does not publish, so LabelScope cannot draw it. Send the graphic as ASCII hex (format A) instead.</value></data>
+  <data name="Painter_GfBadFormat" xml:space="preserve"><value>^GF: '{0}' is not a graphic data format (A, B or C); the graphic was not drawn.</value></data>
+  <data name="Painter_GfNeedsSize" xml:space="preserve"><value>^GF needs the graphic size (total bytes and bytes per row) before the data; without it a printer ignores the command, and so does LabelScope.</value></data>
+  <data name="Painter_GfSizeProblem" xml:space="preserve"><value>^GF: The graphic was not drawn because {0}.</value></data>
+  <data name="Painter_GfNoData" xml:space="preserve"><value>^GF has no graphic data after its size, so the graphic was not drawn. Put the graphic data after the bytes-per-row value.</value></data>
+  <data name="Painter_GfNotDrawn" xml:space="preserve"><value>^GF: {0} The graphic was not drawn.</value></data>
+  <data name="Painter_MagnificationNotNumber" xml:space="preserve"><value>The magnification "{0}" is not a whole number</value></data>
+  <data name="Painter_MagnificationsNotNumbers" xml:space="preserve"><value>The magnifications "{0}" and "{1}" are not whole numbers</value></data>
+  <data name="Painter_MagnificationUsed" xml:space="preserve"><value>{0}: {1}, so {2},{3} was used. Give a magnification from 1 to 10.</value></data>
+  <data name="Painter_MagnificationRange" xml:space="preserve"><value>{0}: The magnification must be 1 to 10; {1},{2} was used.</value></data>
+  <data name="Painter_GraphicTooLargeMagnified" xml:space="preserve"><value>{0}: {1} at magnification {2} x {3} would be {4} x {5} dots ({6} dots); LabelScope draws graphics up to {7} dots per side and {8} dots in total, so it was not drawn. Use a smaller magnification.</value></data>
+  <data name="Painter_RecallWrongKind_font" xml:space="preserve"><value>{0}: {1} in LabelScope's printer memory is a font, not a graphic, so nothing was drawn for this field.</value></data>
+  <data name="Painter_RecallWrongKind_graphic" xml:space="preserve"><value>{0}: {1} in LabelScope's printer memory is a graphic, not a graphic, so nothing was drawn for this field.</value></data>
+  <data name="Painter_OtherDrive" xml:space="preserve"><value> LabelScope does have {0}, but this label asks for drive {1}:.</value></data>
+  <data name="Painter_GraphicMissing" xml:space="preserve"><value>{0}: The graphic {1} is not in LabelScope's printer memory, so it was not drawn.{2} A printer keeps graphics that were sent to it earlier (with ~DG or ~DY) until it is switched off; send that download job to LabelScope first, then this label again.</value></data>
+  <data name="Painter_IlWrongKind_font" xml:space="preserve"><value>^IL: {0} in LabelScope's printer memory is a font, not an image, so the label is drawn without a background.</value></data>
+  <data name="Painter_IlWrongKind_graphic" xml:space="preserve"><value>^IL: {0} in LabelScope's printer memory is a graphic, not an image, so the label is drawn without a background.</value></data>
+  <data name="Painter_IlMissing" xml:space="preserve"><value>^IL: This label loads the image {0} from the printer's memory as its background. That image lives in the printer's memory and was never sent to LabelScope (a label program or WMS usually sends it once, before the labels), so the label is drawn without it.{1} To see the full label, download the image first (the job that stored it, with ~DG, ~DY or ^IS), then send this label again.</value></data>
+  <data name="Painter_IsNoPrint" xml:space="preserve"><value>^IS {0},N: a printer stores this label as an image without printing it; LabelScope shows it anyway.</value></data>
+  <data name="Painter_GraphicAllWhite" xml:space="preserve"><value>{0}: The graphic ({1} x {2} dots) is completely white, so nothing shows on the label. If a picture was expected, check the graphic data.</value></data>
+  <data name="Painter_GraphicOffLabel" xml:space="preserve"><value>{0}: The graphic ({1} x {2} dots) does not fit on the label; the part outside is cut off.</value></data>
+  <data name="Painter_LabelTooLarge" xml:space="preserve"><value>The label size is too large to draw ({0} x {1} dots); it was cut to {0} x {2} dots. Check ^PW and ^LL.</value></data>
+  <data name="Painter_SizeClamped" xml:space="preserve"><value>{0}{1} is outside the supported label size (1 to {2} dots); {3} was used instead.</value></data>
+  <data name="Painter_NotSupported" xml:space="preserve"><value>{0} is not supported yet and was ignored.</value></data>
+  <data name="Painter_FontSizeNotDots_height" xml:space="preserve"><value>{0}: The font height "{1}" is not a size in dots, so it was ignored. Give the height as a whole number of dots.</value></data>
+  <data name="Painter_FontSizeNotDots_width" xml:space="preserve"><value>{0}: The font width "{1}" is not a size in dots, so it was ignored. Give the width as a whole number of dots.</value></data>
+  <data name="Painter_FbZeroWidth" xml:space="preserve"><value>^FB has a width of 0, which prints nothing on a Zebra printer, so this text was not drawn. Give ^FB a width in dots (for example ^FB400,3).</value></data>
+  <data name="Painter_TextTooLong" xml:space="preserve"><value>This text field is {0} characters long; only the first {1} are drawn. Split the text into several fields of {1} characters or fewer.</value></data>
+  <data name="Painter_MissingGlyphs" xml:space="preserve"><value>{0} character(s) in this text are not in the font, so they print as spaces, as on a printer. Check the field data, or choose a font that has these characters.</value></data>
+  <data name="Painter_RoundedCorners" xml:space="preserve"><value>Rounded corners on ^GB are not supported yet; square corners are drawn.</value></data>
+  <data name="Placeholder_NoLabel" xml:space="preserve"><value>No label (^XA ... ^XZ) in this data</value></data>
+  <data name="Placeholder_NotDrawn" xml:space="preserve"><value>This label could not be drawn</value></data>
+  <data name="Placeholder_NotFoundTitle" xml:space="preserve"><value>No label found</value></data>
+  <data name="Placeholder_NotDrawnTitle" xml:space="preserve"><value>Label not drawn</value></data>
+  <data name="Placeholder_Stored" xml:space="preserve"><value>Stored in LabelScope's printer memory</value></data>
+  <data name="Placeholder_StoredTitle" xml:space="preserve"><value>Stored in memory</value></data>
+  <data name="Status_AndMore" xml:space="preserve"><value>{0} (and {1} more)</value></data>
+  <data name="Status_MemoryLine" xml:space="preserve"><value>Memory: {0}</value></data>
+  <data name="Status_NoLabelWithWarnings" xml:space="preserve"><value>This data contained no label. If it was a download, see the warnings.</value></data>
+  <data name="Status_NoLabel" xml:space="preserve"><value>Data arrived but it contained no label (^XA ... ^XZ). The ZPL text is shown on the right.</value></data>
+  <data name="Render_XaBeforeXz" xml:space="preserve"><value>A new label (^XA) started before the previous one ended with ^XZ. The earlier label was drawn anyway.</value></data>
+  <data name="Render_XzWithoutXa" xml:space="preserve"><value>^XZ was found without a matching ^XA and was ignored.</value></data>
+  <data name="Render_OutsideLabel" xml:space="preserve"><value>{0} is outside a label (^XA … ^XZ) or not supported yet, and was ignored.</value></data>
+  <data name="Render_NoXz" xml:space="preserve"><value>The label did not end with ^XZ; it was drawn as far as it arrived.</value></data>
+  <data name="Render_StoppedAtLine" xml:space="preserve"><value>LabelScope stopped reading this job at line {0} because of a problem it did not expect; the labels before that line are shown. Send the job again, and if this keeps happening, report it with the job attached.</value></data>
+  <data name="Render_CommandInternalError" xml:space="preserve"><value>{0} could not be handled because of an internal error; nothing was stored.</value></data>
+  <data name="Render_LabelNotDrawn" xml:space="preserve"><value>This label could not be drawn ({0}).</value></data>
+  <data name="Memory_ObjectTooLarge_graphic" xml:space="preserve"><value>This graphic is {0}, larger than the {1} LabelScope keeps; it was not stored. Make the graphic smaller.</value></data>
+  <data name="Memory_ObjectTooLarge_font" xml:space="preserve"><value>This font is {0}, larger than the {1} LabelScope keeps; it was not stored. Make the font smaller.</value></data>
+  <data name="Memory_Full" xml:space="preserve"><value>LabelScope's printer memory is full ({0}), so {1} was not stored. Delete stored objects with ^ID, or press "Clear printer memory" in the window, then send the download again.</value></data>
+  <data name="Memory_FullCount_One" xml:space="preserve"><value>LabelScope's printer memory already holds {0} object, so {1} was not stored. Delete stored objects with ^ID, or press "Clear printer memory" in the window, then send the download again.</value></data>
+  <data name="Memory_FullCount_Many" xml:space="preserve"><value>LabelScope's printer memory already holds {0} objects, so {1} was not stored. Delete stored objects with ^ID, or press "Clear printer memory" in the window, then send the download again.</value></data>
+  <data name="Memory_Empty" xml:space="preserve"><value>empty</value></data>
+  <data name="Memory_OneGraphic" xml:space="preserve"><value>1 graphic</value></data>
+  <data name="Memory_Graphics" xml:space="preserve"><value>{0} graphics</value></data>
+  <data name="Memory_OneFont" xml:space="preserve"><value>1 font</value></data>
+  <data name="Memory_Fonts" xml:space="preserve"><value>{0} fonts</value></data>
+  <data name="Memory_OneFontLetter" xml:space="preserve"><value>1 font letter</value></data>
+  <data name="Memory_FontLetters" xml:space="preserve"><value>{0} font letters</value></data>
+  <data name="Storage_EgIgnored" xml:space="preserve"><value>~EG (erase graphics) is described in the ZPL guide only as "see ^ID", so LabelScope did not erase anything. Use ^IDR:*.GRF to delete stored graphics.</value></data>
+  <data name="Storage_DgNeedsSize" xml:space="preserve"><value>{0}: The download needs the total byte count and the bytes per row before the data; nothing was stored.</value></data>
+  <data name="Storage_GraphicSizeProblem" xml:space="preserve"><value>{0}: The graphic was not stored because {1}.</value></data>
+  <data name="Storage_DgNoData" xml:space="preserve"><value>{0}: The download has no graphic data after its size, so nothing was stored. Put the graphic data after the bytes-per-row value.</value></data>
+  <data name="Storage_NothingStored" xml:space="preserve"><value>{0}: {1} Nothing was stored.</value></data>
+  <data name="Storage_NameTooLong" xml:space="preserve"><value>{0}: The name is longer than the 8 characters a printer accepts, so a real printer may refuse or shorten it. LabelScope stored it anyway; use a name of 8 characters or fewer.</value></data>
+  <data name="Storage_StoredGraphic" xml:space="preserve"><value>Stored the graphic {0} ({1} x {2} dots) in LabelScope's printer memory.</value></data>
+  <data name="Storage_DyBinary" xml:space="preserve"><value>Binary downloads (data format B) are planned for a later release of LabelScope; nothing was stored. The same file can be sent as ASCII hex (format A) or ZB64.</value></data>
+  <data name="Storage_DyCompressed" xml:space="preserve"><value>AR-compressed downloads (data format C) use a compression method that Zebra does not publish, so nothing was stored.</value></data>
+  <data name="Storage_DyNeedsFormat" xml:space="preserve"><value>The download needs a data format (A, B, C or P) after the name; nothing was stored.</value></data>
+  <data name="Storage_DyTte" xml:space="preserve"><value>TrueType extension files (.TTE) are not supported; nothing was stored. Send the font as a .TTF (type T) instead.</value></data>
+  <data name="Storage_DyPcx" xml:space="preserve"><value>PCX pictures are not supported; nothing was stored. Send the picture as a PNG (type P) or a GRF bitmap (type G) instead.</value></data>
+  <data name="Storage_DyNoData" xml:space="preserve"><value>The download has no data; nothing was stored.</value></data>
+  <data name="Storage_DyPngTooLarge" xml:space="preserve"><value>The PNG is {0} bytes and LabelScope reads pictures up to {1} bytes ({2} MB). Nothing was stored.</value></data>
+  <data name="Storage_DyFontTooLarge" xml:space="preserve"><value>The font is {0} bytes and LabelScope reads fonts up to {1} bytes ({2} MB). Nothing was stored.</value></data>
+  <data name="Storage_StoredFont" xml:space="preserve"><value>Stored the font {0} ({1}) in LabelScope's printer memory.</value></data>
+  <data name="Storage_BitmapNeedsSize" xml:space="preserve"><value>The bitmap needs the total byte count and the bytes per row; nothing was stored.</value></data>
+  <data name="Storage_BitmapSizeProblem" xml:space="preserve"><value>The bitmap was not stored because {0}.</value></data>
+  <data name="Storage_MessageNothingStored" xml:space="preserve"><value>{0} Nothing was stored.</value></data>
+  <data name="Storage_CwNeedsArgs" xml:space="preserve"><value>^CW needs a font letter (A to Z or 0 to 9) and a font name such as E:MYFONT.TTF; it was ignored.</value></data>
+  <data name="Storage_CwAssigned" xml:space="preserve"><value>Font {0} now means {1} (^CW), until LabelScope closes or its printer memory is cleared.</value></data>
+  <data name="Storage_IdNoMatch" xml:space="preserve"><value>^ID {0}: nothing in LabelScope's printer memory matched, so nothing was deleted.</value></data>
+  <data name="Storage_IdDeleted_One" xml:space="preserve"><value>Deleted {0} object matching {1} from LabelScope's printer memory.</value></data>
+  <data name="Storage_IdDeleted_Many" xml:space="preserve"><value>Deleted {0} objects matching {1} from LabelScope's printer memory.</value></data>
+  <data name="Graphics_NotAFont" xml:space="preserve"><value>The data is not a TrueType or OpenType font, so it was not stored.</value></data>
+  <data name="Graphics_FontCollection" xml:space="preserve"><value>The data is a font collection (.TTC), which LabelScope does not read; it was not stored. Send a single TrueType (.TTF) font instead.</value></data>
+  <data name="Graphics_NoSize" xml:space="preserve"><value>The graphic has no size (bytes per row or rows is missing, 0 or negative), so it cannot be read.</value></data>
+  <data name="Graphics_TooManyBytes" xml:space="preserve"><value>The graphic is {0} bytes, more than the {1} bytes LabelScope draws.</value></data>
+  <data name="Graphics_FileSizeMismatch" xml:space="preserve"><value>The file is {0} bytes, but the command said {1} bytes.</value></data>
+  <data name="Graphics_FileNotHex" xml:space="preserve"><value>The file data contains a character that is not a hexadecimal digit (character code {0}), so the file was not stored.</value></data>
+  <data name="Graphics_FileTooLong" xml:space="preserve"><value>The file data is longer than {0} bytes; the rest was ignored.</value></data>
+  <data name="Graphics_FileOddDigits" xml:space="preserve"><value>The file data has an odd number of hexadecimal digits, so the last byte is incomplete and the file was not stored.</value></data>
+  <data name="Graphics_Limit_RowMissing" xml:space="preserve"><value>the bytes-per-row value is missing, 0 or negative</value></data>
+  <data name="Graphics_Limit_TooWide" xml:space="preserve"><value>it is {0} bytes ({1} dots) wide and LabelScope draws graphics up to {2} dots wide</value></data>
+  <data name="Graphics_Limit_TotalMissing" xml:space="preserve"><value>the total byte count is missing, 0 or negative</value></data>
+  <data name="Graphics_Limit_TooManyBytes" xml:space="preserve"><value>it is {0} bytes and LabelScope draws graphics up to {1} bytes ({2} dots)</value></data>
+  <data name="Graphics_Limit_LessThanRow" xml:space="preserve"><value>the total byte count is smaller than one row</value></data>
+  <data name="Graphics_Limit_TooHigh" xml:space="preserve"><value>it is {0} dots high and LabelScope draws graphics up to {1} dots high</value></data>
+  <data name="Graphics_Limit_PartialRow" xml:space="preserve"><value>The total byte count ({0}) is not a whole number of rows of {1} bytes; the last {2} bytes were left out.</value></data>
+  <data name="Graphics_Hex_BadChars" xml:space="preserve"><value>The graphic data contains {0} character(s) that are neither hexadecimal digits nor Zebra compression codes; they were skipped.</value></data>
+  <data name="Graphics_Hex_RepeatPastEnd" xml:space="preserve"><value>A repeat count in the graphic data runs past the end of the graphic; the extra was ignored.</value></data>
+  <data name="Graphics_Hex_NoPreviousRow" xml:space="preserve"><value>The graphic data starts a row with ':' (repeat the previous row), but there is no previous row; that row was left white.</value></data>
+  <data name="Graphics_Hex_RepeatNoDigit" xml:space="preserve"><value>A repeat count in the graphic data is not followed by a hexadecimal digit; it was ignored.</value></data>
+  <data name="Graphics_Hex_TooLong" xml:space="preserve"><value>The graphic data is longer than the size given; the extra data was ignored, as a printer does.</value></data>
+  <data name="Graphics_Hex_EndedEarly" xml:space="preserve"><value>The graphic data ended after {0} of {1} rows; the rest of the graphic is blank.</value></data>
+  <data name="Graphics_OutOfMemory" xml:space="preserve"><value>The graphic ({0} x {1} dots) was not drawn because there is not enough memory to draw it. Close other programs or use a smaller graphic.</value></data>
+  <data name="Graphics_ImageNoPixels" xml:space="preserve"><value>The image is {0} x {1} pixels, so it was not used. Use an image with at least 1 pixel in each direction.</value></data>
+  <data name="Graphics_ImageTooLarge" xml:space="preserve"><value>The image is {0} x {1} pixels and LabelScope uses images up to {2} x {2} pixels ({3} in total), so it was not used. Use a smaller image.</value></data>
+  <data name="Graphics_ImageRowsShort" xml:space="preserve"><value>The image rows are {0} bytes long but {1} pixels need {2}, so the image was not used. The image data is damaged.</value></data>
+  <data name="Graphics_ImageDataShort" xml:space="preserve"><value>The image holds {0} bytes but {1} rows of {2} pixels need more, so the image was not used. The image data is damaged.</value></data>
+  <data name="Graphics_PngDamaged" xml:space="preserve"><value>The PNG picture is damaged or incomplete, so it cannot be used. Send it again.</value></data>
+  <data name="Graphics_NotPng" xml:space="preserve"><value>The data is not a PNG picture. Send the picture as a PNG file (type P) or a GRF bitmap (type G).</value></data>
+  <data name="Graphics_PngNotStored" xml:space="preserve"><value>The image was not stored because {0}.</value></data>
+  <data name="Graphics_PngOutOfMemory" xml:space="preserve"><value>The image ({0} x {1} pixels) was not stored because there is not enough memory to decode it. Close other programs or send a smaller image.</value></data>
+  <data name="Graphics_Png_NoSize" xml:space="preserve"><value>it has no size</value></data>
+  <data name="Graphics_Png_TooLargeSide" xml:space="preserve"><value>it is {0} x {1} pixels and LabelScope draws images up to {2} dots per side</value></data>
+  <data name="Graphics_Png_TooManyPixels" xml:space="preserve"><value>it has {0} pixels and LabelScope draws images up to {1}</value></data>
+  <data name="Graphics_Zb64_TooMuch" xml:space="preserve"><value>The graphic data unpacks to more than the size given; the extra was ignored.</value></data>
+  <data name="Graphics_Zb64_Damaged" xml:space="preserve"><value>The compressed graphic data (:Z64:) is damaged and cannot be unpacked.</value></data>
+  <data name="Graphics_Zb64_NoHeader" xml:space="preserve"><value>The graphic data does not start with :Z64: or :B64:, so it cannot be read.</value></data>
+  <data name="Graphics_Zb64_NoCrc" xml:space="preserve"><value>The :Z64: or :B64: graphic data has no check value (CRC) at the end; a printer may reject it.</value></data>
+  <data name="Graphics_Zb64_BadCrc" xml:space="preserve"><value>The check value at the end of the :Z64: or :B64: graphic data is not four hexadecimal digits; a printer may reject it.</value></data>
+  <data name="Graphics_Zb64_NotBase64" xml:space="preserve"><value>The graphic data marked :Z64: or :B64: is not valid Base64 text, so it cannot be read.</value></data>
+  <data name="Graphics_Zb64_EndedEarly" xml:space="preserve"><value>The graphic data ended early ({0} of {1} bytes); the rest is blank.</value></data>
+  <data name="Fonts_BundledMissing" xml:space="preserve"><value>The built-in font {0} is missing from LabelScope.Core.dll. Reinstall LabelScope.</value></data>
+  <data name="Fonts_BundledUnreadable" xml:space="preserve"><value>The built-in font {0} could not be read. Reinstall LabelScope.</value></data>
+  <data name="Fonts_FolderIsFile" xml:space="preserve"><value>The FontsFolder in settings.json ({0}) is a file, not a folder, so only LabelScope's built-in fonts are used. Name the folder that holds your fonts, then restart LabelScope.</value></data>
+  <data name="Fonts_FolderMissing" xml:space="preserve"><value>The FontsFolder in settings.json ({0}) does not exist, so only LabelScope's built-in fonts are used. Create the folder or correct the setting, then restart LabelScope.</value></data>
+  <data name="Fonts_TooManyFiles" xml:space="preserve"><value>The FontsFolder holds more than {0} font files; only the first {0} are used. Move the fonts you do not need to another folder, then restart LabelScope.</value></data>
+  <data name="Fonts_FolderUnreadable" xml:space="preserve"><value>LabelScope could not read the FontsFolder ({0}), so only its built-in fonts are used. Check that the folder can be opened, then restart LabelScope.</value></data>
+  <data name="Fonts_TooBig_One" xml:space="preserve"><value>1 font file in the FontsFolder is larger than 32 MB and was skipped. No label font is that large: check that it really is a font, then restart LabelScope.</value></data>
+  <data name="Fonts_TooBig_Many" xml:space="preserve"><value>{0} font files in the FontsFolder are larger than 32 MB and were skipped. No label font is that large: check that they really are fonts, then restart LabelScope.</value></data>
+  <data name="Fonts_NameTooLong_One" xml:space="preserve"><value>1 font file in the FontsFolder has a name longer than {0} characters, so a label cannot name it. Give it a shorter name, then restart LabelScope.</value></data>
+  <data name="Fonts_NameTooLong_Many" xml:space="preserve"><value>{0} font files in the FontsFolder have names longer than {1} characters, so a label cannot name them. Give them shorter names, then restart LabelScope.</value></data>
+  <data name="Fonts_MagnifyClamped" xml:space="preserve"><value>Font {0} can be enlarged up to 10 times ({1} dots high, {2} dots wide); 10 times was used.</value></data>
+  <data name="Fonts_ScalableClamped" xml:space="preserve"><value>LabelScope draws fonts up to {0} dots high and {0} dots wide, so the font size {1} x {2} dots (height x width) was drawn as {3} x {4} dots.</value></data>
+  <data name="Settings_Created" xml:space="preserve"><value>A settings file was created at {0}. Open it to change the port, label size or other options.</value></data>
+  <data name="Settings_CreateFailed" xml:space="preserve"><value>LabelScope could not create the settings file at {0} ({1}). Standard settings are used for now; check that the folder is writable.</value></data>
+  <data name="Settings_OpenFailed" xml:space="preserve"><value>The settings file could not be opened ({0}). Standard settings are used for now. Close other programs that may be using {1}, then restart LabelScope.</value></data>
+  <data name="Settings_ReadFailed" xml:space="preserve"><value>The settings file could not be read ({0}). Standard settings are used for now. Fix the file, or delete it to get a fresh one, then restart LabelScope: {1}</value></data>
+  <data name="Settings_And" xml:space="preserve"><value> and </value></data>
+  <data name="Settings_RetiredKey_One" xml:space="preserve"><value>{0} in settings.json is no longer used: the label size now comes from the ZPL (^PW and ^LL). You can delete that line.</value></data>
+  <data name="Settings_RetiredKey_Many" xml:space="preserve"><value>{0} in settings.json are no longer used: the label size now comes from the ZPL (^PW and ^LL). You can delete those lines.</value></data>
+  <data name="Settings_BadListenAddress" xml:space="preserve"><value>ListenAddress "{0}" is not allowed. Use "127.0.0.1" (this computer only) or "0.0.0.0" (also other computers on your network); "{1}" is used instead.</value></data>
+  <data name="Settings_BadListenPort" xml:space="preserve"><value>ListenPort {0} is not between 1 and 65535; {1} is used instead.</value></data>
+  <data name="Settings_BadDefaultDpi" xml:space="preserve"><value>DefaultDpi {0} is not one of 152, 203, 300, 600; {1} is used instead.</value></data>
+  <data name="Settings_BadHistoryLimit" xml:space="preserve"><value>HistoryLimit {0} is not between 1 and 1000; {1} is used instead.</value></data>
+  <data name="Settings_EmptyPrinterName" xml:space="preserve"><value>PrinterName is empty; "{0}" is used instead.</value></data>
+  <data name="Installer_NameEmpty" xml:space="preserve"><value>PrinterName in settings.json is empty. Type a name for the printer and start LabelScope again.</value></data>
+  <data name="Installer_NameTooLong" xml:space="preserve"><value>PrinterName in settings.json is too long ({0} characters at most). Shorten it and start LabelScope again.</value></data>
+  <data name="Installer_NameControlChars" xml:space="preserve"><value>PrinterName in settings.json must be a single line of normal text, without line breaks or hidden characters. Edit it and start LabelScope again.</value></data>
+  <data name="Installer_NameForbiddenChars" xml:space="preserve"><value>PrinterName in settings.json must not contain a backslash, a slash, an exclamation mark, an asterisk, a question mark or a square bracket. Remove them and start LabelScope again.</value></data>
+  <data name="Installer_BadPort" xml:space="preserve"><value>The port in settings.json must be a number between 1 and 65535. Edit it and start LabelScope again.</value></data>
+  <data name="Installer_AlreadyInstalled" xml:space="preserve"><value>The printer "{0}" is already installed. You can print to it from any program.</value></data>
+  <data name="Installer_NameTakenInstall" xml:space="preserve"><value>A printer named "{0}" already exists and was not created by LabelScope, so it was left alone. Choose a different PrinterName in settings.json and try again.</value></data>
+  <data name="Installer_Installed" xml:space="preserve"><value>The printer "{0}" is installed. Print to it from any program and the label appears in LabelScope.</value></data>
+  <data name="Installer_InstallFailed" xml:space="preserve"><value>The printer could not be installed</value></data>
+  <data name="Installer_NotInstalled" xml:space="preserve"><value>The printer "{0}" is not installed, so there is nothing to remove.</value></data>
+  <data name="Installer_NameTakenRemove" xml:space="preserve"><value>A printer named "{0}" exists but was not created by LabelScope, so it was left alone.</value></data>
+  <data name="Installer_Removed" xml:space="preserve"><value>The printer "{0}" was removed.</value></data>
+  <data name="Installer_RemoveFailed" xml:space="preserve"><value>The printer could not be removed</value></data>
+  <data name="Installer_StatusCheckFailed" xml:space="preserve"><value>LabelScope could not check which printers are installed, so nothing was changed. Check that the Windows "Print Spooler" service is running, then try again.</value></data>
+  <data name="Installer_Timeout" xml:space="preserve"><value>{0}: Windows did not finish in time (more than {1} seconds). Nothing may have been changed. Press the button again and answer the Windows prompt promptly.</value></data>
+  <data name="Installer_PermissionDeclined" xml:space="preserve"><value>Windows asked for permission and it was not given, so nothing was changed. Press the button again and choose Yes when Windows asks.</value></data>
+  <data name="Installer_NoAnswer" xml:space="preserve"><value>Windows gave no answer.</value></data>
+  <data name="Installer_SpoolerAdvice" xml:space="preserve"><value>Check that the Windows "Print Spooler" service is running, then try again.</value></data>
+  <data name="Installer_AdminAdvice" xml:space="preserve"><value>Try again. If it keeps failing, show this message to your administrator.</value></data>
+  <data name="Installer_Failure" xml:space="preserve"><value>{0}: {1} {2}</value></data>
+  <data name="Installer_ScriptNameTaken" xml:space="preserve"><value>Another printer already uses this name.</value></data>
+  <data name="Installer_ScriptNotOurs" xml:space="preserve"><value>This printer was not created by LabelScope.</value></data>
+  <data name="Runner_PowerShellMissing" xml:space="preserve"><value>Windows PowerShell was not found on this computer, so the printer cannot be managed. Repair Windows and try again.</value></data>
+  <data name="Runner_NotStarted" xml:space="preserve"><value>Windows PowerShell could not be started.</value></data>
+  <data name="Runner_NameTooLong" xml:space="preserve"><value>The printer name is too long for Windows to install. Use a shorter PrinterName in settings.json.</value></data>
+  <data name="Runner_StartFailed" xml:space="preserve"><value>Windows PowerShell could not be started ({0}).</value></data>
+  <data name="Runner_AnswerUnreadable" xml:space="preserve"><value>The answer from Windows PowerShell could not be read ({0}).</value></data>
+  <data name="Runner_UnsafeScript" xml:space="preserve"><value>The printer script contains a character that cannot be passed to Windows PowerShell safely.</value></data>
+  <data name="Lookup_NoPrintSystem" xml:space="preserve"><value>The Windows print system is not available on this computer.</value></data>
+  <data name="Lookup_ListFailed" xml:space="preserve"><value>Windows could not list the printers: {0}</value></data>
+  <data name="Lookup_ListKeptChanging" xml:space="preserve"><value>Windows could not list the printers because the list kept changing. Try again.</value></data>
+  <data name="Update_HttpStatus" xml:space="preserve"><value>GitHub answered {0}, so LabelScope could not tell whether a new version exists. Try again later.</value></data>
+  <data name="Update_Unreachable" xml:space="preserve"><value>LabelScope could not reach GitHub to look for a new version. Check the internet connection and try again.</value></data>
+  <data name="Update_BadVersionName" xml:space="preserve"><value>The newest release on GitHub has a version name LabelScope does not understand, so it was ignored.</value></data>
+  <data name="Update_NoInstaller" xml:space="preserve"><value>Version {0} exists but has no installer attached yet. Try again later.</value></data>
+  <data name="Listener_PortInUse" xml:space="preserve"><value>Port {0} is already in use by another program (possibly another copy of LabelScope). Close that program, or choose a different number for ListenPort in settings.json and start LabelScope again.</value></data>
+  <data name="Listener_StartFailed" xml:space="preserve"><value>LabelScope could not start listening on {0}:{1} ({2}). Check ListenAddress and ListenPort in settings.json.</value></data>
+  <data name="Listener_AcceptTrouble" xml:space="preserve"><value>LabelScope had trouble accepting a connection and is still listening. If labels stop arriving, restart LabelScope.</value></data>
+  <data name="Listener_Busy" xml:space="preserve"><value>LabelScope is busy: too many programs are sending labels at once. New connections were refused. Try again in a moment.</value></data>
+  <data name="Listener_TooLarge" xml:space="preserve"><value>A label larger than 16 MB was received without an end marker (^XZ) and was discarded. Check the program that sends the labels.</value></data>
 </root>

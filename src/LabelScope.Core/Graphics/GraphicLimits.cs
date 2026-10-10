@@ -38,19 +38,19 @@ internal static class GraphicLimits
     {
         rows = 0;
         note = null;
-        problem = bytesPerRow < 1 ? "the bytes-per-row value is missing, 0 or negative"
-            : bytesPerRow > MaxBytesPerRow ? $"it is {bytesPerRow} bytes ({bytesPerRow * 8L} dots) wide and LabelScope draws graphics up to {MaxDots} dots wide"
-            : totalBytes < 1 ? "the total byte count is missing, 0 or negative"
-            : totalBytes > MaxGraphicBytes ? $"it is {totalBytes} bytes and LabelScope draws graphics up to {MaxGraphicBytes} bytes ({MaxGraphicDots} dots)"
-            : totalBytes < bytesPerRow ? "the total byte count is smaller than one row"
-            : totalBytes / bytesPerRow > MaxRows ? $"it is {totalBytes / bytesPerRow} dots high and LabelScope draws graphics up to {MaxRows} dots high"
+        problem = bytesPerRow < 1 ? Text.Get("Graphics_Limit_RowMissing")
+            : bytesPerRow > MaxBytesPerRow ? Text.Get("Graphics_Limit_TooWide", bytesPerRow, bytesPerRow * 8L, MaxDots)
+            : totalBytes < 1 ? Text.Get("Graphics_Limit_TotalMissing")
+            : totalBytes > MaxGraphicBytes ? Text.Get("Graphics_Limit_TooManyBytes", totalBytes, MaxGraphicBytes, MaxGraphicDots)
+            : totalBytes < bytesPerRow ? Text.Get("Graphics_Limit_LessThanRow")
+            : totalBytes / bytesPerRow > MaxRows ? Text.Get("Graphics_Limit_TooHigh", totalBytes / bytesPerRow, MaxRows)
             : null;
         if (problem is not null) return false;
 
         rows = (int)(totalBytes / bytesPerRow);
         var rest = totalBytes % bytesPerRow;
         if (rest != 0)
-            note = $"The total byte count ({totalBytes}) is not a whole number of rows of {bytesPerRow} bytes; the last {rest} bytes were left out.";
+            note = Text.Get("Graphics_Limit_PartialRow", totalBytes, bytesPerRow, rest);
         return true;
     }
 }

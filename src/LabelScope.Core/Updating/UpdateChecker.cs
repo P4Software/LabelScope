@@ -46,14 +46,14 @@ public sealed class UpdateChecker
 
             using var response = await _http.SendAsync(request, cancel).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
-                return new(null, $"GitHub answered {(int)response.StatusCode}, so LabelScope could not tell whether a new version exists. Try again later.");
+                return new(null, Text.Get("Update_HttpStatus", (int)response.StatusCode));
 
             var json = await response.Content.ReadAsStringAsync(cancel).ConfigureAwait(false);
             return Parse(json, installed);
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JsonException)
         {
-            return new(null, "LabelScope could not reach GitHub to look for a new version. Check the internet connection and try again.");
+            return new(null, Text.Get("Update_Unreachable"));
         }
     }
 
@@ -69,7 +69,7 @@ public sealed class UpdateChecker
 
         var tag = root.TryGetProperty("tag_name", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() : null;
         if (!TryParseVersion(tag, out var latest))
-            return new(null, "The newest release on GitHub has a version name LabelScope does not understand, so it was ignored.");
+            return new(null, Text.Get("Update_BadVersionName"));
         if (latest <= installed) return new(null, null);
 
         Uri? download = null;
@@ -82,7 +82,7 @@ public sealed class UpdateChecker
 
         // Only https addresses on GitHub are followed, so a tampered answer cannot point the updater elsewhere.
         if (download is null || download.Scheme != Uri.UriSchemeHttps || !IsGitHubHost(download.Host))
-            return new(null, $"Version {latest.ToString(3)} exists but has no installer attached yet. Try again later.");
+            return new(null, Text.Get("Update_NoInstaller", latest.ToString(3)));
 
         var page = root.TryGetProperty("html_url", out var h) && Uri.TryCreate(h.GetString(), UriKind.Absolute, out var hp)
             ? hp : new Uri("https://github.com/P4Software/LabelScope/releases");

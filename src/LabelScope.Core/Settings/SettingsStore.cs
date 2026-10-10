@@ -71,14 +71,13 @@ public sealed class SettingsStore
             {
                 // Written without a byte-order mark so editors and the parser both read it cleanly.
                 File.WriteAllText(path, StarterText, new UTF8Encoding(false));
-                messages.Add($"A settings file was created at {path}. Open it to change the port, label size or other options.");
+                messages.Add(Text.Get("Settings_Created", path));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // A read-only program folder or a missing parent folder must not crash the first run;
                 // the defaults still work, so the user is told and the program carries on.
-                messages.Add($"LabelScope could not create the settings file at {path} ({ex.Message}). " +
-                             "Standard settings are used for now; check that the folder is writable.");
+                messages.Add(Text.Get("Settings_CreateFailed", path, ex.Message));
             }
             return new SettingsLoadResult(new AppSettings(), messages);
         }
@@ -92,8 +91,7 @@ public sealed class SettingsStore
         {
             // Another program (an editor or antivirus) can hold the file open. We only read here,
             // so the user's file is left untouched and the defaults are used until the lock is gone.
-            messages.Add($"The settings file could not be opened ({ex.Message}). Standard settings are used for now. " +
-                         $"Close other programs that may be using {path}, then restart LabelScope.");
+            messages.Add(Text.Get("Settings_OpenFailed", ex.Message, path));
             return new SettingsLoadResult(new AppSettings(), messages);
         }
 
@@ -106,8 +104,7 @@ public sealed class SettingsStore
         {
             // Never overwrite the user's file: they may only have a typo to fix.
             // An empty file also lands here ("no JSON tokens"), so it gets this same message.
-            messages.Add($"The settings file could not be read ({ex.Message}). Standard settings are used for now. " +
-                         $"Fix the file, or delete it to get a fresh one, then restart LabelScope: {path}");
+            messages.Add(Text.Get("Settings_ReadFailed", ex.Message, path));
             return new SettingsLoadResult(new AppSettings(), messages);
         }
 
@@ -135,8 +132,8 @@ public sealed class SettingsStore
                 .Where(n => RetiredKeys.Contains(n, StringComparer.OrdinalIgnoreCase))
                 .ToList();
             if (found.Count > 0)
-                messages.Add($"{string.Join(" and ", found)} in settings.json {(found.Count == 1 ? "is" : "are")} no longer used: " +
-                             "the label size now comes from the ZPL (^PW and ^LL). You can delete " + (found.Count == 1 ? "that line." : "those lines."));
+                messages.Add(Text.Get(found.Count == 1 ? "Settings_RetiredKey_One" : "Settings_RetiredKey_Many",
+                    string.Join(Text.Get("Settings_And"), found)));
         }
         catch (JsonException)
         {
@@ -155,27 +152,27 @@ public sealed class SettingsStore
         // would either break the printer or open the port in a way the user did not clearly ask for.
         if (s.ListenAddress is not ("127.0.0.1" or "0.0.0.0"))
         {
-            messages.Add($"ListenAddress \"{s.ListenAddress}\" is not allowed. Use \"127.0.0.1\" (this computer only) or \"0.0.0.0\" (also other computers on your network); \"{d.ListenAddress}\" is used instead.");
+            messages.Add(Text.Get("Settings_BadListenAddress", s.ListenAddress, d.ListenAddress));
             s.ListenAddress = d.ListenAddress;
         }
         if (s.ListenPort is < 1 or > 65535)
         {
-            messages.Add($"ListenPort {s.ListenPort} is not between 1 and 65535; {d.ListenPort} is used instead.");
+            messages.Add(Text.Get("Settings_BadListenPort", s.ListenPort, d.ListenPort));
             s.ListenPort = d.ListenPort;
         }
         if (s.DefaultDpi is not (152 or 203 or 300 or 600))
         {
-            messages.Add($"DefaultDpi {s.DefaultDpi} is not one of 152, 203, 300, 600; {d.DefaultDpi} is used instead.");
+            messages.Add(Text.Get("Settings_BadDefaultDpi", s.DefaultDpi, d.DefaultDpi));
             s.DefaultDpi = d.DefaultDpi;
         }
         if (s.HistoryLimit is < 1 or > 1000)
         {
-            messages.Add($"HistoryLimit {s.HistoryLimit} is not between 1 and 1000; {d.HistoryLimit} is used instead.");
+            messages.Add(Text.Get("Settings_BadHistoryLimit", s.HistoryLimit, d.HistoryLimit));
             s.HistoryLimit = d.HistoryLimit;
         }
         if (string.IsNullOrWhiteSpace(s.PrinterName))
         {
-            messages.Add($"PrinterName is empty; \"{d.PrinterName}\" is used instead.");
+            messages.Add(Text.Get("Settings_EmptyPrinterName", d.PrinterName));
             s.PrinterName = d.PrinterName;
         }
         // An empty log folder is repaired silently: the default is harmless and nothing is lost.

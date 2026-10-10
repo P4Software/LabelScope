@@ -25,7 +25,7 @@ internal sealed partial class LabelPainter
         // WithArgs always goes through BarDefaults.Clamped, so absurd values can never reach the drawers.
         _by = _by.WithArgs(a, out var clamped);
         if (clamped)
-            _warnings.Add(new(cmd.Line, "^BY values were outside the allowed range and were adjusted: module width 1 to 10, ratio 2.0 to 3.0, height 1 to 32000."));
+            _warnings.Add(new(cmd.Line, Text.Get("Painter_ByAdjusted")));
     }
 
     /// <summary>
@@ -45,7 +45,7 @@ internal sealed partial class LabelPainter
 
         // Marked Skip so the field data that follows is not drawn as ordinary text.
         _barcode = new BarcodeRequest(cmd.Name, a, cmd.Line, Skip: true);
-        _warnings.Add(new(cmd.Line, $"{cmd.Name} ({deferred}) is planned for a later release of LabelScope; nothing was drawn for this field."));
+        _warnings.Add(new(cmd.Line, Text.Get("Painter_BarcodeDeferred", cmd.Name, deferred)));
         return true;
     }
 
@@ -62,7 +62,7 @@ internal sealed partial class LabelPainter
         var req = _barcode!;
         if (data.Length > MaxBarcodeDataLength)
         {
-            _warnings.Add(new(req.Line, $"{req.Command}: The barcode data is {data.Length} characters long; no barcode holds more than about 7000. The barcode was not drawn."));
+            _warnings.Add(new(req.Line, Text.Get("Painter_BarcodeDataTooLong", req.Command, data.Length)));
             return;
         }
         BarcodeField field;
@@ -72,16 +72,16 @@ internal sealed partial class LabelPainter
         }
         catch (BarcodeDataException ex)
         {
-            _warnings.Add(new(req.Line, $"{req.Command}: {ex.Message} The barcode was not drawn."));
+            _warnings.Add(new(req.Line, Text.Get("Painter_BarcodeNotDrawn", req.Command, ex.Message)));
             return;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // An encoder bug must cost this one field, not the whole label (ZplRenderer.PaintSafely is the last resort).
-            _warnings.Add(new(req.Line, $"{req.Command}: This barcode could not be drawn because of an internal error; the rest of the label is shown."));
+            _warnings.Add(new(req.Line, Text.Get("Painter_BarcodeInternalError", req.Command)));
             return;
         }
-        if (field.Note is not null) _warnings.Add(new(req.Line, $"{req.Command}: {field.Note}"));
+        if (field.Note is not null) _warnings.Add(new(req.Line, Text.Get("Common_Prefixed", req.Command, field.Note)));
 
         switch (field)
         {
@@ -119,7 +119,7 @@ internal sealed partial class LabelPainter
             var box = _canvas.TotalMatrix.MapRect(new SKRect(0, 0, w, h));
             if (box.Left < 0 || box.Top < 0 || box.Right > _bitmap.Width || box.Bottom > _bitmap.Height)
                 _warnings.Add(new(req.Line,
-                    $"The barcode from {req.Command} ({w} x {h} dots) does not fit on the label; the part outside is cut off. Use a smaller module width, shorter data, or move the field."));
+                    Text.Get("Painter_BarcodeOffLabel", req.Command, w, h)));
 
             using var ink = InkPaint();
             draw(ink);

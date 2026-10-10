@@ -24,7 +24,7 @@ internal static class StorageCommands
                 Delete(cmd, context);
                 return true;
             case "~EG":
-                warnings.Add(new(cmd.Line, "~EG (erase graphics) is described in the ZPL guide only as \"see ^ID\", so LabelScope did not erase anything. Use ^IDR:*.GRF to delete stored graphics."));
+                warnings.Add(new(cmd.Line, Text.Get("Storage_EgIgnored")));
                 return true;
             case "^CW":
                 AssignFontLetter(cmd, context, warnings);
@@ -47,19 +47,19 @@ internal static class StorageCommands
 
         if (!ZplArgs.TryLong(a, 1, out var total) || !ZplArgs.TryLong(a, 2, out var perRow))
         {
-            warnings.Add(new(cmd.Line, $"{label}: The download needs the total byte count and the bytes per row before the data; nothing was stored."));
+            warnings.Add(new(cmd.Line, Text.Get("Storage_DgNeedsSize", label)));
             return;
         }
         if (!GraphicLimits.TryRows(total, perRow, out var rows, out var problem, out var sizeNote))
         {
-            warnings.Add(new(cmd.Line, $"{label}: The graphic was not stored because {problem}."));
+            warnings.Add(new(cmd.Line, Text.Get("Storage_GraphicSizeProblem", label, problem)));
             return;
         }
         // Without data a printer stores nothing useful; storing a blank graphic would hide the mistake until a label
         // recalled it and printed nothing.
         if (a.Length < 4 || a[3].Trim().Length == 0)
         {
-            warnings.Add(new(cmd.Line, $"{label}: The download has no graphic data after its size, so nothing was stored. Put the graphic data after the bytes-per-row value."));
+            warnings.Add(new(cmd.Line, Text.Get("Storage_DgNoData", label)));
             return;
         }
 
@@ -72,10 +72,10 @@ internal static class StorageCommands
         }
         catch (GraphicDataException ex)
         {
-            warnings.Add(new(cmd.Line, $"{label}: {ex.Message} Nothing was stored."));
+            warnings.Add(new(cmd.Line, Text.Get("Storage_NothingStored", label, ex.Message)));
             return;
         }
-        foreach (var note in notes) warnings.Add(new(cmd.Line, $"{label}: {note}"));
+        foreach (var note in notes) warnings.Add(new(cmd.Line, Text.Get("Common_Prefixed", label, note)));
         StoreGraphic(cmd, context, warnings, name, image, label);
     }
 
@@ -85,14 +85,14 @@ internal static class StorageCommands
         var refusal = context.Memory.Store(name, new StoredGraphic(image));
         if (refusal is not null)
         {
-            warnings.Add(new(cmd.Line, $"{label}: {refusal}"));
+            warnings.Add(new(cmd.Line, Text.Get("Common_Prefixed", label, refusal)));
             return;
         }
         // The guide allows 1-8 characters and does not say whether a printer refuses or shortens a longer name, so the
         // warning says "may". LabelScope keeps the full name so the preview still works.
         if (name.IsLongerThanZebraAllows)
-            warnings.Add(new(cmd.Line, $"{label}: The name is longer than the 8 characters a printer accepts, so a real printer may refuse or shorten it. LabelScope stored it anyway; use a name of 8 characters or fewer."));
-        context.MemoryNotes.Add($"Stored the graphic {(name.Drive is null ? name.OnDrive('R') : name).Display} ({image.Width} x {image.Height} dots) in LabelScope's printer memory.");
+            warnings.Add(new(cmd.Line, Text.Get("Storage_NameTooLong", label)));
+        context.MemoryNotes.Add(Text.Get("Storage_StoredGraphic", (name.Drive is null ? name.OnDrive('R') : name).Display, image.Width, image.Height));
     }
 
     // ~DY types that never change a picture (certificates, WML menus, web pages, feedback files): accepted quietly,
@@ -110,32 +110,33 @@ internal static class StorageCommands
         var extension = type switch { "P" => "PNG", "T" => "TTF", "E" => "TTE", "X" => "PCX", _ => "GRF" };
         var name = ObjectName.Parse(a[0], extension, 'R') with { Extension = extension };
         var label = $"~DY {name.Display}";
-        void Warn(string message) => warnings.Add(new(cmd.Line, $"{label}: {message}"));
+        void Warn(string message) => warnings.Add(new(cmd.Line, Text.Get("Common_Prefixed", label, message)));
 
         switch (ZplArgs.Letter(a, 1, ' '))
         {
             case 'A' or 'P':
                 break;
             case 'B':
-                Warn("Binary downloads (data format B) are planned for a later release of LabelScope; nothing was stored. The same file can be sent as ASCII hex (format A) or ZB64.");
+                Warn(Text.Get("Storage_DyBinary"));
                 return;
             case 'C':
-                Warn("AR-compressed downloads (data format C) use a compression method that Zebra does not publish, so nothing was stored.");
+                Warn(Text.Get("Storage_DyCompressed"));
                 return;
             default:
-                Warn("The download needs a data format (A, B, C or P) after the name; nothing was stored.");
+                Warn(Text.Get("Storage_DyNeedsFormat"));
                 return;
         }
-        if (type == "E") { Warn("TrueType extension files (.TTE) are not supported; nothing was stored. Send the font as a .TTF (type T) instead."); return; }
-        if (type == "X") { Warn("PCX pictures are not supported; nothing was stored. Send the picture as a PNG (type P) or a GRF bitmap (type G) instead."); return; }
-        if (a.Length < 6) { Warn("The download has no data; nothing was stored."); return; }
+        if (type == "E") { Warn(Text.Get("Storage_DyTte")); return; }
+        if (type == "X") { Warn(Text.Get("Storage_DyPcx")); return; }
+        if (a.Length < 6) { Warn(Text.Get("Storage_DyNoData")); return; }
 
         ZplArgs.TryLong(a, 3, out var total);
         // The declared size is checked before any data is read, so a hostile "t" cannot make a big buffer.
         var cap = extension == "PNG" ? PngImage.MaxFileBytes : extension == "TTF" ? FontFile.MaxFileBytes : 0;
         if (cap > 0 && total > cap)
         {
-            Warn($"The {(extension == "PNG" ? "PNG" : "font")} is {total} bytes and LabelScope reads {(extension == "PNG" ? "pictures" : "fonts")} up to {cap} bytes ({cap / (1024 * 1024)} MB). Nothing was stored.");
+            var tooLarge = extension == "PNG" ? "Storage_DyPngTooLarge" : "Storage_DyFontTooLarge";
+            Warn(Text.Get(tooLarge, total, cap, cap / (1024 * 1024)));
             return;
         }
         var notes = new List<string>();
@@ -149,7 +150,7 @@ internal static class StorageCommands
                     var file = GraphicData.DecodeFile(a[5], total, notes);
                     if (file.LongLength > PngImage.MaxFileBytes)
                     {
-                        Warn($"The PNG is {file.LongLength} bytes and LabelScope reads pictures up to {PngImage.MaxFileBytes} bytes (5 MB). Nothing was stored.");
+                        Warn(Text.Get("Storage_DyPngTooLarge", file.LongLength, PngImage.MaxFileBytes, 5));
                         return;
                     }
                     var image = PngImage.Decode(file, notes);
@@ -164,14 +165,14 @@ internal static class StorageCommands
                     // Defence in depth: DecodeFile already stops at the 16 MB file ceiling, but this cap must hold on its own if that changes.
                     if (file.LongLength > FontFile.MaxFileBytes)
                     {
-                        Warn($"The font is {file.LongLength} bytes and LabelScope reads fonts up to {FontFile.MaxFileBytes} bytes (16 MB). Nothing was stored.");
+                        Warn(Text.Get("Storage_DyFontTooLarge", file.LongLength, FontFile.MaxFileBytes, 16));
                         return;
                     }
                     // Only the header is checked here: the bytes are kept for later use and never parsed by a library now.
                     if (FontFile.Check(file) is { } notFont) { Warn(notFont); return; }
                     var refusal = context.Memory.Store(name, new StoredFont(file));
                     if (refusal is not null) { Warn(refusal); return; }
-                    context.MemoryNotes.Add($"Stored the font {name.Display} ({PrinterMemory.FormatBytes(file.LongLength)}) in LabelScope's printer memory.");
+                    context.MemoryNotes.Add(Text.Get("Storage_StoredFont", name.Display, PrinterMemory.FormatBytes(file.LongLength)));
                     break;
                 }
                 default:
@@ -182,8 +183,8 @@ internal static class StorageCommands
                     if (!ZplArgs.TryLong(a, 4, out var perRow) || !GraphicLimits.TryRows(total, perRow, out rows, out problem, out sizeNote))
                     {
                         Warn(problem is null
-                            ? "The bitmap needs the total byte count and the bytes per row; nothing was stored."
-                            : $"The bitmap was not stored because {problem}.");
+                            ? Text.Get("Storage_BitmapNeedsSize")
+                            : Text.Get("Storage_BitmapSizeProblem", problem));
                         return;
                     }
                     if (sizeNote is not null) notes.Add(sizeNote);
@@ -197,7 +198,7 @@ internal static class StorageCommands
         catch (GraphicDataException ex)
         {
             FlushNotes();
-            Warn($"{ex.Message} Nothing was stored.");
+            Warn(Text.Get("Storage_MessageNothingStored", ex.Message));
         }
     }
 
@@ -212,13 +213,13 @@ internal static class StorageCommands
         var id = a[0].Trim();
         if (id.Length != 1 || !char.IsAsciiLetterOrDigit(id[0]) || a.Length < 2 || a[1].Trim().Length == 0)
         {
-            warnings.Add(new(cmd.Line, "^CW needs a font letter (A to Z or 0 to 9) and a font name such as E:MYFONT.TTF; it was ignored."));
+            warnings.Add(new(cmd.Line, Text.Get("Storage_CwNeedsArgs")));
             return;
         }
         // Parsed like every stored object's name: upper-cased, cut to a safe length, and only ever a dictionary key.
         var file = ObjectName.Parse(a[1], "TTF", 'R');
         context.Memory.AssignFont(id[0], file);
-        context.MemoryNotes.Add($"Font {char.ToUpperInvariant(id[0])} now means {file.Display} (^CW), until LabelScope closes or its printer memory is cleared.");
+        context.MemoryNotes.Add(Text.Get("Storage_CwAssigned", char.ToUpperInvariant(id[0]), file.Display));
     }
 
     /// <summary>^IDd:o.x: deletes stored objects; '*' is a wildcard. A printer ignores a name that matches nothing.</summary>
@@ -227,7 +228,7 @@ internal static class StorageCommands
         var pattern = ObjectName.Parse(cmd.Args.Split(',')[0], "GRF", 'R');
         var count = context.Memory.Delete(pattern);
         context.MemoryNotes.Add(count == 0
-            ? $"^ID {pattern.Display}: nothing in LabelScope's printer memory matched, so nothing was deleted."
-            : $"Deleted {count} {(count == 1 ? "object" : "objects")} matching {pattern.Display} from LabelScope's printer memory.");
+            ? Text.Get("Storage_IdNoMatch", pattern.Display)
+            : Text.Get(count == 1 ? "Storage_IdDeleted_One" : "Storage_IdDeleted_Many", count, pattern.Display));
     }
 }

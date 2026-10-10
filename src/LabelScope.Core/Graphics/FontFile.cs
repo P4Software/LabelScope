@@ -16,7 +16,7 @@ internal static class FontFile
     /// </summary>
     public static string? Check(byte[] file)
     {
-        const string notAFont = "The data is not a TrueType or OpenType font, so it was not stored.";
+        var notAFont = Text.Get("Graphics_NotAFont");
         // sfnt header: 4 byte version, uint16 numTables, 6 more bytes; then 16 bytes per table record.
         if (file.Length < 12) return notAFont;
         var magic = (uint)(file[0] << 24 | file[1] << 16 | file[2] << 8 | file[3]);
@@ -27,7 +27,7 @@ internal static class FontFile
             case 0x4F54544F: // 'OTTO' (OpenType with CFF outlines)
                 break;
             case 0x74746366: // 'ttcf'
-                return "The data is a font collection (.TTC), which LabelScope does not read; it was not stored. Send a single TrueType (.TTF) font instead.";
+                return Text.Get("Graphics_FontCollection");
             default:
                 return notAFont;
         }

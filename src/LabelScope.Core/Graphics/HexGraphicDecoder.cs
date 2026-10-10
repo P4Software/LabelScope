@@ -80,17 +80,17 @@ internal static class HexGraphicDecoder
         if (repeat != 0) dangling = true;
 
         if (badChars > 0)
-            notes.Add($"The graphic data contains {badChars} character(s) that are neither hexadecimal digits nor Zebra compression codes; they were skipped.");
+            notes.Add(Text.Get("Graphics_Hex_BadChars", badChars));
         if (clipped)
-            notes.Add("A repeat count in the graphic data runs past the end of the graphic; the extra was ignored.");
+            notes.Add(Text.Get("Graphics_Hex_RepeatPastEnd"));
         if (colonOnFirstRow)
-            notes.Add("The graphic data starts a row with ':' (repeat the previous row), but there is no previous row; that row was left white.");
+            notes.Add(Text.Get("Graphics_Hex_NoPreviousRow"));
         if (dangling)
-            notes.Add("A repeat count in the graphic data is not followed by a hexadecimal digit; it was ignored.");
+            notes.Add(Text.Get("Graphics_Hex_RepeatNoDigit"));
         if (extra)
-            notes.Add("The graphic data is longer than the size given; the extra data was ignored, as a printer does.");
+            notes.Add(Text.Get("Graphics_Hex_TooLong"));
         if (pos < total)
-            notes.Add($"The graphic data ended after {pos / nibblesPerRow} of {rows} rows; the rest of the graphic is blank.");
+            notes.Add(Text.Get("Graphics_Hex_EndedEarly", pos / nibblesPerRow, rows));
 
         return new MonoImage(bytesPerRow, rows, bits);
     }

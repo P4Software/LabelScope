@@ -111,7 +111,7 @@ internal sealed class MonoImage
         if (dst == IntPtr.Zero)
         {
             bitmap.Dispose();
-            throw new GraphicDataException($"The graphic ({Width} x {Height} dots) was not drawn because there is not enough memory to draw it. Close other programs or use a smaller graphic.");
+            throw new GraphicDataException(Text.Get("Graphics_OutOfMemory", Width, Height));
         }
         var row = new byte[part.Width];
         for (var y = part.Top; y < part.Bottom; y++)
@@ -138,13 +138,13 @@ internal sealed class MonoImage
     {
         // All checks run before anything is allocated, and in long so hostile sizes cannot overflow.
         if (width < 1 || height < 1)
-            throw new GraphicDataException($"The image is {width} x {height} pixels, so it was not used. Use an image with at least 1 pixel in each direction.");
+            throw new GraphicDataException(Text.Get("Graphics_ImageNoPixels", width, height));
         if (width > GraphicLimits.MaxDots || height > GraphicLimits.MaxDots || (long)width * height > GraphicLimits.MaxGraphicDots)
-            throw new GraphicDataException($"The image is {width} x {height} pixels and LabelScope uses images up to {GraphicLimits.MaxDots} x {GraphicLimits.MaxDots} pixels ({GraphicLimits.MaxGraphicDots} in total), so it was not used. Use a smaller image.");
+            throw new GraphicDataException(Text.Get("Graphics_ImageTooLarge", width, height, GraphicLimits.MaxDots, GraphicLimits.MaxGraphicDots));
         if (rowBytes < (long)width * 4)
-            throw new GraphicDataException($"The image rows are {rowBytes} bytes long but {width} pixels need {(long)width * 4}, so the image was not used. The image data is damaged.");
+            throw new GraphicDataException(Text.Get("Graphics_ImageRowsShort", rowBytes, width, (long)width * 4));
         if (pixels.Length < (long)rowBytes * (height - 1) + (long)width * 4)
-            throw new GraphicDataException($"The image holds {pixels.Length} bytes but {height} rows of {width} pixels need more, so the image was not used. The image data is damaged.");
+            throw new GraphicDataException(Text.Get("Graphics_ImageDataShort", pixels.Length, height, width));
 
         var bytesPerRow = (width + 7) / 8;
         var bits = new byte[(long)bytesPerRow * height];

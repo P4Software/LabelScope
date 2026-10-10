@@ -9,7 +9,7 @@ public sealed class ZplTooLargeException : Exception
 {
     /// <summary>Creates the exception with the plain-language message shown to the operator.</summary>
     public ZplTooLargeException()
-        : base("A label larger than 16 MB was received without an end marker (^XZ) and was discarded. Check the program that sends the labels.")
+        : base(Text.Get("Listener_TooLarge"))
     {
     }
 }

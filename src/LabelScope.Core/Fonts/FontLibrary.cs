@@ -110,8 +110,8 @@ public sealed class FontLibrary
             if (!Directory.Exists(path))
             {
                 messages.Add(File.Exists(path)
-                    ? $"The FontsFolder in settings.json ({folder}) is a file, not a folder, so only LabelScope's built-in fonts are used. Name the folder that holds your fonts, then restart LabelScope."
-                    : $"The FontsFolder in settings.json ({folder}) does not exist, so only LabelScope's built-in fonts are used. Create the folder or correct the setting, then restart LabelScope.");
+                    ? Text.Get("Fonts_FolderIsFile", folder)
+                    : Text.Get("Fonts_FolderMissing", folder));
                 return Empty;
             }
 
@@ -126,7 +126,7 @@ public sealed class FontLibrary
                 if (IsDeviceName(file.Name)) continue;
                 if (++seen > MaxFiles)
                 {
-                    messages.Add($"The FontsFolder holds more than {MaxFiles} font files; only the first {MaxFiles} are used. Move the fonts you do not need to another folder, then restart LabelScope.");
+                    messages.Add(Text.Get("Fonts_TooManyFiles", MaxFiles));
                     break;
                 }
                 // A ZPL name keeps at most 64 characters (ObjectName.MaxNameLength), so a longer file name could
@@ -141,17 +141,17 @@ public sealed class FontLibrary
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or ArgumentException or NotSupportedException)
         {
-            messages.Add($"LabelScope could not read the FontsFolder ({ex.Message}), so only its built-in fonts are used. Check that the folder can be opened, then restart LabelScope.");
+            messages.Add(Text.Get("Fonts_FolderUnreadable", ex.Message));
             return new FontLibrary(files, loadedBytesLimit);
         }
         if (tooBig > 0)
             messages.Add(tooBig == 1
-                ? "1 font file in the FontsFolder is larger than 32 MB and was skipped. No label font is that large: check that it really is a font, then restart LabelScope."
-                : $"{tooBig} font files in the FontsFolder are larger than 32 MB and were skipped. No label font is that large: check that they really are fonts, then restart LabelScope.");
+                ? Text.Get("Fonts_TooBig_One")
+                : Text.Get("Fonts_TooBig_Many", tooBig));
         if (tooLong > 0)
             messages.Add(tooLong == 1
-                ? $"1 font file in the FontsFolder has a name longer than {ObjectName.MaxNameLength} characters, so a label cannot name it. Give it a shorter name, then restart LabelScope."
-                : $"{tooLong} font files in the FontsFolder have names longer than {ObjectName.MaxNameLength} characters, so a label cannot name them. Give them shorter names, then restart LabelScope.");
+                ? Text.Get("Fonts_NameTooLong_One", ObjectName.MaxNameLength)
+                : Text.Get("Fonts_NameTooLong_Many", tooLong, ObjectName.MaxNameLength));
         return new FontLibrary(files, loadedBytesLimit);
     }
 

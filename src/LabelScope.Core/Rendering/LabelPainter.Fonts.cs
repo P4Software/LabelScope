@@ -79,22 +79,13 @@ internal sealed partial class LabelPainter
             {
                 WarnFileOnce(f, line, problem switch
                 {
-                    FontProblem.Unreadable =>
-                        $"The font {f.Display} could not be read as a TrueType or OpenType font, so LabelScope drew the text with its built-in scalable font. " +
-                        "Replace it with a working font file (in the FontsFolder, then restart LabelScope, or by sending the download again), then send the label again.",
-                    FontProblem.Unopenable =>
-                        $"The font file for {f.Display} in the FontsFolder could not be opened (another program may be using it, or it was moved), so LabelScope drew the text with its built-in scalable font. " +
-                        "Check that the file is in the FontsFolder and not in use, then send the label again.",
+                    FontProblem.Unreadable => Text.Get("Painter_FontUnreadable", f.Display),
+                    FontProblem.Unopenable => Text.Get("Painter_FontUnopenable", f.Display),
                     FontProblem.OverBudget =>
-                        $"The font {f.Display} was not loaded because LabelScope already holds {PrinterMemory.FormatBytes(_context.Fonts.LoadedBytesLimit)} of fonts from the FontsFolder, " +
-                        "so LabelScope drew the text with its built-in scalable font. Use fewer large fonts in your labels; restarting LabelScope frees the fonts it holds.",
+                        Text.Get("Painter_FontOverBudget", f.Display, PrinterMemory.FormatBytes(_context.Fonts.LoadedBytesLimit)),
                     _ => f.Extension == "TTE"
-                        ? $"The font {f.Display} is a TrueType extension file (.TTE), which LabelScope cannot read, so LabelScope drew the text with its built-in scalable font. " +
-                          "Use the .TTF font file instead."
-                        : $"The font {f.Display} is not in LabelScope's printer memory or in the FontsFolder, so LabelScope drew the text with its built-in scalable font. " +
-                          "Labels made in ZebraDesigner often name fonts that are stored inside the printer, which LabelScope cannot have. " +
-                          $"To use the real font, copy {f.Name}.{f.Extension} into the folder named by FontsFolder in settings.json and restart LabelScope, " +
-                          "or send the job that downloads it, then send the label again.",
+                        ? Text.Get("Painter_FontTte", f.Display)
+                        : Text.Get("Painter_FontMissingScalable", f.Display, f.Name, f.Extension),
                 });
                 // Laid out exactly like font 0: the stand-in then gives the same line lengths and positions as the
                 // printer's own fallback font, rather than a third look of its own.
@@ -109,17 +100,15 @@ internal sealed partial class LabelPainter
             // ^CF letter that ^CW points at another missing file cannot send the lookup round in a circle.
             var stand = letter == '@' ? char.ToUpperInvariant(_defaultFont) : letter;
             var font = ZplFontFactory.TryBuiltIn(stand, height, width, _dpi, out var standNote);
-            var why = letter == '@' ? "the ^CF font, as the ZPL guide says for a missing font" : $"the built-in font {stand}";
+            var why = letter == '@' ? Text.Get("Painter_FontWhyCf") : Text.Get("Painter_FontWhyBuiltIn", stand);
             if (font is null)
             {
                 stand = 'A';
-                why = "font A, the printer's fallback for an unknown font";
+                why = Text.Get("Painter_FontWhyFallbackA");
                 font = ZplFontFactory.TryBuiltIn('A', height, width, _dpi, out standNote)!;
             }
             // One warning explains the stand-in; the letter's own "unknown font" warning would only repeat it.
-            WarnFileOnce(f, line,
-                $"The font {f.Display} is not in LabelScope's printer memory or in the FontsFolder, and LabelScope reads only TrueType and OpenType fonts (.TTF, .OTF), " +
-                $"so it used font {stand} instead ({why}). Name a .TTF font or a built-in font letter to choose the font yourself.");
+            WarnFileOnce(f, line, Text.Get("Painter_FontMissingBitmap", f.Display, stand, why));
             AddSizeNote(standNote, line);
             return font;
         }
@@ -131,7 +120,7 @@ internal sealed partial class LabelPainter
         if (builtIn is null)
         {
             if (_warnedFonts.Add(letter))
-                _warnings.Add(new(line, $"Font {letter} is not one of the fonts built into Zebra printers (0, A to H, P to V) and was not assigned with ^CW, so LabelScope used font A. The ZPL guide says a printer falls back to font A for an unknown font."));
+                _warnings.Add(new(line, Text.Get("Painter_FontUnknownLetter", letter)));
             builtIn = ZplFontFactory.TryBuiltIn('A', height, width, _dpi, out note)!;
         }
         AddSizeNote(note, line);
@@ -142,7 +131,7 @@ internal sealed partial class LabelPainter
     private void AddSizeNote(string? note, int line)
     {
         if (note is not null && _warnedFontNotes.Add(note))
-            _warnings.Add(new(line, $"{note} Use a smaller height or width in ^A or ^CF to print this text as the label intends."));
+            _warnings.Add(new(line, Text.Get("Painter_FontSizeNote", note)));
     }
 
     /// <summary>

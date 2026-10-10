@@ -230,7 +230,7 @@ internal static class ZplFontFactory
         {
             var (magX, magY, clamped) = Magnify(spec, height, width);
             if (clamped)
-                note = $"Font {id} can be enlarged up to 10 times ({spec.Height * 10} dots high, {spec.Width * 10} dots wide); 10 times was used.";
+                note = Text.Get("Fonts_MagnifyClamped", id, spec.Height * 10, spec.Width * 10);
             return new CellFont(spec, magX, magY, BundledFonts.Mono);
         }
         return FontMatrices.IsScalableBuiltIn(id) ? Scalable(BundledFonts.Scalable, height, width, out note, BundledScalableWidth, BundledCapHeight) : null;
@@ -260,7 +260,7 @@ internal static class ZplFontFactory
         var (h, w) = (Math.Min(height, MaxScalableDots), Math.Min(width, MaxScalableDots));
         note = (h, w) == (height, width)
             ? null
-            : $"LabelScope draws fonts up to {MaxScalableDots} dots high and {MaxScalableDots} dots wide, so the font size {height} x {width} dots (height x width) was drawn as {h} x {w} dots.";
+            : Text.Get("Fonts_ScalableClamped", MaxScalableDots, height, width, h, w);
         return new ScalableFont(face, h, w, faceWidth, capHeight);
     }
 

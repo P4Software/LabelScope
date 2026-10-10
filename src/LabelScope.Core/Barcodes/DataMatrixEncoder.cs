@@ -354,7 +354,9 @@ internal static class DataMatrixEncoder
         // A requested size that is not one of the standard sizes (25 x 25, an odd column count) is rounded up to
         // the next one; the label then prints a different size than written, so the user is told.
         if ((minRows > 0 && minRows != size.Rows) || (minCols > 0 && minCols != size.Cols))
-            notes.Add(Text.Get("Barcode_DataMatrix_SizeRounded", Dim(minRows, "Rows"), Dim(minCols, "Columns"), size.Rows, size.Cols));
+            notes.Add(Text.Get("Barcode_DataMatrix_SizeRounded",
+                Dim(minRows, "Barcode_DataMatrix_Rows", "Barcode_DataMatrix_AutoRows"),
+                Dim(minCols, "Barcode_DataMatrix_Columns", "Barcode_DataMatrix_AutoColumns"), size.Rows, size.Cols));
         var matrix = BuildSymbol(size, Codewords(dataCodewords, size));
 
         // h = module size; empty or 0 means "fit the ^BY height into the rows", at least one dot.
@@ -370,9 +372,9 @@ internal static class DataMatrixEncoder
     }
 
     /// <summary>
-    /// "24 rows" for a requested dimension, "automatic rows" for one left empty, in the current language.
-    /// <paramref name="unit"/> is "Rows" or "Columns" and picks the matching message keys.
+    /// "24 rows" for a requested dimension (<paramref name="countKey"/>), "automatic rows" for one left empty
+    /// (<paramref name="autoKey"/>), in the current language.
     /// </summary>
-    private static string Dim(int value, string unit) =>
-        value > 0 ? Text.Get("Barcode_DataMatrix_" + unit, value) : Text.Get("Barcode_DataMatrix_Auto" + unit);
+    private static string Dim(int value, string countKey, string autoKey) =>
+        value > 0 ? Text.Get(countKey, value) : Text.Get(autoKey);
 }

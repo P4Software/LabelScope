@@ -11,10 +11,10 @@ internal static class PngImage
     /// </summary>
     public const long MaxFileBytes = 5L * 1024 * 1024;
 
-    private const string Damaged = "The PNG picture is damaged or incomplete, so it cannot be used. Send it again.";
+    private static string Damaged => Text.Get("Graphics_PngDamaged");
 
     /// <summary>For data that is not a PNG at all: says which picture formats a ~DY download can carry.</summary>
-    private const string NotPng = "The data is not a PNG picture. Send the picture as a PNG file (type P) or a GRF bitmap (type G).";
+    private static string NotPng => Text.Get("Graphics_NotPng");
 
     /// <summary>
     /// Decodes <paramref name="file"/>. The size comes from the image header and is checked first, so a small file that
@@ -37,7 +37,7 @@ internal static class PngImage
             ?? throw new GraphicDataException(NotPng);
         var info = codec.Info;
         if (CheckSize(info.Width, info.Height) is { } problem)
-            throw new GraphicDataException($"The image was not stored because {problem}.");
+            throw new GraphicDataException(Text.Get("Graphics_PngNotStored", problem));
 
         using var bitmap = new SKBitmap(new SKImageInfo(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
         var pixels = PixelsOrThrow(bitmap, info.Width, info.Height);
@@ -61,7 +61,7 @@ internal static class PngImage
     {
         var pixels = bitmap.GetPixels();
         if (pixels == IntPtr.Zero)
-            throw new GraphicDataException($"The image ({width} x {height} pixels) was not stored because there is not enough memory to decode it. Close other programs or send a smaller image.");
+            throw new GraphicDataException(Text.Get("Graphics_PngOutOfMemory", width, height));
         return pixels;
     }
 
@@ -114,10 +114,10 @@ internal static class PngImage
 
     /// <summary>Why an image of this size is refused (finishing "was not stored because ..."), or null when it is fine.</summary>
     internal static string? CheckSize(int width, int height) =>
-        width < 1 || height < 1 ? "it has no size"
+        width < 1 || height < 1 ? Text.Get("Graphics_Png_NoSize")
         : width > GraphicLimits.MaxDots || height > GraphicLimits.MaxDots
-            ? $"it is {width} x {height} pixels and LabelScope draws images up to {GraphicLimits.MaxDots} dots per side"
+            ? Text.Get("Graphics_Png_TooLargeSide", width, height, GraphicLimits.MaxDots)
         : (long)width * height > GraphicLimits.MaxGraphicDots
-            ? $"it has {(long)width * height} pixels and LabelScope draws images up to {GraphicLimits.MaxGraphicDots}"
+            ? Text.Get("Graphics_Png_TooManyPixels", (long)width * height, GraphicLimits.MaxGraphicDots)
         : null;
 }

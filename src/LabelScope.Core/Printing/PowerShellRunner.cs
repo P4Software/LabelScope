@@ -19,7 +19,7 @@ public sealed class PowerShellRunner : IPowerShellRunner
         // so a planted powershell.exe there would run ELEVATED. Use the copy in the Windows system folder.
         var exe = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
         if (!File.Exists(exe))
-            throw new InvalidOperationException("Windows PowerShell was not found on this computer, so the printer cannot be managed. Repair Windows and try again.");
+            throw new InvalidOperationException(Text.Get("Runner_PowerShellMissing"));
 
         // An elevated process cannot share stdout with us, so every run writes its output to a file.
         // Only the *result* goes through this file; the script itself is passed as plain -Command text on the
@@ -38,7 +38,7 @@ public sealed class PowerShellRunner : IPowerShellRunner
         try
         {
             using var process = Process.Start(psi)
-                                ?? throw new InvalidOperationException("Windows PowerShell could not be started.");
+                                ?? throw new InvalidOperationException(Text.Get("Runner_NotStarted"));
             try
             {
                 await process.WaitForExitAsync(ct);
@@ -64,15 +64,15 @@ public sealed class PowerShellRunner : IPowerShellRunner
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == CommandLineTooLongError)
         {
-            throw new InvalidOperationException("The printer name is too long for Windows to install. Use a shorter PrinterName in settings.json.", ex);
+            throw new InvalidOperationException(Text.Get("Runner_NameTooLong"), ex);
         }
         catch (Win32Exception ex)
         {
-            throw new InvalidOperationException($"Windows PowerShell could not be started ({ex.Message.TrimEnd('.')}).", ex);
+            throw new InvalidOperationException(Text.Get("Runner_StartFailed", ex.Message.TrimEnd('.')), ex);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw new InvalidOperationException($"The answer from Windows PowerShell could not be read ({ex.Message.TrimEnd('.')}).", ex);
+            throw new InvalidOperationException(Text.Get("Runner_AnswerUnreadable", ex.Message.TrimEnd('.')), ex);
         }
         finally
         {
@@ -99,7 +99,7 @@ public sealed class PowerShellRunner : IPowerShellRunner
     internal static string BuildArguments(string script, string resultPath)
     {
         if (script.Any(ch => ch == '"' || ch > 126 || (ch < 32 && ch != '\n' && ch != '\r' && ch != '\t')))
-            throw new InvalidOperationException("The printer script contains a character that cannot be passed to Windows PowerShell safely.");
+            throw new InvalidOperationException(Text.Get("Runner_UnsafeScript"));
 
         // Out-File wraps lines at the console width (80 on Windows PowerShell 5.1) which would cut the status
         // JSON in two, so -Width is raised. -NoClobber refuses to overwrite a file somebody pre-created.

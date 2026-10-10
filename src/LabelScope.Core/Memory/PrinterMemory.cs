@@ -81,14 +81,11 @@ public sealed class PrinterMemory
             // an object in a nearly full memory works.
             // An object bigger than the whole memory can never fit, so "clear memory" would be a false hint.
             if (item.SizeInBytes > MaxBytes)
-                return $"This {item.Kind} is {FormatBytes(item.SizeInBytes)}, larger than the {FormatBytes(MaxBytes)} LabelScope keeps; " +
-                       $"it was not stored. Make the {item.Kind} smaller.";
+                return Text.Get("Memory_ObjectTooLarge_" + item.Kind, FormatBytes(item.SizeInBytes), FormatBytes(MaxBytes));
             if (_bytes - oldBytes + item.SizeInBytes > MaxBytes)
-                return $"LabelScope's printer memory is full ({FormatBytes(MaxBytes)}), so {target.Display} was not stored. " +
-                       "Delete stored objects with ^ID, or press \"Clear printer memory\" in the window, then send the download again.";
+                return Text.Get("Memory_Full", FormatBytes(MaxBytes), target.Display);
             if (!exists && _items.Count >= MaxObjects)
-                return $"LabelScope's printer memory already holds {MaxObjects} {(MaxObjects == 1 ? "object" : "objects")}, so {target.Display} was not stored. " +
-                       "Delete stored objects with ^ID, or press \"Clear printer memory\" in the window, then send the download again.";
+                return Text.Get(MaxObjects == 1 ? "Memory_FullCount_One" : "Memory_FullCount_Many", MaxObjects, target.Display);
             _items[target.Key] = (target, item);
             _bytes += item.SizeInBytes - oldBytes;
         }
@@ -219,14 +216,14 @@ public sealed record MemorySummary(int Graphics, int Fonts, long TotalBytes, int
     /// <summary>Plain text for the status bar: "empty", "2 font letters" or "3 graphics, 1 font, 420 KB, 2 font letters".</summary>
     public string Describe()
     {
-        if (IsEmpty) return "empty";
+        if (IsEmpty) return Text.Get("Memory_Empty");
         var parts = new List<string>();
-        if (Graphics > 0) parts.Add(Graphics == 1 ? "1 graphic" : $"{Graphics} graphics");
-        if (Fonts > 0) parts.Add(Fonts == 1 ? "1 font" : $"{Fonts} fonts");
+        if (Graphics > 0) parts.Add(Graphics == 1 ? Text.Get("Memory_OneGraphic") : Text.Get("Memory_Graphics", Graphics));
+        if (Fonts > 0) parts.Add(Fonts == 1 ? Text.Get("Memory_OneFont") : Text.Get("Memory_Fonts", Fonts));
         // The size belongs to the stored objects only: with nothing but font letters it would read "1 KB" (the
         // smallest size FormatBytes shows), which is not true.
         if (Graphics + Fonts > 0) parts.Add(PrinterMemory.FormatBytes(TotalBytes));
-        if (FontLetters > 0) parts.Add(FontLetters == 1 ? "1 font letter" : $"{FontLetters} font letters");
+        if (FontLetters > 0) parts.Add(FontLetters == 1 ? Text.Get("Memory_OneFontLetter") : Text.Get("Memory_FontLetters", FontLetters));
         return string.Join(", ", parts);
     }
 }

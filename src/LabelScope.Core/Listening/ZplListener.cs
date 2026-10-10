@@ -79,14 +79,12 @@ public sealed class ZplListener : IDisposable
         catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
         {
             throw new ListenerStartException(
-                $"Port {_port} is already in use by another program (possibly another copy of LabelScope). " +
-                "Close that program, or choose a different number for ListenPort in settings.json and start LabelScope again.", ex);
+                Text.Get("Listener_PortInUse", _port), ex);
         }
         catch (SocketException ex)
         {
             throw new ListenerStartException(
-                $"LabelScope could not start listening on {_address}:{_port} ({ex.Message}). " +
-                "Check ListenAddress and ListenPort in settings.json.", ex);
+                Text.Get("Listener_StartFailed", _address, _port, ex.Message), ex);
         }
 
         _ = Task.Run(() => AcceptLoopAsync(_listener, _cts.Token));
@@ -126,7 +124,7 @@ public sealed class ZplListener : IDisposable
             catch (Exception)
             {
                 Raise(ProblemReported,
-                    "LabelScope had trouble accepting a connection and is still listening. If labels stop arriving, restart LabelScope.");
+                    Text.Get("Listener_AcceptTrouble"));
                 try
                 {
                     // Short pause so a persistent fault cannot spin the CPU.
@@ -160,7 +158,7 @@ public sealed class ZplListener : IDisposable
         // Only the thread that wins the swap reports, so concurrent refusals produce a single message.
         if (Interlocked.CompareExchange(ref _lastBusyReport, now, last) != last) return;
         Raise(ProblemReported,
-            "LabelScope is busy: too many programs are sending labels at once. New connections were refused. Try again in a moment.");
+            Text.Get("Listener_Busy"));
     }
 
     private async Task HandleClientAsync(TcpClient client, CancellationToken ct)

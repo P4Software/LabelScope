@@ -9,8 +9,8 @@ namespace LabelScope.Core.Graphics;
 /// </summary>
 internal static class Zb64
 {
-    private const string NoteTooMuch = "The graphic data unpacks to more than the size given; the extra was ignored.";
-    private const string ErrorDamaged = "The compressed graphic data (:Z64:) is damaged and cannot be unpacked.";
+    private static string NoteTooMuch => Text.Get("Graphics_Zb64_TooMuch");
+    private static string ErrorDamaged => Text.Get("Graphics_Zb64_Damaged");
 
     /// <summary>True when <paramref name="data"/> starts with ":Z64:" or ":B64:" (any letter case).</summary>
     public static bool IsZb64(ReadOnlySpan<char> data)
@@ -37,7 +37,7 @@ internal static class Zb64
         maxBytes = Math.Clamp(maxBytes, 0, GraphicData.MaxFileBytes);
 
         if (!IsZb64(data))
-            throw new GraphicDataException("The graphic data does not start with :Z64: or :B64:, so it cannot be read.");
+            throw new GraphicDataException(Text.Get("Graphics_Zb64_NoHeader"));
         var text = data.AsSpan().Trim();
         var compressed = char.ToUpperInvariant(text[1]) == 'Z';
         var body = text[5..];
@@ -47,14 +47,14 @@ internal static class Zb64
         if (lastColon < 0)
         {
             payload = body;
-            notes.Add("The :Z64: or :B64: graphic data has no check value (CRC) at the end; a printer may reject it.");
+            notes.Add(Text.Get("Graphics_Zb64_NoCrc"));
         }
         else
         {
             payload = body[..lastColon];
             var crc = body[(lastColon + 1)..].Trim();
             if (crc.Length != 4 || !IsHex(crc))
-                notes.Add("The check value at the end of the :Z64: or :B64: graphic data is not four hexadecimal digits; a printer may reject it.");
+                notes.Add(Text.Get("Graphics_Zb64_BadCrc"));
         }
 
         // Base64 may be wrapped over several lines for readability; the line breaks are not data.
@@ -69,7 +69,7 @@ internal static class Zb64
 
         var raw = new byte[n / 4 * 3 + 3];
         if (!Convert.TryFromBase64Chars(clean.AsSpan(0, n), raw, out var written))
-            throw new GraphicDataException("The graphic data marked :Z64: or :B64: is not valid Base64 text, so it cannot be read.");
+            throw new GraphicDataException(Text.Get("Graphics_Zb64_NotBase64"));
 
         byte[]? result;
         bool more;
@@ -130,7 +130,7 @@ internal static class Zb64
             notes.Add(NoteTooMuch);
         if (exact && result.LongLength < maxBytes)
         {
-            notes.Add($"The graphic data ended early ({result.Length} of {maxBytes} bytes); the rest is blank.");
+            notes.Add(Text.Get("Graphics_Zb64_EndedEarly", result.Length, maxBytes));
             Array.Resize(ref result, (int)maxBytes);
         }
         return result;

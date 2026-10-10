@@ -80,16 +80,16 @@ public sealed class PrinterInstaller
         // (see Header). The checks below exist for the user: a clear message that names the setting to fix
         // is far better than a cryptic PowerShell failure after a Windows permission prompt.
         if (string.IsNullOrWhiteSpace(printerName))
-            throw new ArgumentException("PrinterName in settings.json is empty. Type a name for the printer and start LabelScope again.", nameof(printerName));
+            throw new ArgumentException(Text.Get("Installer_NameEmpty"), nameof(printerName));
         if (printerName.Length > MaxNameLength)
-            throw new ArgumentException($"PrinterName in settings.json is too long ({MaxNameLength} characters at most). Shorten it and start LabelScope again.", nameof(printerName));
+            throw new ArgumentException(Text.Get("Installer_NameTooLong", MaxNameLength), nameof(printerName));
         if (printerName.Any(char.IsControl))
-            throw new ArgumentException("PrinterName in settings.json must be a single line of normal text, without line breaks or hidden characters. Edit it and start LabelScope again.", nameof(printerName));
+            throw new ArgumentException(Text.Get("Installer_NameControlChars"), nameof(printerName));
         if (printerName.IndexOfAny(ForbiddenNameChars) >= 0)
-            throw new ArgumentException("PrinterName in settings.json must not contain a backslash, a slash, an exclamation mark, an asterisk, a question mark or a square bracket. Remove them and start LabelScope again.", nameof(printerName));
+            throw new ArgumentException(Text.Get("Installer_NameForbiddenChars"), nameof(printerName));
         if (port is < 1 or > 65535)
             throw new ArgumentOutOfRangeException(nameof(port), port,
-                "The port in settings.json must be a number between 1 and 65535. Edit it and start LabelScope again.");
+                Text.Get("Installer_BadPort"));
 
         _runner = runner;
         _name = printerName;
@@ -180,10 +180,9 @@ public sealed class PrinterInstaller
         switch (await GetStatusAsync(ct))
         {
             case PrinterStatus.Installed:
-                return OperationResult.Ok($"The printer \"{_name}\" is already installed. You can print to it from any program.");
+                return OperationResult.Ok(Text.Get("Installer_AlreadyInstalled", _name));
             case PrinterStatus.NameTakenByOther:
-                return OperationResult.Fail($"A printer named \"{_name}\" already exists and was not created by LabelScope, so it was left alone. " +
-                                            "Choose a different PrinterName in settings.json and try again.");
+                return OperationResult.Fail(Text.Get("Installer_NameTakenInstall", _name));
             case PrinterStatus.Unknown:
                 return StatusCheckFailed();
         }
@@ -203,8 +202,8 @@ public sealed class PrinterInstaller
                      "'OK'}catch{'ERROR: '+$_.Exception.Message}";
 
         return await RunElevated(script,
-            ok: $"The printer \"{_name}\" is installed. Print to it from any program and the label appears in LabelScope.",
-            failPrefix: "The printer could not be installed", ct);
+            ok: Text.Get("Installer_Installed", _name),
+            failPrefix: Text.Get("Installer_InstallFailed"), ct);
     }
 
     /// <summary>Removes the printer and its port, but only if LabelScope created them.</summary>
@@ -213,9 +212,9 @@ public sealed class PrinterInstaller
         switch (await GetStatusAsync(ct))
         {
             case PrinterStatus.NotInstalled:
-                return OperationResult.Ok($"The printer \"{_name}\" is not installed, so there is nothing to remove.");
+                return OperationResult.Ok(Text.Get("Installer_NotInstalled", _name));
             case PrinterStatus.NameTakenByOther:
-                return OperationResult.Fail($"A printer named \"{_name}\" exists but was not created by LabelScope, so it was left alone.");
+                return OperationResult.Fail(Text.Get("Installer_NameTakenRemove", _name));
             case PrinterStatus.Unknown:
                 return StatusCheckFailed();
         }
@@ -230,12 +229,11 @@ public sealed class PrinterInstaller
                      "try{if(!(Get-Printer|Where-Object PortName -eq $o)){Remove-PrinterPort -Name $o|Out-Null}}catch{}};" +
                      "'OK'}catch{'ERROR: '+$_.Exception.Message}";
 
-        return await RunElevated(script, ok: $"The printer \"{_name}\" was removed.", failPrefix: "The printer could not be removed", ct);
+        return await RunElevated(script, ok: Text.Get("Installer_Removed", _name), failPrefix: Text.Get("Installer_RemoveFailed"), ct);
     }
 
     private static OperationResult StatusCheckFailed() =>
-        OperationResult.Fail("LabelScope could not check which printers are installed, so nothing was changed. " +
-                             "Check that the Windows \"Print Spooler\" service is running, then try again.");
+        OperationResult.Fail(Text.Get("Installer_StatusCheckFailed"));
 
     private async Task<OperationResult> RunElevated(string script, string ok, string failPrefix, CancellationToken ct)
     {
@@ -255,18 +253,16 @@ public sealed class PrinterInstaller
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
             // Our own timer fired, so this is not a declined prompt either. Say what happened and what to do.
-            return OperationResult.Fail($"{failPrefix}: Windows did not finish in time (more than {(int)ElevatedTimeout.TotalSeconds} seconds). " +
-                                        "Nothing may have been changed. Press the button again and answer the Windows prompt promptly.");
+            return OperationResult.Fail(Text.Get("Installer_Timeout", failPrefix, (int)ElevatedTimeout.TotalSeconds));
         }
         catch (OperationCanceledException)
         {
-            return OperationResult.Fail("Windows asked for permission and it was not given, so nothing was changed. " +
-                                        "Press the button again and choose Yes when Windows asks.");
+            return OperationResult.Fail(Text.Get("Installer_PermissionDeclined"));
         }
         catch (Exception ex)
         {
             // The runner reports its own failures with plain-language messages.
-            return OperationResult.Fail($"{failPrefix}: {EndWithPeriod(ex.Message)}");
+            return OperationResult.Fail(Text.Get("Common_Prefixed", failPrefix, EndWithPeriod(ex.Message)));
         }
 
         if (output.StartsWith("OK", StringComparison.Ordinal)) return OperationResult.Ok(ok);
@@ -275,12 +271,21 @@ public sealed class PrinterInstaller
         // Blaming the spooler for an unrelated error (a missing driver, say) would send the user to the wrong place,
         // so the spooler advice appears only when the message mentions it or there is no message at all.
         var blamesSpooler = reason.Length == 0 || reason.Contains("spooler", StringComparison.OrdinalIgnoreCase);
-        var shown = reason.Length == 0 ? "Windows gave no answer." : EndWithPeriod(reason);
-        var advice = blamesSpooler
-            ? "Check that the Windows \"Print Spooler\" service is running, then try again."
-            : "Try again. If it keeps failing, show this message to your administrator.";
-        return OperationResult.Fail($"{failPrefix}: {shown} {advice}");
+        var shown = reason.Length == 0 ? Text.Get("Installer_NoAnswer") : EndWithPeriod(ScriptReason(reason));
+        var advice = blamesSpooler ? Text.Get("Installer_SpoolerAdvice") : Text.Get("Installer_AdminAdvice");
+        return OperationResult.Fail(Text.Get("Installer_Failure", failPrefix, shown, advice));
     }
+
+    /// <summary>
+    /// The elevated scripts must stay plain ASCII (see <see cref="PowerShellRunner"/>), so their own refusals are
+    /// written in English there and swapped for the current language here. Windows' own messages pass unchanged.
+    /// </summary>
+    private static string ScriptReason(string reason) => reason switch
+    {
+        "Another printer already uses this name." => Text.Get("Installer_ScriptNameTaken"),
+        "This printer was not created by LabelScope." => Text.Get("Installer_ScriptNotOurs"),
+        _ => reason,
+    };
 
     /// <summary>Adds a final period unless the text already ends with one, so messages never show "..".</summary>
     private static string EndWithPeriod(string text)

@@ -73,7 +73,7 @@ public sealed class ZplRenderer
                     case "^XA":
                         if (inLabel)
                         {
-                            warnings.Add(new(cmd.Line, "A new label (^XA) started before the previous one ended with ^XZ. The earlier label was drawn anyway."));
+                            warnings.Add(new(cmd.Line, Text.Get("Render_XaBeforeXz")));
                             PaintSafely(block, options, warnings, labels, context);
                             block.Clear();
                         }
@@ -89,7 +89,7 @@ public sealed class ZplRenderer
                         }
                         else
                         {
-                            warnings.Add(new(cmd.Line, "^XZ was found without a matching ^XA and was ignored."));
+                            warnings.Add(new(cmd.Line, Text.Get("Render_XzWithoutXa")));
                         }
                         break;
 
@@ -98,14 +98,14 @@ public sealed class ZplRenderer
                         // Downloads usually travel outside any label; they act on printer memory right here, in stream order.
                         else if (HandleStorageSafely(cmd, context, warnings)) { }
                         else if (!SilentCommands.IsSilent(cmd.Name, cmd.Args))
-                            warnings.Add(new(cmd.Line, $"{cmd.Name} is outside a label (^XA … ^XZ) or not supported yet, and was ignored."));
+                            warnings.Add(new(cmd.Line, Text.Get("Render_OutsideLabel", cmd.Name)));
                         break;
                 }
             }
 
             if (inLabel)
             {
-                warnings.Add(new(block.Count > 0 ? block[^1].Line : 1, "The label did not end with ^XZ; it was drawn as far as it arrived."));
+                warnings.Add(new(block.Count > 0 ? block[^1].Line : 1, Text.Get("Render_NoXz")));
                 PaintSafely(block, options, warnings, labels, context);
             }
         }
@@ -115,7 +115,7 @@ public sealed class ZplRenderer
             // caught on its own. Whatever still gets here (a bug) must not throw out of the renderer, which runs on a
             // socket thread: the labels drawn so far are returned, and the user is told where reading stopped. The
             // exception itself is not quoted, because even reading its message might fail.
-            warnings.Add(new(line, $"LabelScope stopped reading this job at line {line} because of a problem it did not expect; the labels before that line are shown. Send the job again, and if this keeps happening, report it with the job attached."));
+            warnings.Add(new(line, Text.Get("Render_StoppedAtLine", line)));
         }
 
         return new RenderResult(labels, warnings) { MemoryNotes = notes };
@@ -135,7 +135,7 @@ public sealed class ZplRenderer
         {
             // A fixed sentence, never the exception's own text: that is written for programmers, may be in another
             // language, and reading it can itself fail. Core has no log of its own, so the detail stays out of sight.
-            warnings.Add(new(cmd.Line, $"{cmd.Name} could not be handled because of an internal error; nothing was stored."));
+            warnings.Add(new(cmd.Line, Text.Get("Render_CommandInternalError", cmd.Name)));
             return true;
         }
     }
@@ -152,7 +152,7 @@ public sealed class ZplRenderer
         }
         catch (Exception ex)
         {
-            warnings.Add(new(block.Count > 0 ? block[0].Line : 1, $"This label could not be drawn ({ex.Message})."));
+            warnings.Add(new(block.Count > 0 ? block[0].Line : 1, Text.Get("Render_LabelNotDrawn", ex.Message)));
         }
     }
 }

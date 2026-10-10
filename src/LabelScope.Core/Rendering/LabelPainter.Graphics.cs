@@ -15,32 +15,32 @@ internal sealed partial class LabelPainter
             case 'A':
                 break;
             case 'B':
-                Warn(cmd, "^GF: Binary graphic data (format B) is planned for a later release of LabelScope; this graphic was not drawn. Programs such as ZebraDesigner can send the same graphic as ASCII hex (format A).");
+                Warn(cmd, Text.Get("Painter_GfBinary"));
                 return;
             case 'C':
-                Warn(cmd, "^GF: Compressed binary graphic data (format C) uses a compression method that Zebra does not publish, so LabelScope cannot draw it. Send the graphic as ASCII hex (format A) instead.");
+                Warn(cmd, Text.Get("Painter_GfCompressed"));
                 return;
             case var other:
-                Warn(cmd, $"^GF: '{other}' is not a graphic data format (A, B or C); the graphic was not drawn.");
+                Warn(cmd, Text.Get("Painter_GfBadFormat", other));
                 return;
         }
 
         // The byte count b (a[1]) only matters for binary data; c and d give the size of the bitmap.
         if (!ZplArgs.TryLong(a, 2, out var total) || !ZplArgs.TryLong(a, 3, out var perRow))
         {
-            Warn(cmd, "^GF needs the graphic size (total bytes and bytes per row) before the data; without it a printer ignores the command, and so does LabelScope.");
+            Warn(cmd, Text.Get("Painter_GfNeedsSize"));
             return;
         }
         if (!GraphicLimits.TryRows(total, perRow, out var rows, out var problem, out var sizeNote))
         {
-            Warn(cmd, $"^GF: The graphic was not drawn because {problem}.");
+            Warn(cmd, Text.Get("Painter_GfSizeProblem", problem));
             return;
         }
         // A size with nothing after it is a different mistake from a missing size, and saying "needs the size" for it
         // would send the user looking at the wrong part of the command.
         if (a.Length < 5 || a[4].Trim().Length == 0)
         {
-            Warn(cmd, "^GF has no graphic data after its size, so the graphic was not drawn. Put the graphic data after the bytes-per-row value.");
+            Warn(cmd, Text.Get("Painter_GfNoData"));
             return;
         }
 
@@ -53,10 +53,10 @@ internal sealed partial class LabelPainter
         }
         catch (GraphicDataException ex)
         {
-            Warn(cmd, $"^GF: {ex.Message} The graphic was not drawn.");
+            Warn(cmd, Text.Get("Painter_GfNotDrawn", ex.Message));
             return;
         }
-        foreach (var note in notes) Warn(cmd, "^GF: " + note);
+        foreach (var note in notes) Warn(cmd, Text.Get("Common_Prefixed", "^GF", note));
 
         // Graphics have no rotation parameter, so ^FW does not turn them (the guide lists ^FW for text and barcodes only).
         DrawImage(cmd.Name, cmd.Line, image, 1, 1, _x, _y, 'N', _baseline);
@@ -79,12 +79,12 @@ internal sealed partial class LabelPainter
             if (unreadable.Count > 0)
             {
                 var what = unreadable.Count == 1
-                    ? $"The magnification \"{unreadable[0]}\" is not a whole number"
-                    : $"The magnifications \"{unreadable[0]}\" and \"{unreadable[1]}\" are not whole numbers";
-                Warn(cmd, $"{cmd.Name}: {what}, so {magX},{magY} was used. Give a magnification from 1 to 10.");
+                    ? Text.Get("Painter_MagnificationNotNumber", unreadable[0])
+                    : Text.Get("Painter_MagnificationsNotNumbers", unreadable[0], unreadable[1]);
+                Warn(cmd, Text.Get("Painter_MagnificationUsed", cmd.Name, what, magX, magY));
             }
             else if (clamped)
-                Warn(cmd, $"{cmd.Name}: The magnification must be 1 to 10; {magX},{magY} was used.");
+                Warn(cmd, Text.Get("Painter_MagnificationRange", cmd.Name, magX, magY));
         }
 
         var found = _context.Memory.Find(name, out var elsewhere);
@@ -97,8 +97,8 @@ internal sealed partial class LabelPainter
             if (w > GraphicLimits.MaxDots || h > GraphicLimits.MaxDots || w * h > GraphicLimits.MaxGraphicDots)
             {
                 // Both limits are named: a long thin graphic is refused for its side alone, well inside the dot total.
-                Warn(cmd, $"{cmd.Name}: {name.Display} at magnification {magX} x {magY} would be {w} x {h} dots ({w * h} dots); " +
-                          $"LabelScope draws graphics up to {GraphicLimits.MaxDots} dots per side and {GraphicLimits.MaxGraphicDots} dots in total, so it was not drawn. Use a smaller magnification.");
+                Warn(cmd, Text.Get("Painter_GraphicTooLargeMagnified", cmd.Name, name.Display, magX, magY, w, h, w * h,
+                    GraphicLimits.MaxDots, GraphicLimits.MaxGraphicDots));
                 return;
             }
             // ^FW never turns graphics: the guide lists it for text and barcodes only.
@@ -130,13 +130,9 @@ internal sealed partial class LabelPainter
     private static string MissingGraphic(string command, ObjectName name, StoredObject? found, ObjectName? elsewhere)
     {
         if (found is not null)
-            return $"{command}: {name.Display} in LabelScope's printer memory is a {found.Kind}, not a graphic, so nothing was drawn for this field.";
-        var where = elsewhere is { } other
-            ? $" LabelScope does have {other.Display}, but this label asks for drive {name.Drive}:."
-            : "";
-        return $"{command}: The graphic {name.Display} is not in LabelScope's printer memory, so it was not drawn.{where} " +
-               "A printer keeps graphics that were sent to it earlier (with ~DG or ~DY) until it is switched off; " +
-               "send that download job to LabelScope first, then this label again.";
+            return Text.Get("Painter_RecallWrongKind_" + found.Kind, command, name.Display);
+        var where = elsewhere is { } other ? Text.Get("Painter_OtherDrive", other.Display, name.Drive) : "";
+        return Text.Get("Painter_GraphicMissing", command, name.Display, where);
     }
 
     // ^IS asks for the finished label to be saved; remembered until the last command has been drawn.
@@ -164,13 +160,11 @@ internal sealed partial class LabelPainter
         }
         if (found is not null)
         {
-            Warn(cmd, $"^IL: {name.Display} in LabelScope's printer memory is a {found.Kind}, not an image, so the label is drawn without a background.");
+            Warn(cmd, Text.Get("Painter_IlWrongKind_" + found.Kind, name.Display));
             return;
         }
-        var where = elsewhere is { } other ? $" LabelScope does have {other.Display}, but this label asks for drive {name.Drive}:." : "";
-        Warn(cmd, $"^IL: This label loads the image {name.Display} from the printer's memory as its background. " +
-                  "That image lives in the printer's memory and was never sent to LabelScope (a label program or WMS usually sends it once, before the labels), so the label is drawn without it." + where +
-                  " To see the full label, download the image first (the job that stored it, with ~DG, ~DY or ^IS), then send this label again.");
+        var where = elsewhere is { } other ? Text.Get("Painter_OtherDrive", other.Display, name.Drive) : "";
+        Warn(cmd, Text.Get("Painter_IlMissing", name.Display, where));
     }
 
     /// <summary>^ISd:o.x,p: remembers that the finished label must be saved as an image (done in <see cref="SaveImageIfAsked"/>).</summary>
@@ -197,13 +191,13 @@ internal sealed partial class LabelPainter
         catch (GraphicDataException ex)
         {
             // A label larger than the graphic ceiling cannot be stored; the label itself must still be shown.
-            _warnings.Add(new(save.Line, $"^IS {save.Name.Display}: {ex.Message}"));
+            _warnings.Add(new(save.Line, Text.Get("Common_Prefixed", "^IS " + save.Name.Display, ex.Message)));
             return;
         }
         var cmd = new ZplCommand("^IS", "", save.Line);
         StorageCommands.StoreGraphic(cmd, _context, _warnings, save.Name, image, $"^IS {save.Name.Display}");
         if (!save.Print)
-            _warnings.Add(new(save.Line, $"^IS {save.Name.Display},N: a printer stores this label as an image without printing it; LabelScope shows it anyway."));
+            _warnings.Add(new(save.Line, Text.Get("Painter_IsNoPrint", save.Name.Display)));
     }
 
     private void Warn(ZplCommand cmd, string message) => _warnings.Add(new(cmd.Line, message));
@@ -226,7 +220,7 @@ internal sealed partial class LabelPainter
             // usually a mistake in the data (inverted bits, the wrong graphic), so it is said rather than left silent.
             // Not for ^IL: label programs routinely store an empty format with ^IS and load it as every label's
             // background, so a blank background is normal and a warning on every label would only be noise.
-            if (command != "^IL") _warnings.Add(new(line, $"{command}: The graphic ({w} x {h} dots) is completely white, so nothing shows on the label. If a picture was expected, check the graphic data."));
+            if (command != "^IL") _warnings.Add(new(line, Text.Get("Painter_GraphicAllWhite", command, w, h)));
             return;
         }
 
@@ -241,7 +235,7 @@ internal sealed partial class LabelPainter
             var inked = new SKRect(inkRect.Left * magX, inkRect.Top * magY, inkRect.Right * magX, inkRect.Bottom * magY);
             var box = _canvas.TotalMatrix.MapRect(inked);
             if (box.Left < 0 || box.Top < 0 || box.Right > _bitmap.Width || box.Bottom > _bitmap.Height)
-                _warnings.Add(new(line, $"{command}: The graphic ({w} x {h} dots) does not fit on the label; the part outside is cut off."));
+                _warnings.Add(new(line, Text.Get("Painter_GraphicOffLabel", command, w, h)));
 
             // Only the dots that land on the label (and hold ink) become a drawing mask. A stored 40-million-dot
             // graphic recalled by many fields of a small label would otherwise cost a 40 MB mask per field: 50 such

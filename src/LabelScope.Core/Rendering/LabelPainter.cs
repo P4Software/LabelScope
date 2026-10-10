@@ -136,7 +136,7 @@ internal sealed partial class LabelPainter : IDisposable
             var cutHeight = (int)Math.Max(1, MaxPixels / w);
             var source = block.LastOrDefault(c => c.Name is "^PW" or "^LL");
             warnings.Add(new(source?.Line ?? 1,
-                $"The label size is too large to draw ({w} x {h} dots); it was cut to {w} x {cutHeight} dots. Check ^PW and ^LL."));
+                Text.Get("Painter_LabelTooLarge", w, h, cutHeight)));
             height = cutHeight;
         }
         return (width, height, sentWidth, sentHeight);
@@ -228,7 +228,7 @@ internal sealed partial class LabelPainter : IDisposable
     {
         var clamped = Math.Clamp(dots, 1, MaxDots);
         if (clamped != dots)
-            warnings.Add(new(source.Line, $"{source.Name}{dots} is outside the supported label size (1 to {MaxDots} dots); {clamped} was used instead."));
+            warnings.Add(new(source.Line, Text.Get("Painter_SizeClamped", source.Name, dots, MaxDots, clamped)));
         return clamped;
     }
 
@@ -270,7 +270,7 @@ internal sealed partial class LabelPainter : IDisposable
             default:
                 if (TryStartBarcode(cmd, a)) break;
                 if (!SilentCommands.IsSilent(cmd.Name, cmd.Args))
-                    _warnings.Add(new(cmd.Line, $"{cmd.Name} is not supported yet and was ignored."));
+                    _warnings.Add(new(cmd.Line, Text.Get("Painter_NotSupported", cmd.Name)));
                 break;
         }
     }
@@ -315,7 +315,7 @@ internal sealed partial class LabelPainter : IDisposable
         {
             // Quoted back to the user, so a hostile megabyte of text is cut to a readable length.
             var shown = text.Length > 20 ? text[..20] + "..." : text;
-            _warnings.Add(new(cmd.Line, $"{command}: The font {what} \"{shown}\" is not a size in dots, so it was ignored. Give the {what} as a whole number of dots."));
+            _warnings.Add(new(cmd.Line, Text.Get("Painter_FontSizeNotDots_" + what, command, shown)));
             return null;
         }
         return v == 0 ? null : (int)Math.Min(v, int.MaxValue);
@@ -360,7 +360,7 @@ internal sealed partial class LabelPainter : IDisposable
         {
             // Zebra: a block width of 0 is "unset" and nothing prints. Drawing one long line instead would
             // show something a printer never prints.
-            _warnings.Add(new(zero.Line, "^FB has a width of 0, which prints nothing on a Zebra printer, so this text was not drawn. Give ^FB a width in dots (for example ^FB400,3)."));
+            _warnings.Add(new(zero.Line, Text.Get("Painter_FbZeroWidth")));
             return;
         }
 
@@ -370,7 +370,7 @@ internal sealed partial class LabelPainter : IDisposable
         var data = _data;
         if (data.Length > MaxTextFieldCharacters)
         {
-            _warnings.Add(new(_dataLine, $"This text field is {data.Length.ToString(CultureInfo.InvariantCulture)} characters long; only the first {MaxTextFieldCharacters} are drawn. Split the text into several fields of {MaxTextFieldCharacters} characters or fewer."));
+            _warnings.Add(new(_dataLine, Text.Get("Painter_TextTooLong", data.Length.ToString(CultureInfo.InvariantCulture), MaxTextFieldCharacters)));
             // Never cut between the two halves of a surrogate pair (an emoji, for example).
             var cut = char.IsHighSurrogate(data[MaxTextFieldCharacters - 1]) ? MaxTextFieldCharacters - 1 : MaxTextFieldCharacters;
             data = data[..cut];
@@ -380,7 +380,7 @@ internal sealed partial class LabelPainter : IDisposable
         using var font = MakeFont(_dataLine);
         var text = font.Prepare(data, out var missing);
         if (missing > 0)
-            _warnings.Add(new(_dataLine, $"{missing} character(s) in this text are not in the font, so they print as spaces, as on a printer. Check the field data, or choose a font that has these characters."));
+            _warnings.Add(new(_dataLine, Text.Get("Painter_MissingGlyphs", missing)));
         using var paint = InkPaint();
         var lineHeight = font.LineHeight;
 
@@ -498,7 +498,7 @@ internal sealed partial class LabelPainter : IDisposable
         var height = Math.Clamp(Int(a, 1, thickness), thickness, MaxDots);
         var white = a.Length > 3 && a[3].Length > 0 && char.ToUpperInvariant(a[3][0]) == 'W';
         if (Int(a, 4, 0) > 0)
-            _warnings.Add(new(cmd.Line, "Rounded corners on ^GB are not supported yet; square corners are drawn."));
+            _warnings.Add(new(cmd.Line, Text.Get("Painter_RoundedCorners")));
 
         // For graphics ^FT names the bottom-left corner (for text it is the baseline), so the box grows upwards.
         var y = _baseline ? _y - height : _y;
