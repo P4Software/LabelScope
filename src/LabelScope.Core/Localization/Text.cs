@@ -112,7 +112,7 @@ public static class Text
 
     private static IReadOnlyList<string> LoadKeys()
     {
-        // The invariant (neutral) set has every key; the translated files are checked against it by tests.
+        // The invariant (neutral) set has every key; the translated files are kept in step with it, key for key.
         var set = Resources.GetResourceSet(CultureInfo.InvariantCulture, true, true);
         var keys = new List<string>();
         if (set is not null)

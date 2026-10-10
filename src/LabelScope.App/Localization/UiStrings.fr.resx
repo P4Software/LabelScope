@@ -160,4 +160,25 @@ LabelScope va se fermer, se mettre à jour et s'ouvrir de nouveau. Vos paramètr
 Seule la liste est effacée. Les graphiques et les polices dans la mémoire de l'imprimante sont conservés.</value></data>
   <data name="Ui_ReceivedTodayOne" xml:space="preserve"><value>{0} reçu aujourd'hui</value></data>
   <data name="Ui_FieldPositionOnly" xml:space="preserve"><value>{0}, {1}</value></data>
+  <data name="Ui_CrashFatal" xml:space="preserve"><value>LabelScope a rencontré une erreur inattendue et doit se fermer.
+
+{0}
+
+{1}
+
+Démarrez LabelScope de nouveau pour continuer. Si cela se reproduit, envoyez ce fichier au soutien technique.</value></data>
+  <data name="Ui_CrashDetailsSaved" xml:space="preserve"><value>Les détails ont été enregistrés dans :
+{0}</value></data>
+  <data name="Ui_CrashDetailsNotSaved" xml:space="preserve"><value>Les détails n'ont pas pu être enregistrés.</value></data>
+  <data name="Ui_CrashLoop" xml:space="preserve"><value>LabelScope rencontre des erreurs à répétition et doit se fermer.
+
+Les détails ont été écrits dans {0}.
+
+Démarrez LabelScope de nouveau pour continuer. Si cela se reproduit, envoyez ce fichier au soutien technique.</value></data>
+  <data name="Ui_CrashKeptRunning" xml:space="preserve"><value>Un problème inattendu est survenu, mais LabelScope fonctionne toujours.
+
+{0}
+
+Les détails ont été écrits dans {1}.</value></data>
+  <data name="Ui_CrashLogFallback" xml:space="preserve"><value>le fichier journal (utilisez « {0} » dans LabelScope)</value></data>
 </root>

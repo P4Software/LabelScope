@@ -52,7 +52,7 @@ public sealed class JobAssembler
     private readonly Dictionary<long, Open> _open = new();
     private Queue<long> _order = new();
 
-    /// <summary>Number of connections remembered now (for tests and diagnostics).</summary>
+    /// <summary>Number of connections remembered now, for diagnostics: it shows whether the connection cap holds.</summary>
     public int OpenConnections
     {
         get { lock (_lock) return _open.Count; }

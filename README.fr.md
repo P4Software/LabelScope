@@ -236,7 +236,7 @@ Gardez LabelScope dans un dossier où vous pouvez écrire, comme celui qu'utilis
 | « Une étiquette de plus de 16 Mo a été reçue sans marque de fin (^XZ) et a été rejetée » | L'expéditeur n'envoie pas de vraies étiquettes, ou n'envoie jamais `^XZ`. Vérifiez le programme qui envoie les étiquettes. |
 | « Une étiquette est arrivée incomplète (pas de ^XZ à la fin) » | L'expéditeur s'est déconnecté avant d'envoyer `^XZ`. L'étiquette est affichée jusqu'où elle est arrivée. |
 | Une étiquette n'a pas la même allure que sur la vraie imprimante | Les polices sont approximatives par la forme et certaines commandes ne sont pas encore prises en charge. Consultez l'onglet **Journal**. |
-| LabelScope s'est fermé tout seul, ou a affiché « LabelScope hit an unexpected error » | Les détails techniques se trouvent dans `crash.log`, dans le dossier `logs` à côté du programme, ou dans `%LocalAppData%\LabelScope\logs` si ce dossier est en lecture seule. Le fichier peut contenir des chemins de fichiers, y compris votre nom d'utilisateur Windows; relisez-le donc avant de l'envoyer par courriel. |
+| LabelScope s'est fermé tout seul, ou a affiché « LabelScope a rencontré une erreur inattendue » | Les détails techniques se trouvent dans `crash.log`, dans le dossier `logs` à côté du programme, ou dans `%LocalAppData%\LabelScope\logs` si ce dossier est en lecture seule. Le fichier peut contenir des chemins de fichiers, y compris votre nom d'utilisateur Windows; relisez-le donc avant de l'envoyer par courriel. |
 | Autre chose | Ouvrez le menu **...**, choisissez **Ouvrir le dossier des journaux** et regardez le fichier le plus récent. |
 
 ---
@@ -308,6 +308,6 @@ Les rapports de bogues et les demandes de fonctionnalités sont les bienvenus da
 
 LabelScope est un logiciel libre de [P4 Software](https://github.com/P4Software) sous [licence MIT](LICENSE) : vous pouvez l'utiliser, le copier, le modifier et le partager, y compris dans un cadre commercial, à condition que l'avis de droit d'auteur et le texte de la licence l'accompagnent.
 
-Il utilise SkiaSharp, Serilog, ZXing.Net et le runtime .NET, et mentionne la bibliothèque de génération de codes QR de Project Nayuki. Les polices intégrées de Zebra sont dessinées avec les polices incluses Noto Sans ExtraCondensed Bold et IBM Plex Mono (SIL Open Font License 1.1). Toutes les licences et tous les avis de droit d'auteur se trouvent dans [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), qui est aussi installé à côté de `LabelScope.exe`.
+Il utilise SkiaSharp, Serilog, ZXing.Net, AvalonEdit et le runtime .NET, et mentionne la bibliothèque de génération de codes QR de Project Nayuki. Les polices intégrées de Zebra sont dessinées avec les polices incluses Noto Sans ExtraCondensed Bold et IBM Plex Mono (SIL Open Font License 1.1). Toutes les licences et tous les avis de droit d'auteur se trouvent dans [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), qui est aussi installé à côté de `LabelScope.exe`.
 
 Zebra® et ZPL® sont des marques de commerce de Zebra Technologies Corporation. LabelScope est un produit indépendant; il n'est ni affilié à Zebra Technologies ni approuvé par elle.

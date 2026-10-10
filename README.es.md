@@ -236,7 +236,7 @@ Mantenga LabelScope en una carpeta en la que pueda escribir, como la que usa el 
 | "Se recibió una etiqueta de más de 16 MB sin marca de fin (^XZ) y se descartó" | El remitente no está enviando etiquetas reales, o nunca envía `^XZ`. Revise el programa que envía las etiquetas. |
 | "Una etiqueta llegó incompleta (sin ^XZ al final)" | El remitente se desconectó antes de enviar `^XZ`. La etiqueta se muestra hasta donde llegó. |
 | Una etiqueta se ve distinta que en la impresora real | Las fuentes son aproximadas en forma y algunos comandos todavía no son compatibles. Revise la pestaña **Registro**. |
-| LabelScope se cerró solo, o mostró "LabelScope hit an unexpected error" | Los detalles técnicos están en `crash.log`, en la carpeta `logs` junto al programa, o en `%LocalAppData%\LabelScope\logs` si esa carpeta es de solo lectura. El archivo puede contener rutas de archivos, incluido su nombre de usuario de Windows, así que revíselo antes de enviarlo por correo. |
+| LabelScope se cerró solo, o mostró "LabelScope encontró un error inesperado" | Los detalles técnicos están en `crash.log`, en la carpeta `logs` junto al programa, o en `%LocalAppData%\LabelScope\logs` si esa carpeta es de solo lectura. El archivo puede contener rutas de archivos, incluido su nombre de usuario de Windows, así que revíselo antes de enviarlo por correo. |
 | Otra cosa | Abra el menú **...**, elija **Abrir carpeta de registros** y mire el archivo más reciente. |
 
 ---
@@ -308,6 +308,6 @@ Los informes de errores y las solicitudes de funciones son bienvenidos en [Issue
 
 LabelScope es software libre de [P4 Software](https://github.com/P4Software) bajo la [licencia MIT](LICENSE): puede usarlo, copiarlo, modificarlo y compartirlo, también en trabajos comerciales, siempre que el aviso de copyright y el texto de la licencia lo acompañen.
 
-Usa SkiaSharp, Serilog, ZXing.Net y el runtime de .NET, y da crédito a la biblioteca generadora de códigos QR de Project Nayuki. Las fuentes integradas de Zebra se dibujan con las fuentes incluidas Noto Sans ExtraCondensed Bold e IBM Plex Mono (SIL Open Font License 1.1). Todas las licencias y avisos de copyright están en [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), que también se instala junto a `LabelScope.exe`.
+Usa SkiaSharp, Serilog, ZXing.Net, AvalonEdit y el runtime de .NET, y da crédito a la biblioteca generadora de códigos QR de Project Nayuki. Las fuentes integradas de Zebra se dibujan con las fuentes incluidas Noto Sans ExtraCondensed Bold e IBM Plex Mono (SIL Open Font License 1.1). Todas las licencias y avisos de copyright están en [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), que también se instala junto a `LabelScope.exe`.
 
 Zebra® y ZPL® son marcas comerciales de Zebra Technologies Corporation. LabelScope es un producto independiente y no está afiliado a Zebra Technologies ni cuenta con su respaldo.

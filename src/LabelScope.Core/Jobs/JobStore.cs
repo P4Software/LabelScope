@@ -29,7 +29,10 @@ public sealed record SavedJob(Guid Id, string Name, string? RemoteAddress, strin
 /// <remarks>
 /// Version 1 is the first released layout (0.4.0). A file from a newer LabelScope is never overwritten: after
 /// <see cref="Load"/> has seen one, <see cref="Save"/> refuses, so going back to an older version cannot destroy the
-/// jobs a newer one kept.
+/// jobs a newer one kept. In the same way, after <see cref="Load"/> could not open the file at all (another program
+/// held it, or access was denied), <see cref="Save"/> refuses until a later <see cref="Load"/> succeeds: the jobs in
+/// that file were never read, so writing this session's list would erase them. A damaged file is different: its jobs
+/// are already lost, so it may be replaced.
 /// </remarks>
 public sealed class JobStore
 {
@@ -58,6 +61,10 @@ public sealed class JobStore
     // Set by Load when the file was written by a newer LabelScope; Save then refuses to overwrite it.
     private volatile int _newerVersionSeen;
 
+    // Set by Load when the file exists but could not be opened (locked, access denied); cleared by a Load that gets
+    // past opening the file. While set, Save refuses: the file's jobs were never read, so they are not in the list.
+    private volatile bool _loadFailed;
+
     /// <summary>Creates a store for the file at <paramref name="path"/>.</summary>
     /// <param name="path">Where jobs.json lives; usually <see cref="DefaultPath"/>.</param>
     /// <param name="maxBytes">Largest total size of the saved jobs; older jobs are dropped to stay below it.</param>
@@ -76,17 +83,25 @@ public sealed class JobStore
     public string FilePath => _path;
 
     /// <summary>
+    /// True after the latest <see cref="Load"/> could not open an existing file (locked by another program, access
+    /// denied). <see cref="Save"/> refuses while this is true, so jobs that were never read are not overwritten.
+    /// </summary>
+    public bool LoadFailed => _loadFailed;
+
+    /// <summary>
     /// Writes <paramref name="jobs"/> to the file, keeping only the newest ones: at most <paramref name="limit"/>
     /// jobs, and together at most the size given to the constructor. A single job bigger than that is skipped, and
     /// older jobs that still fit are kept. Kept jobs stay in the order given. The new file is written next to the old
     /// one and then swapped in, so a failure halfway never leaves a broken file; leftover temp files of earlier
-    /// failures are removed. Refuses (and changes nothing) when <see cref="Load"/> found a file from a newer version.
+    /// failures are removed. Refuses (and changes nothing) when <see cref="Load"/> found a file from a newer version,
+    /// or when the latest <see cref="Load"/> could not open the file (see <see cref="LoadFailed"/>).
     /// </summary>
     /// <returns>Success, or failure with a message saying what to do.</returns>
     public OperationResult Save(IEnumerable<LabelJob> jobs, int limit)
     {
         var newer = _newerVersionSeen;
         if (newer > 0) return OperationResult.Fail(Text.Get("Jobs_SaveRefusedNewer", _path, newer));
+        if (_loadFailed) return OperationResult.Fail(Text.Get("Jobs_SaveRefusedLoadFailed", _path));
 
         string? temp = null;
         try
@@ -162,16 +177,23 @@ public sealed class JobStore
 
     /// <summary>
     /// Reads the saved jobs. A missing file gives an empty list and no message. A file that is locked, damaged, or
-    /// written by a newer LabelScope gives an empty list and a message; the file itself is left untouched.
+    /// written by a newer LabelScope gives an empty list and a message; the file itself is left untouched. A file that
+    /// could not be opened also makes <see cref="Save"/> refuse until a later call of this method succeeds.
     /// </summary>
     public (IReadOnlyList<SavedJob> Jobs, string? Message) Load()
     {
         try
         {
-            if (!File.Exists(_path)) return ([], null);
+            if (!File.Exists(_path))
+            {
+                _loadFailed = false;
+                return ([], null);
+            }
             JobFile? file;
             using (var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read))
                 file = ReadFile(stream);
+            // The file was opened and read to the end; whatever it holds, a save no longer risks unread jobs.
+            _loadFailed = false;
 
             if (file is null || file.Version < 1) return ([], Text.Get("Jobs_LoadDamaged", _path, Text.Get("Jobs_NoVersion")));
             if (file.Version > CurrentVersion)
@@ -190,11 +212,15 @@ public sealed class JobStore
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException
                                        or NotSupportedException or ArgumentException)
         {
-            // Another program (antivirus, a backup tool) can hold the file; the jobs come back at the next start.
+            // Another program (antivirus, a backup tool) can hold the file. Its jobs were not read, so saving now would
+            // erase them: Save refuses until a later Load succeeds, and the jobs come back at the next start.
+            _loadFailed = true;
             return ([], Text.Get("Jobs_LoadFailed", _path, ex.Message));
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
+            // Opened but damaged: its jobs are lost anyway, so new jobs may replace the file.
+            _loadFailed = false;
             return ([], Text.Get("Jobs_LoadDamaged", _path, ex.Message));
         }
     }

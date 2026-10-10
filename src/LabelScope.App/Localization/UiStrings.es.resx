@@ -160,4 +160,25 @@ LabelScope se cerrará, se actualizará y volverá a abrirse. Su configuración 
 Solo se vacía la lista. Los gráficos y fuentes de la memoria de la impresora se conservan.</value></data>
   <data name="Ui_ReceivedTodayOne" xml:space="preserve"><value>{0} recibido hoy</value></data>
   <data name="Ui_FieldPositionOnly" xml:space="preserve"><value>{0}, {1}</value></data>
+  <data name="Ui_CrashFatal" xml:space="preserve"><value>LabelScope encontró un error inesperado y tiene que cerrarse.
+
+{0}
+
+{1}
+
+Vuelva a iniciar LabelScope para continuar. Si esto sigue pasando, envíe ese archivo a soporte.</value></data>
+  <data name="Ui_CrashDetailsSaved" xml:space="preserve"><value>Los detalles se guardaron en:
+{0}</value></data>
+  <data name="Ui_CrashDetailsNotSaved" xml:space="preserve"><value>No se pudieron guardar los detalles.</value></data>
+  <data name="Ui_CrashLoop" xml:space="preserve"><value>LabelScope sigue encontrando errores y tiene que cerrarse.
+
+Los detalles se escribieron en {0}.
+
+Vuelva a iniciar LabelScope para continuar. Si esto sigue pasando, envíe ese archivo a soporte.</value></data>
+  <data name="Ui_CrashKeptRunning" xml:space="preserve"><value>Algo inesperado salió mal, pero LabelScope sigue funcionando.
+
+{0}
+
+Los detalles se escribieron en {1}.</value></data>
+  <data name="Ui_CrashLogFallback" xml:space="preserve"><value>el archivo de registro (use "{0}" en LabelScope)</value></data>
 </root>

@@ -593,7 +593,9 @@ public partial class MainWindow : Window
             if (saved.Count == 0)
             {
                 _keptJobs = KeptJobsState.Ready;
-                ScheduleSave(); // jobs that arrived during the read are written now
+                // Jobs that arrived during the read are written now. Not when the file could not be opened: the store
+                // refuses every save this session (its jobs were never read), and the start-up note already says so.
+                if (!_store.LoadFailed) ScheduleSave();
                 return;
             }
 
@@ -657,7 +659,9 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Writes the job list off the UI thread. Saves never overlap. A failure is shown once (not on every new job)
-    /// until a save works again.
+    /// until a save works again. That includes the store refusing to save because jobs.json could not be opened at
+    /// start: the refusal carries the same message every time, so it is shown once, and the next start reads the
+    /// file again.
     /// </summary>
     private async Task SaveJobsAsync()
     {
@@ -690,7 +694,9 @@ public partial class MainWindow : Window
     /// so a file written by a newer LabelScope is recognised and never overwritten. Its jobs are not shown: only a
     /// start brings kept jobs back.
     /// </summary>
-    /// <returns>True when saving may go ahead; false while the file is still being read (or a load failed).</returns>
+    /// <returns>True when saving may go ahead; false while the file is still being read. When the read could not open
+    /// the file, this still returns true and the store itself refuses the save (see <see cref="JobStore.LoadFailed"/>).
+    /// </returns>
     private async Task<bool> EnsureStoreLoadedAsync()
     {
         if (_keptJobs == KeptJobsState.Ready) return true;
@@ -1688,7 +1694,9 @@ public partial class MainWindow : Window
     /// <summary>
     /// Saves one change made in the toolbar the same way Printer setup saves: settings.json is read again, only this
     /// change is put on top (other keys keep what the file holds now), the file is written, and the result is taken
-    /// into use. On failure the message says why and nothing changes.
+    /// into use. On failure the message says why and nothing changes. When settings.json exists but cannot be opened
+    /// or read just now, nothing is saved: writing defaults plus this one change would erase every other value the
+    /// person wrote in the file.
     /// </summary>
     /// <returns>True when the change was saved and applied.</returns>
     private bool SaveSettingsChange(Action<AppSettings> change)
@@ -1698,6 +1706,15 @@ public partial class MainWindow : Window
         {
             var fresh = new SettingsStore().LoadOrCreate(_settingsPath);
             foreach (var message in fresh.Messages) Log.Information("Toolbar: settings: {Message}", message);
+            if (fresh.ExistingFileUnreadable)
+            {
+                var refused = Text.Get("Settings_SaveRefusedUnreadable", _settingsPath);
+                Log.Warning("Toolbar: {Message}", refused);
+                ShowMessage(refused);
+                UpdateSizePicker();
+                SelectLanguageInPicker();
+                return false;
+            }
             settings = fresh.Settings;
         }
         catch (Exception ex)
@@ -2390,7 +2407,7 @@ public partial class MainWindow : Window
         {
             if (_keptJobs == KeptJobsState.NotRead)
             {
-                _store.Load(); // so a newer version's file is recognised and left alone
+                _store.Load(); // so a newer version's file, or one that cannot be opened, is left alone
                 _keptJobs = KeptJobsState.Ready;
             }
             var result = _store.Save(_jobs.Select(j => j.Job).ToList(), _settings.HistoryLimit);
