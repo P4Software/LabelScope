@@ -13,7 +13,7 @@
       <Button Content="Copy image" Click="OnCopyImage"/>
       <Button Content="Clear history" Click="OnClearHistory"/>
       <Button x:Name="ClearMemoryButton" Content="Clear printer memory" Click="OnClearMemory"
-              ToolTip="Deletes the graphics and fonts that LabelScope keeps from ~DG and ~DY downloads (a real printer keeps them until it is switched off)"/>
+              ToolTip="Deletes the graphics and fonts that LabelScope keeps from ~DG, ~DY and ^IS downloads, and the font letters set with ^CW (a real printer keeps them until it is switched off)"/>
       <Separator/>
       <Button Content="Open settings" Click="OnOpenSettings"/>
       <Button Content="Open log folder" Click="OnOpenLog"/>

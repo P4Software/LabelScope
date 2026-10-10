@@ -27,7 +27,7 @@ public partial class MainWindow : Window
     private readonly string _settingsPath = Path.Combine(AppContext.BaseDirectory, "settings.json");
     private readonly ObservableCollection<LabelEntry> _history = new();
     // One printer memory for the whole session: a graphic downloaded in one job is used by labels in later jobs,
-    // as on a real printer (plan 3 Decision 1). Nothing is saved when LabelScope closes.
+    // as on a real printer. Nothing is saved when LabelScope closes.
     private readonly PrinterMemory _memory = new();
 
     // Rebuilt once in OnLoaded with the fonts from the FontsFolder setting, before the listener starts.
@@ -791,16 +791,12 @@ public partial class MainWindow : Window
     /// <summary>Asks, then empties printer memory. Labels that need a cleared graphic will warn until it is sent again.</summary>
     private void OnClearMemory(object sender, RoutedEventArgs e)
     {
-        var summary = _memory.Summary;
-        if (summary.IsEmpty)
-        {
-            ShowMessage("LabelScope's printer memory is already empty.");
-            return;
-        }
+        // Always asks, even when memory looks empty: a download or ^CW can arrive at any moment, so an "already
+        // empty" answer could be stale by the time it is read, and clearing an empty memory does no harm.
         var answer = MessageBox.Show(this,
             // No numbers in the question: a download can arrive while the dialog is open, so any count could be stale.
-            "Delete everything LabelScope keeps in its printer memory (downloaded graphics and fonts)?\n\n" +
-            "Labels that use these graphics or fonts will show a warning until the download is sent again.",
+            "Delete everything LabelScope keeps in its printer memory (downloaded graphics and fonts, and font letters set with ^CW)?\n\n" +
+            "Labels that use these graphics, fonts or font letters will show a warning until the download or ^CW is sent again.",
             "Clear printer memory", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
         if (answer != MessageBoxResult.Yes) return;
         _memory.Clear();
@@ -814,7 +810,8 @@ public partial class MainWindow : Window
         var summary = _memory.Summary;
         MemoryText.Text = StatusText.ForMemoryLine(summary);
         MemoryText.ToolTip = "Printer memory: " + summary.Describe() +
-            ". Graphics and fonts sent to LabelScope with ~DG, ~DY or ^IS are kept here until LabelScope closes.";
+            ". Graphics and fonts sent to LabelScope with ~DG, ~DY or ^IS, and font letters set with ^CW, are kept here " +
+            "until LabelScope closes or you press \"Clear printer memory\".";
     }
 
     private void OnOpenSettings(object sender, RoutedEventArgs e) => Open(_settingsPath);

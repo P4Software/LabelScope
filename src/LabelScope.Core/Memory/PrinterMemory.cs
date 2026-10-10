@@ -20,7 +20,8 @@ public sealed class PrinterMemory
     private long _bytes;
 
     // ^CW assignments: font letter -> font file, also guarded by _gate. At most 36 entries (A to Z, 0 to 9), so the
-    // map needs no limit of its own. Kept for the session like stored objects (plan Decision 10).
+    // map needs no limit of its own. Kept for the session like stored objects, as a printer keeps them until it is
+    // switched off, so a ^CW sent as a job of its own still works for the labels that follow.
     private readonly Dictionary<char, ObjectName> _fontIds = new();
 
     /// <summary>Creates an empty memory with the default limits.</summary>
@@ -47,15 +48,16 @@ public sealed class PrinterMemory
     /// </summary>
     public event EventHandler? Changed;
 
-    /// <summary>How many graphics and fonts are kept and how many bytes they use.</summary>
+    /// <summary>How many graphics, fonts and ^CW font letters are kept and how many bytes the graphics and fonts use.</summary>
     public MemorySummary Summary
     {
         get
         {
+            // One lock for all counts, so the summary is a consistent snapshot even while another job stores.
             lock (_gate)
             {
                 var fonts = _items.Values.Count(v => v.Item is StoredFont);
-                return new MemorySummary(_items.Count - fonts, fonts, _bytes);
+                return new MemorySummary(_items.Count - fonts, fonts, _bytes, _fontIds.Count);
             }
         }
     }
@@ -72,7 +74,7 @@ public sealed class PrinterMemory
             var exists = _items.TryGetValue(target.Key, out var old);
             var oldBytes = exists ? old.Item.SizeInBytes : 0;
             // Refused rather than evicting older objects: a label that silently lost its logo would be worse
-            // than a clear message now (plan Decision 1). The old object's size is freed first, so replacing
+            // than a clear message now. The old object's size is freed first, so replacing
             // an object in a nearly full memory works.
             // An object bigger than the whole memory can never fit, so "clear memory" would be a false hint.
             if (item.SizeInBytes > MaxBytes)
@@ -155,6 +157,9 @@ public sealed class PrinterMemory
     internal void AssignFont(char id, ObjectName file)
     {
         lock (_gate) _fontIds[char.ToUpperInvariant(id)] = file;
+        // A font letter is part of what memory holds (the window counts it and "Clear printer memory" forgets it),
+        // so listeners hear about it like any other change. Raised after the lock, as in Store.
+        RaiseChanged();
     }
 
     /// <summary>The font file a ^CW gave letter <paramref name="id"/>, or null.</summary>
@@ -200,20 +205,24 @@ public sealed class PrinterMemory
 /// <summary>What printer memory holds right now.</summary>
 /// <param name="Graphics">Number of stored graphics.</param>
 /// <param name="Fonts">Number of stored fonts.</param>
-/// <param name="TotalBytes">Bytes used.</param>
-public sealed record MemorySummary(int Graphics, int Fonts, long TotalBytes)
+/// <param name="TotalBytes">Bytes used by the stored graphics and fonts.</param>
+/// <param name="FontLetters">Number of font letters given a font file with ^CW (they use no bytes of their own).</param>
+public sealed record MemorySummary(int Graphics, int Fonts, long TotalBytes, int FontLetters = 0)
 {
-    /// <summary>True when nothing is stored.</summary>
-    public bool IsEmpty => Graphics + Fonts == 0;
+    /// <summary>True when nothing is stored and no font letter is assigned.</summary>
+    public bool IsEmpty => Graphics + Fonts + FontLetters == 0;
 
-    /// <summary>Plain text for the status bar: "empty" or "3 graphics, 1 font, 420 KB".</summary>
+    /// <summary>Plain text for the status bar: "empty", "2 font letters" or "3 graphics, 1 font, 420 KB, 2 font letters".</summary>
     public string Describe()
     {
         if (IsEmpty) return "empty";
         var parts = new List<string>();
         if (Graphics > 0) parts.Add(Graphics == 1 ? "1 graphic" : $"{Graphics} graphics");
         if (Fonts > 0) parts.Add(Fonts == 1 ? "1 font" : $"{Fonts} fonts");
-        parts.Add(PrinterMemory.FormatBytes(TotalBytes));
+        // The size belongs to the stored objects only: with nothing but font letters it would read "1 KB" (the
+        // smallest size FormatBytes shows), which is not true.
+        if (Graphics + Fonts > 0) parts.Add(PrinterMemory.FormatBytes(TotalBytes));
+        if (FontLetters > 0) parts.Add(FontLetters == 1 ? "1 font letter" : $"{FontLetters} font letters");
         return string.Join(", ", parts);
     }
 }
