@@ -32,14 +32,16 @@
     </ToolBar>
 
     <StatusBar DockPanel.Dock="Bottom">
+      <!-- Docked right and declared first so it keeps its room and the message gets the rest of the bar. -->
+      <StatusBarItem DockPanel.Dock="Right">
+        <TextBlock x:Name="MemoryText" Text="Memory: empty"/>
+      </StatusBarItem>
       <TextBlock x:Name="ListeningText" Text="Starting..."/>
       <Separator/>
       <TextBlock x:Name="PrinterText" Text="Printer: checking..."/>
       <Separator/>
-      <TextBlock x:Name="MemoryText" Text="Printer memory: empty"
-                 ToolTip="Graphics and fonts sent to LabelScope with ~DG, ~DY or ^IS are kept here until LabelScope closes"/>
-      <Separator/>
-      <TextBlock x:Name="MessageText" TextWrapping="Wrap"/>
+      <TextBlock x:Name="MessageText" TextWrapping="Wrap" MaxHeight="54" TextTrimming="WordEllipsis"
+                 ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
     </StatusBar>
 
     <Grid>
