@@ -2071,7 +2071,11 @@ public partial class MainWindow : Window
         }
         try
         {
-            Clipboard.SetImage(_currentImage);
+            // Labels are stored as 8-bit grey PNGs (fast to encode); some programs paste a grey clipboard bitmap as
+            // black or not at all, so the copy is converted to ordinary 32-bit colour first.
+            var colour = new FormatConvertedBitmap(_currentImage, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+            colour.Freeze();
+            Clipboard.SetImage(colour);
             ShowMessage(UiText.Get("Ui_ImageCopied"));
         }
         catch (Exception ex)
