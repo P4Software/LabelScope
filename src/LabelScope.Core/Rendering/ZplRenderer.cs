@@ -37,6 +37,12 @@ public sealed class ZplRenderer
     public PrinterMemory Memory { get; }
 
     /// <summary>
+    /// Handles storage commands that arrive outside a label (<see cref="StorageCommands.TryHandle"/>). Tests replace it
+    /// to simulate a failure no one expected, which must still become a warning instead of an error.
+    /// </summary>
+    internal Func<ZplCommand, PaintContext, List<RenderWarning>, bool> StorageHandler { get; set; } = StorageCommands.TryHandle;
+
+    /// <summary>
     /// Renders every <c>^XA…^XZ</c> block in <paramref name="zpl"/>. Bad or unsupported ZPL never throws;
     /// it produces warnings instead.
     /// </summary>
@@ -48,51 +54,82 @@ public sealed class ZplRenderer
         var context = new PaintContext(Memory, notes, Fonts);
         var block = new List<ZplCommand>();
         var inLabel = false;
+        // Line of the command being handled, for the last-resort warning below.
+        var line = 1;
 
-        foreach (var cmd in ZplParser.Parse(zpl ?? ""))
+        try
         {
-            switch (cmd.Name)
+            foreach (var cmd in ZplParser.Parse(zpl ?? ""))
             {
-                case "^XA":
-                    if (inLabel)
-                    {
-                        warnings.Add(new(cmd.Line, "A new label (^XA) started before the previous one ended with ^XZ. The earlier label was drawn anyway."));
-                        PaintSafely(block, options, warnings, labels, context);
-                        block.Clear();
-                    }
-                    inLabel = true;
-                    break;
+                line = cmd.Line;
+                switch (cmd.Name)
+                {
+                    case "^XA":
+                        if (inLabel)
+                        {
+                            warnings.Add(new(cmd.Line, "A new label (^XA) started before the previous one ended with ^XZ. The earlier label was drawn anyway."));
+                            PaintSafely(block, options, warnings, labels, context);
+                            block.Clear();
+                        }
+                        inLabel = true;
+                        break;
 
-                case "^XZ":
-                    if (inLabel)
-                    {
-                        PaintSafely(block, options, warnings, labels, context);
-                        block.Clear();
-                        inLabel = false;
-                    }
-                    else
-                    {
-                        warnings.Add(new(cmd.Line, "^XZ was found without a matching ^XA and was ignored."));
-                    }
-                    break;
+                    case "^XZ":
+                        if (inLabel)
+                        {
+                            PaintSafely(block, options, warnings, labels, context);
+                            block.Clear();
+                            inLabel = false;
+                        }
+                        else
+                        {
+                            warnings.Add(new(cmd.Line, "^XZ was found without a matching ^XA and was ignored."));
+                        }
+                        break;
 
-                default:
-                    if (inLabel) block.Add(cmd);
-                    // Downloads usually travel outside any label; they act on printer memory right here, in stream order.
-                    else if (StorageCommands.TryHandle(cmd, context, warnings)) { }
-                    else if (!SilentCommands.IsSilent(cmd.Name, cmd.Args))
-                        warnings.Add(new(cmd.Line, $"{cmd.Name} is outside a label (^XA … ^XZ) or not supported yet, and was ignored."));
-                    break;
+                    default:
+                        if (inLabel) block.Add(cmd);
+                        // Downloads usually travel outside any label; they act on printer memory right here, in stream order.
+                        else if (HandleStorageSafely(cmd, context, warnings)) { }
+                        else if (!SilentCommands.IsSilent(cmd.Name, cmd.Args))
+                            warnings.Add(new(cmd.Line, $"{cmd.Name} is outside a label (^XA … ^XZ) or not supported yet, and was ignored."));
+                        break;
+                }
+            }
+
+            if (inLabel)
+            {
+                warnings.Add(new(block.Count > 0 ? block[^1].Line : 1, "The label did not end with ^XZ; it was drawn as far as it arrived."));
+                PaintSafely(block, options, warnings, labels, context);
             }
         }
-
-        if (inLabel)
+        catch (Exception)
         {
-            warnings.Add(new(block.Count > 0 ? block[^1].Line : 1, "The label did not end with ^XZ; it was drawn as far as it arrived."));
-            PaintSafely(block, options, warnings, labels, context);
+            // Last line of defence: every known problem is already a warning, and a label that fails to paint is
+            // caught on its own. Whatever still gets here (a bug) must not throw out of the renderer, which runs on a
+            // socket thread: the labels drawn so far are returned, and the user is told where reading stopped. The
+            // exception itself is not quoted, because even reading its message might fail.
+            warnings.Add(new(line, $"LabelScope stopped reading this job at line {line} because of a problem it did not expect; the labels before that line are shown. Send the job again, and if this keeps happening, report it with the job attached."));
         }
 
         return new RenderResult(labels, warnings) { MemoryNotes = notes };
+    }
+
+    /// <summary>
+    /// Runs a storage command found outside a label. Every known problem is already a warning; anything else (a bug)
+    /// becomes one too, so a broken download costs that download, never the labels after it.
+    /// </summary>
+    private bool HandleStorageSafely(ZplCommand cmd, PaintContext context, List<RenderWarning> warnings)
+    {
+        try
+        {
+            return StorageHandler(cmd, context, warnings);
+        }
+        catch (Exception ex)
+        {
+            warnings.Add(new(cmd.Line, $"{cmd.Name} could not be handled ({ex.Message}); nothing was stored."));
+            return true;
+        }
     }
 
     /// <summary>
