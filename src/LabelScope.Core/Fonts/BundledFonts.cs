@@ -11,9 +11,6 @@ internal static class BundledFonts
     private static readonly Lazy<SKTypeface> ScalableFace = new(() => Load("IBMPlexSansCondensed-Bold.ttf"));
     private static readonly Lazy<SKTypeface> MonoFace = new(() => Load("IBMPlexMono-Regular.ttf"));
 
-    // The font bytes stay referenced for the life of the process: a typeface reads its glyphs from them lazily.
-    private static readonly List<SKData> KeepAlive = [];
-
     /// <summary>IBM Plex Sans Condensed Bold: stands in for Zebra's scalable font 0 (CG Triumvirate Bold Condensed) and fonts P to V.</summary>
     public static SKTypeface Scalable => ScalableFace.Value;
 
@@ -26,8 +23,9 @@ internal static class BundledFonts
             ?? throw new InvalidOperationException($"The built-in font {file} is missing from LabelScope.Core.dll. Reinstall LabelScope.");
         using var buffer = new MemoryStream();
         stream.CopyTo(buffer);
-        var data = SKData.CreateCopy(buffer.ToArray());
-        lock (KeepAlive) KeepAlive.Add(data);
+        // The typeface reads its glyphs from these bytes lazily, but it holds its own native reference to them
+        // (SkiaSharp's C API passes the data on with sk_ref_sp), so the managed wrapper can be released here.
+        using var data = SKData.CreateCopy(buffer.ToArray());
         return SKTypeface.FromData(data)
             ?? throw new InvalidOperationException($"The built-in font {file} could not be read. Reinstall LabelScope.");
     }

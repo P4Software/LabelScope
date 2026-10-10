@@ -31,33 +31,55 @@ internal static class FontMatrices
         new('H', 21, 13, 6, 21, false),
     ];
 
-    // The only matrices that differ from 8 dots/mm (Font Matrices page): the OCR fonts E and H.
-    private static readonly Dictionary<(int Dpmm, char Id), (int Height, int Width)> OtherDensities = new()
+    // The only matrices that differ from 8 dots/mm (Font Matrices page): the OCR fonts E and H. Zebra lists the gap
+    // for 8 dots/mm only, so the gap at the other densities is worked out from the "characters per inch" column of
+    // the same page, which gives width + gap (dots per inch / characters per inch, rounded to whole dots):
+    // - 6 dots/mm (152 dpi): E 152 / 11.7 = 13.0 -> 10 + 3; H 152 / 10.2 = 14.9 -> 15 = 11 + 4. Fonts A, B, C, F and G
+    //   in that column match their 8 dots/mm cells exactly, so the column is trusted.
+    // - 12 dots/mm (300 dpi): H 300 / 10.20 = 29.4 -> 29 = 22 + 7. E's 23.4 gives 13 dots, less than its own 20-dot
+    //   cell, so that one entry is a misprint and E keeps the gap scaled from 8 dots/mm (5 x 20 / 15 = 6.7 -> 7).
+    // - 24 dots/mm (600 dpi): the same matrices as 12 dots/mm, so the same gaps. The 600 dpi E and H entries do not
+    //   fit any cell of these fonts and are not used.
+    // These values are checked against a real printer in the plan's Task 18.
+    private static readonly Dictionary<(int Dpmm, char Id), (int Height, int Width, int Gap)> OtherDensities = new()
     {
-        [(6, 'E')] = (21, 10), [(6, 'H')] = (17, 11),
-        [(12, 'E')] = (42, 20), [(12, 'H')] = (34, 22),
-        [(24, 'E')] = (42, 20), [(24, 'H')] = (34, 22),
+        [(6, 'E')] = (21, 10, 3), [(6, 'H')] = (17, 11, 4),
+        [(12, 'E')] = (42, 20, 7), [(12, 'H')] = (34, 22, 7),
+        [(24, 'E')] = (42, 20, 7), [(24, 'H')] = (34, 22, 7),
     };
 
-    /// <summary>The 203 dpi table, as Zebra prints it.</summary>
-    public static IReadOnlyList<CellFontSpec> At203 => At8;
+    // Every cell at every density, worked out once: Cell runs for every text field of every label.
+    private static readonly Dictionary<(int Dpmm, char Id), CellFontSpec> Cells = BuildCells();
+
+    /// <summary>The 203 dpi table, as Zebra prints it (read-only: the array behind it is shared by every label).</summary>
+    public static IReadOnlyList<CellFontSpec> At203 { get; } = Array.AsReadOnly(At8);
 
     /// <summary>The cell of bitmap font <paramref name="id"/> (A to H) at <paramref name="dpi"/>, or null for any other letter.</summary>
-    public static CellFontSpec? Cell(char id, int dpi)
-    {
-        var spec = At8.FirstOrDefault(s => s.Id == char.ToUpperInvariant(id));
-        if (spec is null) return null;
-        if (!OtherDensities.TryGetValue((DotsPerMm(dpi), spec.Id), out var m)) return spec;
+    public static CellFontSpec? Cell(char id, int dpi) =>
+        Cells.TryGetValue((DotsPerMm(dpi), char.ToUpperInvariant(id)), out var spec) ? spec : null;
 
-        // Zebra gives the gap and baseline for 8 dots/mm only. For a different matrix they are scaled with it: an
-        // estimate, compared with a real printer in the plan's Task 18.
-        return spec with
-        {
-            Height = m.Height,
-            Width = m.Width,
-            Gap = Math.Max(1, (int)Math.Round(spec.Gap * (double)m.Width / spec.Width, MidpointRounding.AwayFromZero)),
-            Baseline = (int)Math.Round(spec.Baseline * (double)m.Height / spec.Height, MidpointRounding.AwayFromZero),
-        };
+    private static Dictionary<(int Dpmm, char Id), CellFontSpec> BuildCells()
+    {
+        var cells = new Dictionary<(int Dpmm, char Id), CellFontSpec>();
+        foreach (var dpmm in new[] { 6, 8, 12, 24 })
+            foreach (var spec in At8)
+            {
+                if (!OtherDensities.TryGetValue((dpmm, spec.Id), out var m))
+                {
+                    cells[(dpmm, spec.Id)] = spec;
+                    continue;
+                }
+                // Zebra gives the baseline for 8 dots/mm only; for a different matrix it is scaled with the height,
+                // an estimate compared with a real printer in the plan's Task 18.
+                cells[(dpmm, spec.Id)] = spec with
+                {
+                    Height = m.Height,
+                    Width = m.Width,
+                    Gap = m.Gap,
+                    Baseline = (int)Math.Round(spec.Baseline * (double)m.Height / spec.Height, MidpointRounding.AwayFromZero),
+                };
+            }
+        return cells;
     }
 
     /// <summary>
