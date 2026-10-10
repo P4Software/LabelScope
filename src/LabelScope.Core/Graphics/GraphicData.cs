@@ -1,0 +1,69 @@
+namespace LabelScope.Core.Graphics;
+
+/// <summary>One place that knows which encoding a graphic or file download uses.</summary>
+internal static class GraphicData
+{
+    /// <summary>
+    /// Largest file accepted from ~DY (PNG, TrueType). The listener already refuses a job above 16 MB
+    /// (<c>ZplStreamSplitter.MaxPendingChars</c>), so this only matters for ZB64 data that unpacks to more.
+    /// </summary>
+    public const long MaxFileBytes = 16L * 1024 * 1024;
+
+    /// <summary>Decodes bitmap data (^GF format A, ~DG, ~DY .GRF): ZB64, or ASCII hex with Zebra compression letters.</summary>
+    /// <exception cref="GraphicDataException">The size is outside what LabelScope draws, or the ZB64 data is damaged.</exception>
+    public static MonoImage DecodeBitmap(string data, int bytesPerRow, int rows, ICollection<string> notes)
+    {
+        // Callers normally validated the size through GraphicLimits already; this repeats the byte ceiling in long
+        // arithmetic so no caller can make either decoder allocate more than the ceiling.
+        if (bytesPerRow < 1 || rows < 1)
+            throw new GraphicDataException("The graphic has no size (bytes per row or rows is missing, 0 or negative), so it cannot be read.");
+        var total = (long)bytesPerRow * rows;
+        if (total > GraphicLimits.MaxGraphicBytes)
+            throw new GraphicDataException($"The graphic is {total} bytes, more than the {GraphicLimits.MaxGraphicBytes} bytes LabelScope draws.");
+
+        if (!Zb64.IsZb64(data)) return HexGraphicDecoder.Decode(data, bytesPerRow, rows, notes);
+        var bytes = Zb64.Decode(data, total, exact: true, notes);
+        return new MonoImage(bytesPerRow, rows, bytes);
+    }
+
+    /// <summary>
+    /// Decodes a whole file (~DY PNG or TrueType): ZB64, or plain ASCII hex with two digits per byte (the compression
+    /// letters belong to bitmaps only). <paramref name="declaredBytes"/> is the size the command gives; 0 or less
+    /// means unknown.
+    /// </summary>
+    /// <exception cref="GraphicDataException">The data is not hexadecimal or not valid ZB64.</exception>
+    public static byte[] DecodeFile(string data, long declaredBytes, ICollection<string> notes)
+    {
+        var cap = declaredBytes is > 0 and <= MaxFileBytes ? declaredBytes : MaxFileBytes;
+        var bytes = Zb64.IsZb64(data) ? Zb64.Decode(data, cap, exact: false, notes) : PlainHex(data, cap, notes);
+        if (declaredBytes > 0 && bytes.LongLength != declaredBytes)
+            notes.Add($"The file is {bytes.Length} bytes, but the command said {declaredBytes} bytes.");
+        return bytes;
+    }
+
+    /// <summary>Two hexadecimal digits per byte; white space between them is ignored.</summary>
+    private static byte[] PlainHex(string data, long cap, ICollection<string> notes)
+    {
+        var bytes = new List<byte>();
+        var high = -1;
+        foreach (var c in data)
+        {
+            if (c is ' ' or '\t' or '\r' or '\n') continue;
+            if (!char.IsAsciiHexDigit(c))
+                throw new GraphicDataException($"The file data contains a character that is not a hexadecimal digit (character code {(int)c}), so the file was not stored.");
+            var v = Convert.ToInt32(c.ToString(), 16);
+            if (high < 0) { high = v; continue; }
+            // The cap bounds the list, so a huge or endless text cannot grow it past the declared file size.
+            if (bytes.Count >= cap)
+            {
+                notes.Add($"The file data is longer than {cap} bytes; the rest was ignored.");
+                return bytes.ToArray();
+            }
+            bytes.Add((byte)(high << 4 | v));
+            high = -1;
+        }
+        if (high >= 0)
+            throw new GraphicDataException("The file data has an odd number of hexadecimal digits, so the last byte is incomplete and the file was not stored.");
+        return bytes.ToArray();
+    }
+}
