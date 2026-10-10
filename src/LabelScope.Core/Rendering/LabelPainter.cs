@@ -1,3 +1,4 @@
+using LabelScope.Core.Memory;
 using System.Globalization;
 using LabelScope.Core.Barcodes;
 using SkiaSharp;
@@ -25,6 +26,7 @@ internal sealed partial class LabelPainter : IDisposable
     private const int MaxCopies = 99_999_999; // the ZPL limit for ^PQ
 
     private readonly List<RenderWarning> _warnings;
+    private readonly PaintContext _context;
     private readonly SKBitmap _bitmap;
     private readonly SKCanvas _canvas;
 
@@ -51,9 +53,10 @@ internal sealed partial class LabelPainter : IDisposable
 
     private sealed record FieldBlock(int Width, int MaxLines, int LineSpacing, char Justify, int Line);
 
-    private LabelPainter(int width, int height, List<RenderWarning> warnings, bool inverted)
+    private LabelPainter(int width, int height, List<RenderWarning> warnings, bool inverted, PaintContext context)
     {
         _warnings = warnings;
+        _context = context;
         _bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         _canvas = new SKCanvas(_bitmap);
         _canvas.Clear(SKColors.White);
@@ -67,13 +70,13 @@ internal sealed partial class LabelPainter : IDisposable
     }
 
     /// <summary>Paints one label block and returns its image.</summary>
-    public static RenderedLabel Paint(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings)
+    public static RenderedLabel Paint(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, PaintContext context)
     {
         var (w, h, widthFromZpl, heightFromZpl) = ResolveSize(block, options, warnings);
         // Only the last ^PO of a label counts, wherever it appears.
         var inverted = block.LastOrDefault(c => c.Name == "^PO") is { } po &&
                        po.Args.TrimStart().StartsWith("I", StringComparison.OrdinalIgnoreCase);
-        using var painter = new LabelPainter(w, h, warnings, inverted);
+        using var painter = new LabelPainter(w, h, warnings, inverted, context);
         foreach (var cmd in block) painter.Handle(cmd);
         return painter.ToResult(w, h, widthFromZpl, heightFromZpl, options.Dpi);
     }
@@ -125,6 +128,9 @@ internal sealed partial class LabelPainter : IDisposable
         // Commands that carry bulk data are handled before the generic comma split: their data may be megabytes
         // of compressed hex in which ',' is a fill character, not a separator.
         if (cmd.Name == "^GF") { DrawGraphicField(cmd); return; }
+
+        // Downloads and deletions act on printer memory wherever they appear, inside a label as well as outside.
+        if (StorageCommands.TryHandle(cmd, _context, _warnings)) return;
 
         var a = Split(cmd.Args);
         switch (cmd.Name)

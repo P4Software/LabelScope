@@ -25,4 +25,8 @@ public sealed record RenderWarning(int Line, string Message);
 /// <summary>Everything the renderer produced for one piece of ZPL text.</summary>
 /// <param name="Labels">One image per ^XA..^XZ block.</param>
 /// <param name="Warnings">Problems found, in the order they occurred.</param>
-public sealed record RenderResult(IReadOnlyList<RenderedLabel> Labels, IReadOnlyList<RenderWarning> Warnings);
+public sealed record RenderResult(IReadOnlyList<RenderedLabel> Labels, IReadOnlyList<RenderWarning> Warnings)
+{
+    /// <summary>What this ZPL stored in or deleted from printer memory, in plain language; empty when nothing.</summary>
+    public IReadOnlyList<string> MemoryNotes { get; init; } = [];
+}
