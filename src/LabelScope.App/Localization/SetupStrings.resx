@@ -8,8 +8,8 @@
   <data name="Setup_WindowTitle" xml:space="preserve"><value>Printer setup</value></data>
   <data name="Setup_Subtitle" xml:space="preserve"><value>Choose how LabelScope appears to Windows and how it draws labels.</value></data>
   <data name="Setup_WindowsPrinter" xml:space="preserve"><value>Windows printer</value></data>
-  <data name="Setup_PrinterName" xml:space="preserve"><value>Printer name</value></data>
-  <data name="Setup_Reinstall" xml:space="preserve"><value>Reinstall printer</value></data>
+  <data name="Setup_PrinterName" xml:space="preserve"><value>_Printer name</value></data>
+  <data name="Setup_Reinstall" xml:space="preserve"><value>_Reinstall printer</value></data>
   <data name="Setup_ReinstallTip" xml:space="preserve"><value>Saves these settings, then removes the LabelScope printer from Windows and adds it again with this name. Windows asks for permission.</value></data>
   <data name="Setup_StatusChecking" xml:space="preserve"><value>Checking the printer…</value></data>
   <data name="Setup_StatusInstalled" xml:space="preserve"><value>Installed — choose “{0}” in any Windows print dialog.</value></data>
@@ -18,18 +18,18 @@
   <data name="Setup_StatusUnknown" xml:space="preserve"><value>LabelScope could not check the printer. Click Reinstall printer to try again; details are in the log folder.</value></data>
   <data name="Setup_StatusWorking" xml:space="preserve"><value>Reinstalling “{0}”… Windows will ask for permission.</value></data>
   <data name="Setup_Label" xml:space="preserve"><value>Label</value></data>
-  <data name="Setup_LabelSize" xml:space="preserve"><value>Label size</value></data>
+  <data name="Setup_LabelSize" xml:space="preserve"><value>_Label size</value></data>
   <data name="Setup_SizeItem" xml:space="preserve"><value>{0} × {1} in ({2} × {3} mm)</value></data>
   <data name="Setup_Custom" xml:space="preserve"><value>Custom…</value></data>
-  <data name="Setup_WidthMm" xml:space="preserve"><value>Width (mm)</value></data>
-  <data name="Setup_HeightMm" xml:space="preserve"><value>Height (mm)</value></data>
-  <data name="Setup_Density" xml:space="preserve"><value>Print density</value></data>
+  <data name="Setup_WidthMm" xml:space="preserve"><value>_Width (mm)</value></data>
+  <data name="Setup_HeightMm" xml:space="preserve"><value>_Height (mm)</value></data>
+  <data name="Setup_Density" xml:space="preserve"><value>Print _density</value></data>
   <data name="Setup_Dpi" xml:space="preserve"><value>{0} dpi</value></data>
   <data name="Setup_Behavior" xml:space="preserve"><value>Behavior</value></data>
-  <data name="Setup_Language" xml:space="preserve"><value>Language</value></data>
+  <data name="Setup_Language" xml:space="preserve"><value>Lan_guage</value></data>
   <data name="Setup_LanguageWindows" xml:space="preserve"><value>Windows language</value></data>
-  <data name="Setup_ShowNewest" xml:space="preserve"><value>Show the newest job as it arrives</value></data>
-  <data name="Setup_KeepJobs" xml:space="preserve"><value>Keep jobs after closing LabelScope</value></data>
+  <data name="Setup_ShowNewest" xml:space="preserve"><value>_Show the newest job as it arrives</value></data>
+  <data name="Setup_KeepJobs" xml:space="preserve"><value>_Keep jobs after closing LabelScope</value></data>
   <data name="Setup_Cancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="Setup_Save" xml:space="preserve"><value>Save</value></data>
   <data name="Setup_OpenSettingsFile" xml:space="preserve"><value>Open settings file</value></data>
@@ -45,4 +45,7 @@
   <data name="Setup_WidthInvalid" xml:space="preserve"><value>The label width must be a number from 5 to 2000 mm. Type the width in millimetres, then click Save again.</value></data>
   <data name="Setup_HeightInvalid" xml:space="preserve"><value>The label height must be a number from 5 to 2000 mm. Type the height in millimetres, then click Save again.</value></data>
   <data name="Setup_ActionFailed" xml:space="preserve"><value>The printer action did not finish. Details are in the log folder; try again.</value></data>
+  <data name="Setup_OldPrinterKept" xml:space="preserve"><value>The printer “{0}” is installed, but the old printer “{1}” is still in Windows: {2} You can remove it yourself in Windows Settings &gt; Bluetooth &amp; devices &gt; Printers &amp; scanners.</value></data>
+  <data name="Setup_OpenFailed" xml:space="preserve"><value>Printer setup could not be shown. Details are in the log folder; try again.</value></data>
+  <data name="Setup_ApplyFailed" xml:space="preserve"><value>The new settings were saved, but not all of them could be applied. Close LabelScope and start it again.</value></data>
 </root>

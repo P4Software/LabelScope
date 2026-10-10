@@ -21,6 +21,18 @@
                   UseAeroCaptionButtons="False" />
   </WindowChrome.WindowChrome>
 
+  <Window.Resources>
+    <!-- Field label with an access key (Alt + underlined letter moves to its input). A Label rather than the
+         TextBlock FieldLabelText style, because only a Label carries an access key to a Target; the look is the same. -->
+    <Style x:Key="FieldLabel" TargetType="Label">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,0,0,4" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    </Style>
+  </Window.Resources>
+
   <Border BorderBrush="{StaticResource InputBorderBrush}" BorderThickness="1">
     <DockPanel>
 
@@ -60,13 +72,13 @@
         <!-- Windows printer -->
         <TextBlock x:Name="WindowsPrinterHeading" Style="{StaticResource SectionHeadingText}" FontSize="17"
                    Text="Windows printer" Margin="0,0,0,14" />
-        <TextBlock x:Name="PrinterNameLabel" Style="{StaticResource FieldLabelText}" Text="Printer name" />
+        <Label x:Name="PrinterNameLabel" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=PrinterNameBox}" Content="Printer name" />
         <Grid>
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
           </Grid.ColumnDefinitions>
-          <TextBox x:Name="PrinterNameBox" Style="{StaticResource InputTextBox}" MaxLength="200" Height="32" Padding="5,0"
+          <TextBox x:Name="PrinterNameBox" AutomationProperties.LabeledBy="{Binding ElementName=PrinterNameLabel}" Style="{StaticResource InputTextBox}" MaxLength="200" Height="32" Padding="5,0"
                    TextChanged="OnPrinterNameChanged" />
           <Button x:Name="ReinstallButton" Grid.Column="1" Style="{StaticResource OutlineButton}" Margin="12,0,0,0"
                   Height="32" Padding="12,0"
@@ -90,8 +102,8 @@
             <ColumnDefinition Width="*" />
           </Grid.ColumnDefinitions>
           <StackPanel>
-            <TextBlock x:Name="LabelSizeLabel" Style="{StaticResource FieldLabelText}" Text="Label size" />
-            <ComboBox x:Name="SizeBox" Style="{StaticResource DropDown}" SelectionChanged="OnSizeChanged" />
+            <Label x:Name="LabelSizeLabel" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=SizeBox}" Content="Label size" />
+            <ComboBox x:Name="SizeBox" AutomationProperties.LabeledBy="{Binding ElementName=LabelSizeLabel}" Style="{StaticResource DropDown}" SelectionChanged="OnSizeChanged" />
             <!-- Custom size: shown only when "Custom…" is chosen. -->
             <Grid x:Name="CustomSizePanel" Margin="0,12,0,0" Visibility="Collapsed">
               <Grid.ColumnDefinitions>
@@ -100,17 +112,17 @@
                 <ColumnDefinition Width="*" />
               </Grid.ColumnDefinitions>
               <StackPanel>
-                <TextBlock x:Name="WidthLabel" Style="{StaticResource FieldLabelText}" Text="Width (mm)" />
-                <TextBox x:Name="WidthBox" Style="{StaticResource InputTextBox}" MaxLength="12" Height="32" Padding="5,0" />
+                <Label x:Name="WidthLabel" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=WidthBox}" Content="Width (mm)" />
+                <TextBox x:Name="WidthBox" AutomationProperties.LabeledBy="{Binding ElementName=WidthLabel}" Style="{StaticResource InputTextBox}" MaxLength="12" Height="32" Padding="5,0" />
               </StackPanel>
               <StackPanel Grid.Column="2">
-                <TextBlock x:Name="HeightLabel" Style="{StaticResource FieldLabelText}" Text="Height (mm)" />
-                <TextBox x:Name="HeightBox" Style="{StaticResource InputTextBox}" MaxLength="12" Height="32" Padding="5,0" />
+                <Label x:Name="HeightLabel" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=HeightBox}" Content="Height (mm)" />
+                <TextBox x:Name="HeightBox" AutomationProperties.LabeledBy="{Binding ElementName=HeightLabel}" Style="{StaticResource InputTextBox}" MaxLength="12" Height="32" Padding="5,0" />
               </StackPanel>
             </Grid>
           </StackPanel>
           <StackPanel Grid.Column="2">
-            <TextBlock x:Name="DensityLabel" Style="{StaticResource FieldLabelText}" Text="Print density" />
+            <Label x:Name="DensityLabel" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=Dpi203}" Content="Print density" />
             <StackPanel Orientation="Horizontal" Margin="4,7,0,0">
               <RadioButton x:Name="Dpi203" Style="{StaticResource OptionRadio}" GroupName="Dpi" Content="203 dpi" />
               <RadioButton x:Name="Dpi300" Style="{StaticResource OptionRadio}" GroupName="Dpi" Content="300 dpi" />
@@ -129,8 +141,8 @@
             <ColumnDefinition Width="*" />
           </Grid.ColumnDefinitions>
           <StackPanel>
-            <TextBlock x:Name="LanguageLabel" Style="{StaticResource FieldLabelText}" Text="Language" />
-            <ComboBox x:Name="LanguageBox" Style="{StaticResource DropDown}">
+            <Label x:Name="LanguageLabel" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=LanguageBox}" Content="Language" />
+            <ComboBox x:Name="LanguageBox" AutomationProperties.LabeledBy="{Binding ElementName=LanguageLabel}" Style="{StaticResource DropDown}">
               <ComboBoxItem x:Name="LanguageWindowsItem" Tag="" Content="Windows language" />
               <!-- Each language is named in its own language, so a person can always find theirs. -->
               <ComboBoxItem Tag="en" Content="English" />

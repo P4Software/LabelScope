@@ -110,19 +110,19 @@ public partial class PrinterSetupWindow : Window
         Title = TitleText.Text = SetupText.Get("Setup_WindowTitle");
         SubtitleText.Text = SetupText.Get("Setup_Subtitle");
         WindowsPrinterHeading.Text = SetupText.Get("Setup_WindowsPrinter");
-        PrinterNameLabel.Text = SetupText.Get("Setup_PrinterName");
+        PrinterNameLabel.Content = SetupText.Get("Setup_PrinterName");
         ReinstallButton.Content = SetupText.Get("Setup_Reinstall");
         ReinstallButton.ToolTip = SetupText.Get("Setup_ReinstallTip");
         LabelHeading.Text = SetupText.Get("Setup_Label");
-        LabelSizeLabel.Text = SetupText.Get("Setup_LabelSize");
-        WidthLabel.Text = SetupText.Get("Setup_WidthMm");
-        HeightLabel.Text = SetupText.Get("Setup_HeightMm");
-        DensityLabel.Text = SetupText.Get("Setup_Density");
+        LabelSizeLabel.Content = SetupText.Get("Setup_LabelSize");
+        WidthLabel.Content = SetupText.Get("Setup_WidthMm");
+        HeightLabel.Content = SetupText.Get("Setup_HeightMm");
+        DensityLabel.Content = SetupText.Get("Setup_Density");
         Dpi203.Content = SetupText.Get("Setup_Dpi", 203);
         Dpi300.Content = SetupText.Get("Setup_Dpi", 300);
         Dpi600.Content = SetupText.Get("Setup_Dpi", 600);
         BehaviorHeading.Text = SetupText.Get("Setup_Behavior");
-        LanguageLabel.Text = SetupText.Get("Setup_Language");
+        LanguageLabel.Content = SetupText.Get("Setup_Language");
         LanguageWindowsItem.Content = SetupText.Get("Setup_LanguageWindows");
         ShowNewestBox.Content = SetupText.Get("Setup_ShowNewest");
         KeepJobsBox.Content = SetupText.Get("Setup_KeepJobs");
@@ -273,7 +273,9 @@ public partial class PrinterSetupWindow : Window
     /// </summary>
     private static string DescribeNameProblem(string name, ArgumentException ex)
     {
-        const int maxLength = 60; // PrinterInstaller.MaxNameLength (internal to Core)
+        // Mirrors Core's PrinterInstaller.MaxNameLength, which is internal. Only the wording depends on it: the
+        // installer's constructor still decides, and a mismatch falls through to Core's own message below.
+        const int maxLength = 60;
         if (ex.ParamName == "printerName")
         {
             if (string.IsNullOrWhiteSpace(name)) return SetupText.Get("Setup_NameEmpty");
@@ -289,16 +291,42 @@ public partial class PrinterSetupWindow : Window
     }
 
     /// <summary>
+    /// The values this screen owns. Every other key in settings.json belongs to the file and is never written from
+    /// here, so a hand edit made while the screen was open (ListenPort, LogFolder, FontsFolder…) survives Save.
+    /// </summary>
+    /// <param name="PrinterName">Windows printer name, trimmed.</param>
+    /// <param name="WidthMm">Loaded label width in millimetres.</param>
+    /// <param name="HeightMm">Loaded label height in millimetres.</param>
+    /// <param name="Dpi">The chosen density, or null when no option is checked (a 152 from the file stays as it is).</param>
+    /// <param name="Language">"", "en" or "es".</param>
+    /// <param name="ShowNewestJob">Show the newest job as it arrives.</param>
+    /// <param name="KeepJobs">Keep jobs after closing LabelScope.</param>
+    private sealed record DialogValues(string PrinterName, double WidthMm, double HeightMm, int? Dpi, string Language,
+        bool ShowNewestJob, bool KeepJobs)
+    {
+        /// <summary>Writes these values over <paramref name="s"/>, leaving every other setting as it is.</summary>
+        public void ApplyTo(AppSettings s)
+        {
+            s.PrinterName = PrinterName;
+            s.LabelWidthMm = WidthMm;
+            s.LabelHeightMm = HeightMm;
+            if (Dpi is { } dpi) s.DefaultDpi = dpi;
+            s.Language = Language;
+            s.ShowNewestJob = ShowNewestJob;
+            s.KeepJobs = KeepJobs;
+        }
+    }
+
+    /// <summary>
     /// Reads and checks every value. On a problem shows the message, puts the cursor in the field to fix and
     /// returns false; settings.json is not touched.
     /// </summary>
-    private bool TryReadValues(out AppSettings settings, out PrinterInstaller installer)
+    private bool TryReadValues(out DialogValues values, out PrinterInstaller installer)
     {
-        settings = Copy(_current);
+        values = null!;
         var name = PrinterNameBox.Text.Trim();
         if (!TryMakeInstaller(name, out installer, out var problem))
             return Refuse(problem, PrinterNameBox);
-        settings.PrinterName = name;
 
         double width, height;
         if (SizeBox.SelectedItem is ComboBoxItem { Tag: LabelSize preset })
@@ -312,16 +340,34 @@ public partial class PrinterSetupWindow : Window
             if (!LabelSizes.TryParseMm(HeightBox.Text, out height) || !LabelSizes.IsValidMm(height))
                 return Refuse(SetupText.Get("Setup_HeightInvalid"), HeightBox);
         }
-        // Rounded so the file shows 57.15 rather than 57.150000000000006 (2.25 in × 25.4).
-        settings.LabelWidthMm = Math.Round(width, 3);
-        settings.LabelHeightMm = Math.Round(height, 3);
-
         var dpi = OfferedDpis.Zip([Dpi203, Dpi300, Dpi600]).FirstOrDefault(p => p.Second.IsChecked == true).First;
-        if (dpi != 0) settings.DefaultDpi = dpi; // none checked: keep the value from the file (e.g. 152)
+        values = new DialogValues(
+            name,
+            // Rounded so the file shows 57.15 rather than 57.150000000000006 (2.25 in × 25.4).
+            Math.Round(width, 3),
+            Math.Round(height, 3),
+            dpi == 0 ? null : dpi, // none checked: keep the value from the file (e.g. 152)
+            LanguageBox.SelectedItem is ComboBoxItem { Tag: string code } ? code : "",
+            ShowNewestBox.IsChecked == true,
+            KeepJobsBox.IsChecked == true);
+        return true;
+    }
 
-        settings.Language = LanguageBox.SelectedItem is ComboBoxItem { Tag: string code } ? code : "";
-        settings.ShowNewestJob = ShowNewestBox.IsChecked == true;
-        settings.KeepJobs = KeepJobsBox.IsChecked == true;
+    /// <summary>
+    /// Refuses a new name that already belongs to somebody else's printer: the main window could never install it,
+    /// and the person would only find out later. An unchanged name is never refused here. Used by Save and by
+    /// Reinstall printer, before anything is written.
+    /// </summary>
+    /// <returns>True when the name was refused (the message is shown).</returns>
+    private async Task<bool> RefuseTakenNameAsync(string name, PrinterInstaller installer)
+    {
+        if (string.Equals(name, _savedPrinterName, StringComparison.OrdinalIgnoreCase)) return false;
+        SetBusy(true);
+        PrinterStatus status;
+        try { status = await CheckStatusAsync(installer); }
+        finally { SetBusy(false); }
+        if (status != PrinterStatus.NameTakenByOther) return false;
+        Refuse(SetupText.Get("Setup_NameTaken", name), PrinterNameBox);
         return true;
     }
 
@@ -341,9 +387,30 @@ public partial class PrinterSetupWindow : Window
         MessageText.Visibility = text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    /// <summary>Writes settings.json; on failure shows Core's plain-language message and returns false.</summary>
-    private bool TrySave(AppSettings settings)
+    /// <summary>
+    /// Writes settings.json; on failure shows Core's plain-language message and returns false. The file is read
+    /// again first and only this screen's values are put on top, so other keys keep what the file holds now, not
+    /// what it held when the screen opened. When that read reports problems (a damaged value), its repaired values
+    /// are used for the keys this screen does not own, exactly as LabelScope would use them at start.
+    /// </summary>
+    private bool TrySave(DialogValues values)
     {
+        AppSettings settings;
+        try
+        {
+            var fresh = new SettingsStore().LoadOrCreate(_settingsPath);
+            foreach (var message in fresh.Messages) Log.Information("Printer setup: settings: {Message}", message);
+            settings = fresh.Settings;
+        }
+        catch (Exception ex)
+        {
+            // LoadOrCreate reports problems as messages; this only guards against the unexpected. The settings in
+            // use are then the best remaining answer for the keys this screen does not own.
+            Log.Warning(ex, "Printer setup: settings.json could not be read again before saving");
+            settings = Copy(_current);
+        }
+        values.ApplyTo(settings);
+
         var result = new SettingsStore().Save(_settingsPath, settings);
         Log.Information("Printer setup: save {Success} {Message}", result.Success, result.Message);
         if (!result.Success)
@@ -364,24 +431,9 @@ public partial class PrinterSetupWindow : Window
         try
         {
             ShowMessage("", isError: false);
-            if (!TryReadValues(out var settings, out var installer)) return;
-
-            // Refuse a new name that already belongs to somebody else's printer: the main window could never
-            // install it, and the person would only find out later. An unchanged name is never refused here.
-            if (!string.Equals(settings.PrinterName, _savedPrinterName, StringComparison.OrdinalIgnoreCase))
-            {
-                SetBusy(true);
-                PrinterStatus status;
-                try { status = await CheckStatusAsync(installer); }
-                finally { SetBusy(false); }
-                if (status == PrinterStatus.NameTakenByOther)
-                {
-                    Refuse(SetupText.Get("Setup_NameTaken", settings.PrinterName), PrinterNameBox);
-                    return;
-                }
-            }
-
-            if (!TrySave(settings)) return;
+            if (!TryReadValues(out var values, out var installer)) return;
+            if (await RefuseTakenNameAsync(values.PrinterName, installer)) return;
+            if (!TrySave(values)) return;
             DialogResult = true;
         }
         catch (Exception ex)
@@ -401,9 +453,9 @@ public partial class PrinterSetupWindow : Window
     }
 
     /// <summary>
-    /// Reinstall printer: save first (so the main window and the Windows printer agree on the name), then remove the
-    /// printer and add it again under the typed name. When the name was changed, the LabelScope printer under the old
-    /// name is removed as well. Each Windows change asks for permission once.
+    /// Reinstall printer: check the name, save (so the main window and the Windows printer agree on the name), then
+    /// put the printer into Windows under the typed name (see <see cref="ReinstallAsync"/>). Each Windows change asks
+    /// for permission once.
     /// </summary>
     private async void OnReinstall(object sender, RoutedEventArgs e)
     {
@@ -411,11 +463,13 @@ public partial class PrinterSetupWindow : Window
         try
         {
             ShowMessage("", isError: false);
-            if (!TryReadValues(out var settings, out var installer)) return;
+            if (!TryReadValues(out var values, out var installer)) return;
+            // The same refusal as Save, and before saving: a taken name must leave settings.json unchanged.
+            if (await RefuseTakenNameAsync(values.PrinterName, installer)) return;
             var oldName = _savedPrinterName;
-            if (!TrySave(settings)) return;
+            if (!TrySave(values)) return;
 
-            var name = settings.PrinterName;
+            var name = values.PrinterName;
             SetBusy(true);
             ShowStatus(SetupText.Get("Setup_StatusWorking", name), ok: null);
             OperationResult result;
@@ -439,21 +493,35 @@ public partial class PrinterSetupWindow : Window
         }
     }
 
-    /// <summary>Removes the old LabelScope printer (if renamed), then removes and installs the one with the typed name.</summary>
+    /// <summary>
+    /// Puts the printer into Windows under <paramref name="name"/>.
+    /// <list type="bullet">
+    /// <item>Same name: remove it, then add it again (a true reinstall, which repairs a broken printer).</item>
+    /// <item>New name: add the new printer FIRST, and only then remove our printer under the old name. If the person
+    /// declines the second permission prompt, or that removal fails, Windows still has a working LabelScope printer;
+    /// it never ends up with none. The shared port stays, because Core removes it only when no printer uses it.</item>
+    /// </list>
+    /// </summary>
     private async Task<OperationResult> ReinstallAsync(string oldName, string name, PrinterInstaller installer)
     {
-        if (!string.Equals(oldName, name, StringComparison.OrdinalIgnoreCase)
-            && TryMakeInstaller(oldName, out var old, out _)
-            && await CheckStatusAsync(old) == PrinterStatus.Installed)
+        if (string.Equals(oldName, name, StringComparison.OrdinalIgnoreCase))
         {
-            // Only our own printer under the old name is removed; somebody else's printer with that name is left alone.
-            var removedOld = await old.RemoveAsync();
-            if (!removedOld.Success) return removedOld;
+            var removed = await installer.RemoveAsync();
+            if (!removed.Success) return removed;
+            return await installer.InstallAsync();
         }
 
-        var removed = await installer.RemoveAsync();
-        if (!removed.Success) return removed;
-        return await installer.InstallAsync();
+        var installed = await installer.InstallAsync(); // "already installed" counts as success
+        if (!installed.Success) return installed;
+
+        // Only our own printer under the old name is removed; somebody else's printer with that name is left alone.
+        if (TryMakeInstaller(oldName, out var old, out _) && await CheckStatusAsync(old) == PrinterStatus.Installed)
+        {
+            var removedOld = await old.RemoveAsync();
+            if (!removedOld.Success)
+                return OperationResult.Fail(SetupText.Get("Setup_OldPrinterKept", name, oldName, removedOld.Message));
+        }
+        return installed;
     }
 
     /// <summary>Switches every input off while Windows is being asked something, so nothing changes underneath.</summary>

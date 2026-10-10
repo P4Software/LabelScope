@@ -1021,7 +1021,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Log.Error(ex, "Printer setup failed");
-            ShowMessage("Printer setup could not be shown. Details are in the log file.");
+            ShowMessage(SetupText.Get("Setup_OpenFailed"));
         }
     }
 
@@ -1038,6 +1038,14 @@ public partial class MainWindow : Window
             // The toolbar picker changes the language without saving it. Only a Language setting that was changed
             // in Printer setup switches the window, so saving a new label size never undoes the picker's choice.
             var languageChanged = !string.Equals(saved.Language, _settings.Language, StringComparison.OrdinalIgnoreCase);
+            // The dialog saves on top of a fresh read of settings.json, so a hand edit of a key that is only read at
+            // start can arrive here. Those keep their running values until the next start: the listener still
+            // listens on the old address and port (the printer must keep pointing at it), the log still goes to the
+            // old folder, and the fonts were loaded from the old folder.
+            saved.ListenAddress = _settings.ListenAddress;
+            saved.ListenPort = _settings.ListenPort;
+            saved.LogFolder = _settings.LogFolder;
+            saved.FontsFolder = _settings.FontsFolder;
             // A single reference swap: the socket thread reads the field once per job (see OnLabelReceived).
             _settings = saved;
             Log.Information("Printer setup saved: printer {Printer}, label {Width} x {Height} mm, {Dpi} dpi, language '{Language}'",
@@ -1072,7 +1080,7 @@ public partial class MainWindow : Window
         {
             // async void: nothing may escape.
             Log.Error(ex, "Applying the Printer setup settings failed");
-            ShowMessage("The new settings were saved but could not all be applied. Close LabelScope and start it again.");
+            ShowMessage(SetupText.Get("Setup_ApplyFailed"));
         }
     }
 
