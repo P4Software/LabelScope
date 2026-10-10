@@ -129,7 +129,12 @@ internal sealed partial class LabelPainter
         var found = _context.Memory.Find(name, out var elsewhere);
         if (found is StoredGraphic graphic)
         {
-            DrawImage(cmd.Name, cmd.Line, graphic.Image, 1, 1, _homeX, _homeY, 'N', fromBase: false);
+            // ^IL is the format's background, loaded before any field on a real printer, so ^FR and ^LR (which act on
+            // fields) must not reverse it. Reverse is switched off for this one draw and restored right after.
+            var (reverse, reverseAll) = (_reverse, _reverseAll);
+            (_reverse, _reverseAll) = (false, false);
+            try { DrawImage(cmd.Name, cmd.Line, graphic.Image, 1, 1, _homeX, _homeY, 'N', fromBase: false); }
+            finally { (_reverse, _reverseAll) = (reverse, reverseAll); }
             return;
         }
         if (found is not null)
@@ -159,7 +164,17 @@ internal sealed partial class LabelPainter
     {
         if (_imageSave is not { } save) return;
         _canvas.Flush();
-        var image = MonoImage.FromRgba(_bitmap.GetPixelSpan(), _bitmap.Width, _bitmap.Height, _bitmap.RowBytes, premultiplied: true);
+        MonoImage image;
+        try
+        {
+            image = MonoImage.FromRgba(_bitmap.GetPixelSpan(), _bitmap.Width, _bitmap.Height, _bitmap.RowBytes, premultiplied: true);
+        }
+        catch (GraphicDataException ex)
+        {
+            // A label larger than the graphic ceiling cannot be stored; the label itself must still be shown.
+            _warnings.Add(new(save.Line, $"^IS {save.Name.Display}: {ex.Message}"));
+            return;
+        }
         var cmd = new ZplCommand("^IS", "", save.Line);
         StorageCommands.StoreGraphic(cmd, _context, _warnings, save.Name, image, $"^IS {save.Name.Display}");
         if (!save.Print)
