@@ -200,7 +200,10 @@ public sealed class PrinterMemory
 
     /// <summary>"420 KB" or "5 MB": sizes as the window and messages show them.</summary>
     internal static string FormatBytes(long bytes) =>
-        bytes >= 1024 * 1024 ? $"{bytes / (1024.0 * 1024):0.#} MB" : $"{Math.Max(1, (bytes + 1023) / 1024)} KB";
+        bytes >= 1024 * 1024
+            // Formatted in the message language, not the Windows one: "1.5 MB" inside an English sentence.
+            ? string.Create(Localization.Text.Culture, $"{bytes / (1024.0 * 1024):0.#} MB")
+            : $"{Math.Max(1, (bytes + 1023) / 1024)} KB";
 }
 
 /// <summary>What printer memory holds right now.</summary>

@@ -109,7 +109,7 @@
   <data name="Painter_MagnificationRange" xml:space="preserve"><value>{0}: The magnification must be 1 to 10; {1},{2} was used.</value></data>
   <data name="Painter_GraphicTooLargeMagnified" xml:space="preserve"><value>{0}: {1} at magnification {2} x {3} would be {4} x {5} dots ({6} dots); LabelScope draws graphics up to {7} dots per side and {8} dots in total, so it was not drawn. Use a smaller magnification.</value></data>
   <data name="Painter_RecallWrongKind_font" xml:space="preserve"><value>{0}: {1} in LabelScope's printer memory is a font, not a graphic, so nothing was drawn for this field.</value></data>
-  <data name="Painter_RecallWrongKind_graphic" xml:space="preserve"><value>{0}: {1} in LabelScope's printer memory is a graphic, not a graphic, so nothing was drawn for this field.</value></data>
+  <data name="Painter_RecallWrongKind_graphic" xml:space="preserve"><value>{0}: {1} in LabelScope's printer memory is not a graphic that can be drawn here, so nothing was drawn for this field.</value></data>
   <data name="Painter_OtherDrive" xml:space="preserve"><value> LabelScope does have {0}, but this label asks for drive {1}:.</value></data>
   <data name="Painter_GraphicMissing" xml:space="preserve"><value>{0}: The graphic {1} is not in LabelScope's printer memory, so it was not drawn.{2} A printer keeps graphics that were sent to it earlier (with ~DG or ~DY) until it is switched off; send that download job to LabelScope first, then this label again.</value></data>
   <data name="Painter_IlWrongKind_font" xml:space="preserve"><value>^IL: {0} in LabelScope's printer memory is a font, not an image, so the label is drawn without a background.</value></data>
