@@ -46,7 +46,7 @@
   <data name="Ui_StatusNameTaken" xml:space="preserve"><value>Escutando, mas outra impressora do Windows já usa o nome “{0}”. Escolha Configurar impressora e defina outro nome.</value></data>
   <data name="Ui_StatusPrinterUnknown" xml:space="preserve"><value>Escutando em {0}. Não foi possível verificar a impressora do Windows.</value></data>
   <data name="Ui_StatusPrinterSettings" xml:space="preserve"><value>Escutando em {0}. As configurações da impressora precisam de correção; veja a mensagem na parte de baixo.</value></data>
-  <data name="Ui_StatusNotListening" xml:space="preserve"><value>Não está escutando — as etiquetas não podem chegar. Veja na mensagem na parte de baixo o que fazer.</value></data>
+  <data name="Ui_StatusNotListening" xml:space="preserve"><value>Não está escutando — as etiquetas não podem chegar. Veja a mensagem na parte de baixo para saber o que fazer.</value></data>
   <data name="Ui_RenderedOk" xml:space="preserve"><value>Desenhada corretamente</value></data>
   <data name="Ui_Incomplete" xml:space="preserve"><value>incompleta</value></data>
   <data name="Ui_Caption" xml:space="preserve"><value>{0} pol. ({1} pontos)</value></data>

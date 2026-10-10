@@ -91,7 +91,7 @@ Chaque envoi de votre système devient une carte, la plus récente en premier, a
 - **Ouvrir un fichier ZPL** et **Coller le ZPL** pour vérifier une étiquette sans rien envoyer.
 - **La taille de l'étiquette vient d'abord du ZPL.** `^PW` et `^LL` ont priorité; si l'étiquette n'en envoie pas, LabelScope utilise la taille envoyée par un travail précédent, puis l'étiquette chargée dans Configurer l'imprimante (aussi dans la liste des tailles de la barre d'outils).
 - **Enregistrer en PNG** ou copier l'étiquette comme image. La taille de l'étiquette s'affiche en pouces et en points.
-- **Mémoire d'imprimante** comme sur une vraie imprimante : les graphiques, polices et réglages envoyés dans un travail restent disponibles pour le suivant.
+- **Mémoire de l'imprimante** comme sur une vraie imprimante : les graphiques, polices et réglages envoyés dans un travail restent disponibles pour le suivant.
 - **Mise à jour depuis l'application** et un **journal de plantage** (crash log) si quelque chose tourne mal.
 
 ---

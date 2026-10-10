@@ -45,8 +45,8 @@
   <data name="Ui_StatusNoPrinter" xml:space="preserve"><value>À l'écoute, mais l'imprimante Windows « {0} » n'est pas installée. Choisissez Configurer l'imprimante pour l'installer.</value></data>
   <data name="Ui_StatusNameTaken" xml:space="preserve"><value>À l'écoute, mais une autre imprimante Windows utilise déjà le nom « {0} ». Choisissez Configurer l'imprimante et prenez un autre nom.</value></data>
   <data name="Ui_StatusPrinterUnknown" xml:space="preserve"><value>À l'écoute sur {0}. L'imprimante Windows n'a pas pu être vérifiée.</value></data>
-  <data name="Ui_StatusPrinterSettings" xml:space="preserve"><value>À l'écoute sur {0}. Les paramètres de l'imprimante doivent être corrigés; voyez le message en bas.</value></data>
-  <data name="Ui_StatusNotListening" xml:space="preserve"><value>Pas à l'écoute — les étiquettes ne peuvent pas arriver. Voyez le message en bas pour savoir quoi faire.</value></data>
+  <data name="Ui_StatusPrinterSettings" xml:space="preserve"><value>À l'écoute sur {0}. Les paramètres de l'imprimante doivent être corrigés; consultez le message en bas.</value></data>
+  <data name="Ui_StatusNotListening" xml:space="preserve"><value>Pas à l'écoute — les étiquettes ne peuvent pas arriver. Consultez le message en bas pour savoir que faire.</value></data>
   <data name="Ui_RenderedOk" xml:space="preserve"><value>Dessinée correctement</value></data>
   <data name="Ui_Incomplete" xml:space="preserve"><value>incomplète</value></data>
   <data name="Ui_Caption" xml:space="preserve"><value>{0} po ({1} points)</value></data>
@@ -108,7 +108,7 @@
   <data name="Ui_LogFolderFailed" xml:space="preserve"><value>LabelScope n'a pas pu créer son dossier des journaux ({0}). Il continue de fonctionner sans fichier journal; choisissez un autre LogFolder dans settings.json pour en avoir un.</value></data>
   <data name="Ui_ListenAllNote" xml:space="preserve"><value>LabelScope accepte les étiquettes des autres ordinateurs de votre réseau (ListenAddress 0.0.0.0). Windows peut vous demander d'autoriser LabelScope dans le pare-feu; il faut un administrateur pour y répondre.</value></data>
   <data name="Ui_LabelFailed" xml:space="preserve"><value>Une étiquette est arrivée, mais LabelScope n'a pas pu l'afficher. Envoyez-la de nouveau; les détails se trouvent dans le fichier journal.</value></data>
-  <data name="Ui_SkippedLabels" xml:space="preserve"><value>{0} travail(s) n'ont pas été affichés parce qu'ils sont arrivés plus vite qu'ils ne peuvent être montrés. Ils sont listés dans le fichier journal.</value></data>
+  <data name="Ui_SkippedLabels" xml:space="preserve"><value>Travaux non affichés : {0}, parce qu'ils sont arrivés plus vite qu'ils ne peuvent être montrés. Ils sont listés dans le fichier journal.</value></data>
   <data name="Ui_NotDrawnNote" xml:space="preserve"><value>Des données sont arrivées, mais aucune image d'étiquette n'a pu en être dessinée. Le ZPL et les raisons sont affichés à droite.</value></data>
   <data name="Ui_IncompleteNote" xml:space="preserve"><value>Une étiquette est arrivée incomplète (pas de ^XZ à la fin). Elle est affichée jusqu'où elle est arrivée.</value></data>
   <data name="Ui_ShowFailed" xml:space="preserve"><value>Ce travail n'a pas pu être affiché. Les détails se trouvent dans le fichier journal.</value></data>

@@ -118,7 +118,7 @@
   <data name="Painter_IsNoPrint" xml:space="preserve"><value>^IS {0},N: una impresora guarda esta etiqueta como imagen sin imprimirla; LabelScope la muestra de todos modos.</value></data>
   <data name="Painter_GraphicAllWhite" xml:space="preserve"><value>{0}: El gráfico ({1} x {2} puntos) es completamente blanco, así que no se ve nada en la etiqueta. Si se esperaba una imagen, revise los datos gráficos.</value></data>
   <data name="Painter_GraphicOffLabel" xml:space="preserve"><value>{0}: El gráfico ({1} x {2} puntos) no cabe en la etiqueta; la parte que queda fuera se recorta.</value></data>
-  <data name="Painter_LabelTooLarge" xml:space="preserve"><value>La etiqueta es demasiado grande para dibujarla ({0} x {1} puntos); se recortó a {0} x {2} puntos. Revise ^PW y ^LL, o el tamaño de etiqueta en Configuración de impresora.</value></data>
+  <data name="Painter_LabelTooLarge" xml:space="preserve"><value>La etiqueta es demasiado grande para dibujarla ({0} x {1} puntos); se recortó a {0} x {2} puntos. Revise ^PW y ^LL, o el tamaño de etiqueta en Configurar impresora.</value></data>
   <data name="Painter_SizeClamped" xml:space="preserve"><value>{0}{1} está fuera del tamaño de etiqueta admitido (de 1 a {2} puntos); se usó {3} en su lugar.</value></data>
   <data name="Painter_NotSupported" xml:space="preserve"><value>{0} todavía no es compatible y se ignoró.</value></data>
   <data name="Painter_FontSizeNotDots_height" xml:space="preserve"><value>{0}: La altura de fuente "{1}" no es un tamaño en puntos, así que se ignoró. Indique la altura como un número entero de puntos.</value></data>
@@ -315,7 +315,7 @@
   <data name="Field_OffLabel" xml:space="preserve"><value>Este campo queda fuera de la etiqueta, así que no se imprime nada de él. Revise su posición (^FO o ^FT) y el tamaño de la etiqueta (^PW, ^LL).</value></data>
   <data name="Field_PartlyOffLabel" xml:space="preserve"><value>Parte de este campo queda fuera de la etiqueta y se recorta. Mueva el campo o hágalo más pequeño.</value></data>
   <data name="Fields_TooMany" xml:space="preserve"><value>Esta etiqueta tiene {0} campos; solo se listan los primeros 5000.</value></data>
-  <data name="Painter_LabelTooWide" xml:space="preserve"><value>La etiqueta es demasiado grande para dibujarla ({0} x {1} puntos); el ancho de la etiqueta cargada se recortó a {2} puntos. Elija un tamaño de etiqueta más angosto en Configuración de impresora, o envíe ^PW.</value></data>
+  <data name="Painter_LabelTooWide" xml:space="preserve"><value>La etiqueta es demasiado grande para dibujarla ({0} x {1} puntos); el ancho de la etiqueta cargada se recortó a {2} puntos. Elija un tamaño de etiqueta más angosto en Configurar impresora, o envíe ^PW.</value></data>
   <data name="Settings_BadLabelSize" xml:space="preserve"><value>{0} {1} no está entre 5 y 2000 mm; se usa {2} en su lugar.</value></data>
   <data name="Settings_BadLanguage" xml:space="preserve"><value>El idioma "{0}" no se reconoce. Use "en" (inglés), "es" (español), "pt-BR" (portugués de Brasil), "fr" (francés) o "" (el idioma de Windows); se usa el idioma de Windows en su lugar.</value></data>
   <data name="Settings_Saved" xml:space="preserve"><value>La configuración se guardó en {0}.</value></data>
