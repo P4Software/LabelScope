@@ -1,4 +1,8 @@
 <p align="center">
+  🌎 <strong>English</strong> · <a href="README.es.md">Español</a> · <a href="README.pt-BR.md">Português</a> · <a href="README.fr.md">Français</a>
+</p>
+
+<p align="center">
   <img src="assets/screenshots/hero.png" alt="LabelScope showing a shipping label next to its ZPL code, with the list of received print jobs on the left" width="1000">
 </p>
 
@@ -21,14 +25,18 @@
   &nbsp;·&nbsp;
   <a href="https://github.com/P4Software/LabelScope/releases/latest">All releases</a>
   <br>
-  <sub>Version 0.4.0 · Windows 10 or 11, 64-bit · free · no administrator rights needed to install</sub>
+  <sub>Version 0.4.1 · Windows 10 or 11, 64-bit · free · no administrator rights needed to install</sub>
 </p>
 
 ---
 
-## En español
+## En español · Em português · En français
 
-LabelScope es una impresora Zebra® virtual para Windows. Instala una impresora de Windows, recibe el ZPL que envía su sistema (ERP, WMS, envíos) y muestra la etiqueta en pantalla, sin impresora física, sin papel y sin internet. Desde la versión 0.4.0 **toda la interfaz está en español**, incluidos los avisos y mensajes. **[Descargar LabelScope-Setup.exe](https://github.com/P4Software/LabelScope/releases/latest/download/LabelScope-Setup.exe)**. Elija **Español** en la barra de herramientas o en *Configurar impresora* (Printer setup).
+**Español.** LabelScope es una impresora Zebra® virtual para Windows: recibe el ZPL que envía su sistema (ERP, WMS, envíos) y muestra la etiqueta en pantalla, sin impresora física ni papel. Toda la interfaz está en español. **[Lea el README completo en español](README.es.md)**.
+
+**Português.** O LabelScope é uma impressora Zebra® virtual para Windows: recebe o ZPL que o seu sistema (ERP, WMS, expedição) envia e mostra a etiqueta na tela, sem impressora física nem papel. Desde a versão 0.4.1 toda a interface está em português do Brasil. **[Leia o README completo em português](README.pt-BR.md)**.
+
+**Français.** LabelScope est une imprimante Zebra® virtuelle pour Windows : il reçoit le ZPL que votre système (ERP, WMS, expédition) envoie et affiche l'étiquette à l'écran, sans imprimante physique ni papier. Depuis la version 0.4.1, toute l'interface est en français. **[Lisez le README complet en français](README.fr.md)**.
 
 ---
 
@@ -71,9 +79,9 @@ When a barcode runs off the label, LabelScope draws a red outline around it and 
   <img src="assets/screenshots/printer-setup.png" alt="The Printer setup screen with printer name, label size, print density, language and behaviour options" width="760">
 </p>
 
-### Fully in Spanish
+### In English, Spanish, Portuguese and French
 
-Switch between English and Spanish from the toolbar. Every text changes, including the warnings and the messages about what went wrong and what to do next. Jobs already on screen are drawn again in the new language.
+Choose English, Español, Português (Brasil) or Français from the toolbar, or let LabelScope follow the Windows language. Every text changes, including the warnings and the messages about what went wrong and what to do next. Jobs already on screen are drawn again in the new language.
 
 <p align="center">
   <img src="assets/screenshots/spanish.png" alt="LabelScope with the whole interface in Spanish, including the red warning about a barcode that will not scan" width="900">
@@ -197,7 +205,7 @@ Open **Printer setup** in the toolbar. Press **Save** and the change applies at 
 | Printer name | The name of the Windows printer. At most 60 characters, without `* ? [ ] \ / !`. A new name takes effect when you press **Reinstall printer**. |
 | Label size | Nine common sizes, or **Custom** in millimetres (5 to 2000). Used only when the ZPL gives no `^PW` / `^LL`. |
 | Print density | 203, 300 or 600 dpi. |
-| Language | Windows language, English or Spanish. |
+| Language | Windows language, English, Spanish, Portuguese (Brazil) or French. |
 | Show the newest job as it arrives | On by default. Turn off to keep looking at the job you selected. |
 | Keep jobs after closing LabelScope | Off by default. When on, your jobs come back at the next start (stored in `%LocalAppData%\LabelScope`). |
 
@@ -293,6 +301,7 @@ assets/                 Logo, icon and screenshots
 - [x] **0.2.0** Barcodes and rotated text
 - [x] **0.3.0** Graphics, images and custom fonts; signed installer
 - [x] **0.4.0** New window, Fields tab, red warning for barcodes that will not scan, full Spanish interface, Printer setup, keep jobs
+- [x] **0.4.1** Portuguese (Brazil) and French
 - [ ] **0.5** Complete ZPL: the remaining `^CI` code pages, `^DF` / `^XF`, `^SN`, `^FV`, the remaining barcodes, binary graphics
 - [ ] Comparison of barcodes and graphics with a real Zebra printer
 - [ ] Optional: save every received label automatically to PDF or image files
