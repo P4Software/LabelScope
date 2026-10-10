@@ -59,6 +59,25 @@ public static class ZplParser
                 continue;
             }
 
+            var commandName0 = name.ToString();
+            // Binary data (^GFB, ~DY format B) is skipped by its declared byte count: its bytes may contain '^' and
+            // '~', which would otherwise become garbage commands (Decision 4 defers drawing it).
+            if (BinaryDownloads.TryMeasure(zpl, j, commandName0, out var dataStart, out var dataLength))
+            {
+                var header = new StringBuilder();
+                for (var k = j; k < dataStart; k++)
+                {
+                    if (zpl[k] == '\r' || zpl[k] == '\n') { if (IsLineBreak(zpl, k)) line++; }
+                    else header.Append(zpl[k]);
+                }
+                commands.Add(new ZplCommand(commandName0, header.ToString().Trim(), startLine));
+                var end = (int)Math.Min(zpl.Length, dataStart + dataLength);
+                for (var k = dataStart; k < end; k++)
+                    if (IsLineBreak(zpl, k)) line++;
+                i = end;
+                continue;
+            }
+
             var args = new StringBuilder();
             while (j < zpl.Length && zpl[j] != '^' && zpl[j] != '~')
             {

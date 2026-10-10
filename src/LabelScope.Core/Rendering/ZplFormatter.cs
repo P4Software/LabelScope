@@ -22,6 +22,9 @@ public static class ZplFormatter
     public static string Format(string? zpl)
     {
         if (string.IsNullOrEmpty(zpl)) return "";
+        // Binary downloads must reach the parser byte for byte: re-flowing would drop their CR/LF bytes and insert
+        // line breaks before '^' inside the data, changing its length.
+        if (BinaryDownloads.ContainsAny(zpl)) return zpl;
         try
         {
             return FormatCore(zpl);
