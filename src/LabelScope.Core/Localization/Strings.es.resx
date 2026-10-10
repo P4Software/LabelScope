@@ -313,4 +313,18 @@
   <data name="Settings_SaveFailed" xml:space="preserve"><value>No se pudo guardar la configuración en {0} ({1}). El archivo no se modificó. Compruebe que se pueda escribir en la carpeta y que ningún otro programa tenga abierto el archivo, y vuelva a intentarlo.</value></data>
   <data name="Settings_FileReadOnly" xml:space="preserve"><value>el archivo es de solo lectura</value></data>
   <data name="Field_BarcodePartlyOffLabel" xml:space="preserve"><value>Parte de este código de barras queda fuera de la etiqueta, así que se recorta y no se podrá escanear. Use un ancho de módulo menor (^BY), datos más cortos o mueva el campo.</value></data>
+  <data name="Job_DefaultName" xml:space="preserve"><value>Etiqueta</value></data>
+  <data name="Job_ThisComputer" xml:space="preserve"><value>Esta computadora</value></data>
+  <data name="Job_OpenedFromFile" xml:space="preserve"><value>Archivo abierto</value></data>
+  <data name="Job_Pasted" xml:space="preserve"><value>Pegado</value></data>
+  <data name="Log_Received" xml:space="preserve"><value>Recibido de {0}, {1} bytes.</value></data>
+  <data name="Log_OpenedFromFile" xml:space="preserve"><value>Abierto desde un archivo, {0} bytes.</value></data>
+  <data name="Log_Pasted" xml:space="preserve"><value>Pegado desde el portapapeles, {0} bytes.</value></data>
+  <data name="Log_Incomplete" xml:space="preserve"><value>El remitente se detuvo antes del final de la última etiqueta (^XZ), así que a esa etiqueta le pueden faltar partes. Envíe el trabajo de nuevo; si sigue pasando, revise la red o el programa que envía.</value></data>
+  <data name="Jobs_Saved" xml:space="preserve"><value>Se guardaron {0} trabajos en {1}.</value></data>
+  <data name="Jobs_SaveFailed" xml:space="preserve"><value>No se pudo guardar la lista de trabajos en {0} ({1}). Los trabajos se siguen mostrando, pero no volverán al próximo inicio. Compruebe que se pueda escribir en la carpeta y que ningún otro programa tenga abierto el archivo.</value></data>
+  <data name="Jobs_LoadFailed" xml:space="preserve"><value>No se pudieron abrir los trabajos guardados en {0} ({1}). LabelScope empezó con la lista vacía y no modificó el archivo. Cierre cualquier programa que pueda estar usando el archivo; los trabajos volverán al próximo inicio.</value></data>
+  <data name="Jobs_LoadDamaged" xml:space="preserve"><value>No se pudieron leer los trabajos guardados en {0} porque el archivo está dañado ({1}). LabelScope empezó con la lista vacía. Los trabajos nuevos reemplazarán el archivo cuando cierre LabelScope.</value></data>
+  <data name="Jobs_NoVersion" xml:space="preserve"><value>el archivo no tiene un número de versión válido</value></data>
+  <data name="Jobs_LoadNewer" xml:space="preserve"><value>Los trabajos guardados en {0} los escribió una versión más nueva de LabelScope y esta no puede leerlos. LabelScope empezó con la lista vacía. Instale la versión más nueva para ver esos trabajos otra vez.</value></data>
 </root>
