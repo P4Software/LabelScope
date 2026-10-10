@@ -1035,13 +1035,16 @@ public partial class MainWindow : Window
         try
         {
             var printerChanged = !string.Equals(saved.PrinterName, _settings.PrinterName, StringComparison.Ordinal);
+            // The toolbar picker changes the language without saving it. Only a Language setting that was changed
+            // in Printer setup switches the window, so saving a new label size never undoes the picker's choice.
+            var languageChanged = !string.Equals(saved.Language, _settings.Language, StringComparison.OrdinalIgnoreCase);
             // A single reference swap: the socket thread reads the field once per job (see OnLabelReceived).
             _settings = saved;
             Log.Information("Printer setup saved: printer {Printer}, label {Width} x {Height} mm, {Dpi} dpi, language '{Language}'",
                 saved.PrinterName, saved.LabelWidthMm, saved.LabelHeightMm, saved.DefaultDpi, saved.Language);
 
             var culture = CultureForSetting(saved.Language);
-            if (culture.Name != Text.Culture.Name)
+            if (languageChanged && culture.Name != Text.Culture.Name)
             {
                 SwitchLanguage(culture);
                 SelectLanguageInPicker();
