@@ -115,6 +115,9 @@ public partial class MainWindow : Window
             var load = new SettingsStore().LoadOrCreate(_settingsPath);
             _settings = load.Settings;
             ConfigureLogging();
+            // The language chosen in Printer setup wins over the Windows language; "" keeps the Windows rule.
+            Text.Culture = CultureForSetting(_settings.Language);
+            SelectLanguageInPicker();
             // Only the starting state comes from settings.json; later clicks are never written back, because
             // rewriting the file would destroy the comments the user may have added.
             GridBox.IsChecked = _settings.ShowGrid;
@@ -203,7 +206,9 @@ public partial class MainWindow : Window
         try
         {
             if (_closing) return;
-            var options = new RenderOptions(_settings.DefaultDpi);
+            // One read of the field: Printer setup may replace the settings object while this socket thread runs.
+            var settings = _settings;
+            var options = new RenderOptions(settings.DefaultDpi, settings.LabelWidthMm, settings.LabelHeightMm);
             // Format first and draw THE FORMATTED TEXT: warnings carry line numbers, and they must point at the
             // lines the user sees. Formatting does not change the picture (ZPL ignores line breaks).
             // Formatting copies the whole text, so it waits for the same gate as drawing: a flood of very large
@@ -678,10 +683,9 @@ public partial class MainWindow : Window
         PrinterSetupButton.Content = UiText.Get("Ui_PrinterSetup");
         MoreButton.ToolTip = UiText.Get("Ui_More");
 
-        InstallButton.Header = InstallItem.Header = UiText.Get("Ui_InstallPrinter");
-        InstallButton.ToolTip = InstallItem.ToolTip = UiText.Get("Ui_InstallPrinterTip");
-        RemoveButton.Header = RemoveItem.Header = UiText.Get("Ui_RemovePrinter");
-        PrinterSettingsItem.Header = OpenSettingsItem.Header = UiText.Get("Ui_OpenSettings");
+        InstallItem.Header = UiText.Get("Ui_InstallPrinter");
+        InstallItem.ToolTip = UiText.Get("Ui_InstallPrinterTip");
+        RemoveItem.Header = UiText.Get("Ui_RemovePrinter");
         CopyImageItem.Header = UiText.Get("Ui_CopyImage");
         CopyOriginalButton.Header = UiText.Get("Ui_CopyOriginal");
         CopyOriginalButton.ToolTip = UiText.Get("Ui_CopyOriginalTip");
@@ -800,10 +804,28 @@ public partial class MainWindow : Window
     private void OnLanguageChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_changingLanguagePicker || LanguagePicker.SelectedItem is not ComboBoxItem { Tag: string code }) return;
+        if (Text.Culture.TwoLetterISOLanguageName == code) return;
+        SwitchLanguage(new System.Globalization.CultureInfo(code));
+    }
+
+    /// <summary>
+    /// The culture for the Language setting: "en" or "es" as chosen, and for "" the same rule Core uses by default
+    /// (Spanish when the Windows display language is Spanish, otherwise English).
+    /// </summary>
+    private static System.Globalization.CultureInfo CultureForSetting(string? language) =>
+        new(language is "en" or "es"
+            ? language
+            : System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "es" : "en");
+
+    /// <summary>
+    /// Changes the language of the window and of Core's messages, then redraws every text. Used by the toolbar
+    /// language picker and after Printer setup is saved.
+    /// </summary>
+    private void SwitchLanguage(System.Globalization.CultureInfo culture)
+    {
         try
         {
-            if (Text.Culture.TwoLetterISOLanguageName == code) return;
-            Text.Culture = new System.Globalization.CultureInfo(code);
+            Text.Culture = culture;
             ApplyTexts();
             // The job cards compute their texts on each read; refreshing the list makes them read again.
             HistoryList.Items.Refresh();
@@ -877,13 +899,15 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// The size picker shows the label loaded in the printer: 4 × 6 in (the default label) at the DefaultDpi setting.
-    /// Read-only for now; choosing another size comes with the label-size setting.
+    /// The size picker shows the label loaded in the printer (LabelWidthMm × LabelHeightMm, in inches) at the
+    /// DefaultDpi setting. Read-only: the size is chosen in Printer setup.
     /// </summary>
     private void UpdateSizePicker()
     {
         if (SizePicker is null) return;
-        var text = UiText.Get("Ui_SizePicker", 4, 6, _settings.DefaultDpi);
+        var text = UiText.Get("Ui_SizePicker",
+            LabelSizes.Format(_settings.LabelWidthMm / LabelSizes.MmPerInch),
+            LabelSizes.Format(_settings.LabelHeightMm / LabelSizes.MmPerInch), _settings.DefaultDpi);
         SizePicker.ItemsSource = new[] { text };
         SizePicker.SelectedIndex = 0;
     }
@@ -974,10 +998,80 @@ public partial class MainWindow : Window
     // ---- toolbar menus -----------------------------------------------------------------------------
 
     /// <summary>
-    /// "Printer setup": until the Printer setup dialog exists, this opens a small menu with the printer actions
-    /// (install, remove) and the settings file.
+    /// "Printer setup": opens the Printer setup screen. Whatever it saved (on Save, or already on Reinstall printer
+    /// even when the screen is then cancelled) is applied at once.
     /// </summary>
-    private void OnPrinterSetup(object sender, RoutedEventArgs e) => OpenMenuBelow(PrinterSetupButton);
+    private void OnPrinterSetup(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new PrinterSetupWindow(_settings, _settingsPath)
+            {
+                Owner = this,
+                CheckForUpdates = () => CheckForUpdatesAsync(userAsked: true),
+            };
+            var openSettingsFile = false;
+            dialog.OpenSettingsFileRequested += (_, _) => openSettingsFile = true;
+            dialog.OpenLogFolderRequested += (_, _) => Open(ResolveLogFolder());
+            dialog.ShowDialog();
+            if (dialog.Result is { } saved) ApplySettings(saved);
+            // Opened only after the screen is closed, so its Save cannot overwrite what the person types in the file.
+            if (openSettingsFile) Open(_settingsPath);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Printer setup failed");
+            ShowMessage("Printer setup could not be shown. Details are in the log file.");
+        }
+    }
+
+    /// <summary>
+    /// Takes the settings saved by Printer setup into use: language, printer (name and status), and the label size
+    /// and density for every label that arrives from now on. Labels already in the list keep how they were drawn
+    /// until they are drawn again.
+    /// </summary>
+    private async void ApplySettings(AppSettings saved)
+    {
+        try
+        {
+            var printerChanged = !string.Equals(saved.PrinterName, _settings.PrinterName, StringComparison.Ordinal);
+            // A single reference swap: the socket thread reads the field once per job (see OnLabelReceived).
+            _settings = saved;
+            Log.Information("Printer setup saved: printer {Printer}, label {Width} x {Height} mm, {Dpi} dpi, language '{Language}'",
+                saved.PrinterName, saved.LabelWidthMm, saved.LabelHeightMm, saved.DefaultDpi, saved.Language);
+
+            var culture = CultureForSetting(saved.Language);
+            if (culture.Name != Text.Culture.Name)
+            {
+                SwitchLanguage(culture);
+                SelectLanguageInPicker();
+            }
+            else
+            {
+                ApplyTexts(); // printer name, size picker and status line name values that may have changed
+            }
+            UpdateGrid(); // the grid cell size follows the density
+
+            // The installer is built for one name, so a new name needs a new one. The dialog checked the name
+            // with the installer's own rules, so this cannot fail on the name; the flag is cleared because
+            // CreateInstaller only ever sets it.
+            if (printerChanged || _installer is null)
+            {
+                _printerSettingsBroken = false;
+                _installer = null;
+                _printerStatus = null;
+                CreateInstaller();
+                UpdatePrinterButtons();
+            }
+            await RefreshPrinterStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            // async void: nothing may escape.
+            Log.Error(ex, "Applying the Printer setup settings failed");
+            ShowMessage("The new settings were saved but could not all be applied. Close LabelScope and start it again.");
+        }
+    }
 
     /// <summary>"…": the actions that have no room on the toolbar.</summary>
     private void OnMore(object sender, RoutedEventArgs e) => OpenMenuBelow(MoreButton);
@@ -1024,9 +1118,8 @@ public partial class MainWindow : Window
     private void UpdatePrinterButtons()
     {
         var enabled = _installer is not null && !_printerBusy;
-        // The same two actions sit in the Printer setup menu and in the "…" menu.
-        InstallButton.IsEnabled = InstallItem.IsEnabled = enabled;
-        RemoveButton.IsEnabled = RemoveItem.IsEnabled = enabled;
+        InstallItem.IsEnabled = enabled;
+        RemoveItem.IsEnabled = enabled;
     }
 
     /// <summary>Re-checks the printer when the user comes back to the window, so a transient failure heals itself.</summary>
@@ -1321,8 +1414,15 @@ public partial class MainWindow : Window
     /// Looks for a newer version. At start-up (userAsked false) problems are only logged, because a PC without
     /// internet is normal for this tool; when the user pressed the button they get a plain answer either way.
     /// </summary>
-    private async Task CheckForUpdatesAsync(bool userAsked)
+    /// <returns>The answer shown in the message strip ("" when nothing was shown), so Printer setup can show it too.</returns>
+    private async Task<string> CheckForUpdatesAsync(bool userAsked)
     {
+        var answer = "";
+        void Say(string text)
+        {
+            answer = text;
+            ShowMessage(text);
+        }
         try
         {
             CheckUpdateButton.IsEnabled = false;
@@ -1332,28 +1432,29 @@ public partial class MainWindow : Window
                 _update = update;
                 UpdateButton.Content = UiText.Get("Ui_UpdateTo", update.Version.ToString(3));
                 UpdateButton.Visibility = Visibility.Visible;
-                ShowMessage($"A new version of LabelScope is available ({update.Version.ToString(3)}). Press \"Update to {update.Version.ToString(3)}\" in the toolbar to install it.");
+                Say($"A new version of LabelScope is available ({update.Version.ToString(3)}). Press \"Update to {update.Version.ToString(3)}\" in the toolbar to install it.");
                 Log.Information("Update available: {Version}", update.Version);
             }
             else if (result.Problem is not null)
             {
                 Log.Information("Update check: {Problem}", result.Problem);
-                if (userAsked) ShowMessage(result.Problem);
+                if (userAsked) Say(result.Problem);
             }
             else if (userAsked)
             {
-                ShowMessage($"You have the newest version ({InstalledVersion().ToString(3)}).");
+                Say($"You have the newest version ({InstalledVersion().ToString(3)}).");
             }
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Update check failed");
-            if (userAsked) ShowMessage("LabelScope could not check for updates: " + ex.Message);
+            if (userAsked) Say("LabelScope could not check for updates: " + ex.Message);
         }
         finally
         {
             CheckUpdateButton.IsEnabled = true;
         }
+        return answer;
     }
 
     private async void OnUpdateNow(object sender, RoutedEventArgs e)

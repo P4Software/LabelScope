@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Texts of the Printer setup window (keys start with Setup_). Generated from one table so the English and Spanish files always hold the same keys. -->
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Setup_WindowTitle" xml:space="preserve"><value>Printer setup</value></data>
+  <data name="Setup_Subtitle" xml:space="preserve"><value>Choose how LabelScope appears to Windows and how it draws labels.</value></data>
+  <data name="Setup_WindowsPrinter" xml:space="preserve"><value>Windows printer</value></data>
+  <data name="Setup_PrinterName" xml:space="preserve"><value>Printer name</value></data>
+  <data name="Setup_Reinstall" xml:space="preserve"><value>Reinstall printer</value></data>
+  <data name="Setup_ReinstallTip" xml:space="preserve"><value>Saves these settings, then removes the LabelScope printer from Windows and adds it again with this name. Windows asks for permission.</value></data>
+  <data name="Setup_StatusChecking" xml:space="preserve"><value>Checking the printer…</value></data>
+  <data name="Setup_StatusInstalled" xml:space="preserve"><value>Installed — choose “{0}” in any Windows print dialog.</value></data>
+  <data name="Setup_StatusNotInstalled" xml:space="preserve"><value>Not installed — click Reinstall printer to add “{0}” to Windows.</value></data>
+  <data name="Setup_StatusNameTaken" xml:space="preserve"><value>Another Windows printer already uses the name “{0}”. LabelScope never changes it; type a different name.</value></data>
+  <data name="Setup_StatusUnknown" xml:space="preserve"><value>LabelScope could not check the printer. Click Reinstall printer to try again; details are in the log folder.</value></data>
+  <data name="Setup_StatusWorking" xml:space="preserve"><value>Reinstalling “{0}”… Windows will ask for permission.</value></data>
+  <data name="Setup_Label" xml:space="preserve"><value>Label</value></data>
+  <data name="Setup_LabelSize" xml:space="preserve"><value>Label size</value></data>
+  <data name="Setup_SizeItem" xml:space="preserve"><value>{0} × {1} in ({2} × {3} mm)</value></data>
+  <data name="Setup_Custom" xml:space="preserve"><value>Custom…</value></data>
+  <data name="Setup_WidthMm" xml:space="preserve"><value>Width (mm)</value></data>
+  <data name="Setup_HeightMm" xml:space="preserve"><value>Height (mm)</value></data>
+  <data name="Setup_Density" xml:space="preserve"><value>Print density</value></data>
+  <data name="Setup_Dpi" xml:space="preserve"><value>{0} dpi</value></data>
+  <data name="Setup_Behavior" xml:space="preserve"><value>Behavior</value></data>
+  <data name="Setup_Language" xml:space="preserve"><value>Language</value></data>
+  <data name="Setup_LanguageWindows" xml:space="preserve"><value>Windows language</value></data>
+  <data name="Setup_ShowNewest" xml:space="preserve"><value>Show the newest job as it arrives</value></data>
+  <data name="Setup_KeepJobs" xml:space="preserve"><value>Keep jobs after closing LabelScope</value></data>
+  <data name="Setup_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Setup_Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Setup_OpenSettingsFile" xml:space="preserve"><value>Open settings file</value></data>
+  <data name="Setup_OpenSettingsFileTip" xml:space="preserve"><value>Closes this window and opens settings.json, for settings that are not on this screen.</value></data>
+  <data name="Setup_OpenLogFolder" xml:space="preserve"><value>Open log folder</value></data>
+  <data name="Setup_CheckUpdates" xml:space="preserve"><value>Check for updates</value></data>
+  <data name="Setup_CheckingUpdates" xml:space="preserve"><value>Checking for updates…</value></data>
+  <data name="Setup_NameEmpty" xml:space="preserve"><value>Type a name for the printer, for example LabelScope, then click Save again.</value></data>
+  <data name="Setup_NameTooLong" xml:space="preserve"><value>The printer name is too long ({0} characters at most). Shorten it, then click Save again.</value></data>
+  <data name="Setup_NameControlChars" xml:space="preserve"><value>The printer name must be one line of normal text. Remove line breaks and hidden characters, then click Save again.</value></data>
+  <data name="Setup_NameForbiddenChars" xml:space="preserve"><value>The printer name must not contain \ / ! * ? [ or ]. Remove them, then click Save again.</value></data>
+  <data name="Setup_NameTaken" xml:space="preserve"><value>Another Windows printer already uses the name “{0}”, and LabelScope never changes it. Type a different name, then click Save again.</value></data>
+  <data name="Setup_WidthInvalid" xml:space="preserve"><value>The label width must be a number from 5 to 2000 mm. Type the width in millimetres, then click Save again.</value></data>
+  <data name="Setup_HeightInvalid" xml:space="preserve"><value>The label height must be a number from 5 to 2000 mm. Type the height in millimetres, then click Save again.</value></data>
+  <data name="Setup_ActionFailed" xml:space="preserve"><value>The printer action did not finish. Details are in the log folder; try again.</value></data>
+</root>

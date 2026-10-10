@@ -1,0 +1,154 @@
+<!--
+  Printer setup (0.4.0 mockup "Printer setup dialog"): the screen where a person changes the Windows printer name,
+  the loaded label size, the print density, the language and the job-list behaviour. Nobody has to open settings.json
+  for these; the file stays reachable through the small "Open settings file" link for the rest.
+
+  The window has no Windows title bar of its own (WindowChrome): the white header with the title is the draggable
+  caption, as in the mockup, and the system still draws the shadow and rounded corners. Esc and Alt+F4 close it.
+  Every visible text is set from code (PrinterSetupWindow.ApplyTexts) through SetupText; texts here are placeholders.
+-->
+<Window x:Class="LabelScope.App.PrinterSetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Style="{StaticResource AppWindow}"
+        Title="Printer setup" Width="720" SizeToContent="Height"
+        ResizeMode="NoResize" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{StaticResource CardBrush}" Icon="labelscope.ico"
+        Loaded="OnLoaded" Closing="OnClosing">
+  <WindowChrome.WindowChrome>
+    <!-- CaptionHeight covers the header so it drags the window; a 1-pixel glass frame keeps the system shadow. -->
+    <WindowChrome CaptionHeight="78" GlassFrameThickness="0,0,0,1" ResizeBorderThickness="0" CornerRadius="0"
+                  UseAeroCaptionButtons="False" />
+  </WindowChrome.WindowChrome>
+
+  <Border BorderBrush="{StaticResource InputBorderBrush}" BorderThickness="1">
+    <DockPanel>
+
+      <!-- ============================================================== Header -->
+      <Border DockPanel.Dock="Top" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,0,0,1"
+              Padding="24,16,24,14">
+        <StackPanel>
+          <TextBlock x:Name="TitleText" Style="{StaticResource DialogTitleText}" FontSize="23" Text="Printer setup" />
+          <TextBlock x:Name="SubtitleText" Style="{StaticResource MutedText}" FontSize="12" Margin="0,4,0,0"
+                     Text="Choose how LabelScope appears to Windows and how it draws labels." />
+        </StackPanel>
+      </Border>
+
+      <!-- ============================================================== Footer -->
+      <Border x:Name="Footer" DockPanel.Dock="Bottom" Background="{StaticResource BackgroundBrush}"
+              BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0" Padding="24,16">
+        <DockPanel LastChildFill="False">
+          <!-- Secondary links on the left: small and quiet so they do not compete with Save. -->
+          <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock FontSize="12"><Hyperlink x:Name="OpenSettingsLink" Click="OnOpenSettingsFile"
+                       Foreground="{StaticResource PrimaryBrush}"><Run x:Name="OpenSettingsRun" Text="Open settings file" /></Hyperlink></TextBlock>
+            <TextBlock FontSize="12" Margin="16,0,0,0"><Hyperlink x:Name="OpenLogLink" Click="OnOpenLogFolder"
+                       Foreground="{StaticResource PrimaryBrush}"><Run x:Name="OpenLogRun" Text="Open log folder" /></Hyperlink></TextBlock>
+            <TextBlock x:Name="CheckUpdatesHolder" FontSize="12" Margin="16,0,0,0"><Hyperlink x:Name="CheckUpdatesLink" Click="OnCheckForUpdates"
+                       Foreground="{StaticResource PrimaryBrush}"><Run x:Name="CheckUpdatesRun" Text="Check for updates" /></Hyperlink></TextBlock>
+          </StackPanel>
+          <Button x:Name="SaveButton" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Save"
+                  MinWidth="61" Height="32" Padding="14,0" IsDefault="True" Click="OnSave" />
+          <Button x:Name="CancelButton" DockPanel.Dock="Right" Style="{StaticResource OutlineButton}" Content="Cancel"
+                  MinWidth="72" Height="32" Padding="14,0" Margin="0,0,8,0" IsCancel="True" Click="OnCancel" />
+        </DockPanel>
+      </Border>
+
+      <!-- ============================================================== Body -->
+      <StackPanel x:Name="Body" Margin="24,22,24,22">
+
+        <!-- Windows printer -->
+        <TextBlock x:Name="WindowsPrinterHeading" Style="{StaticResource SectionHeadingText}" FontSize="17"
+                   Text="Windows printer" Margin="0,0,0,14" />
+        <TextBlock x:Name="PrinterNameLabel" Style="{StaticResource FieldLabelText}" Text="Printer name" />
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBox x:Name="PrinterNameBox" Style="{StaticResource InputTextBox}" MaxLength="200" Height="32" Padding="5,0"
+                   TextChanged="OnPrinterNameChanged" />
+          <Button x:Name="ReinstallButton" Grid.Column="1" Style="{StaticResource OutlineButton}" Margin="12,0,0,0"
+                  Height="32" Padding="12,0"
+                  Content="Reinstall printer" Click="OnReinstall" />
+        </Grid>
+        <!-- Printer status: green tick when Windows has the printer, red mark with the problem otherwise. -->
+        <StackPanel Orientation="Horizontal" Margin="1,12,0,0" MinHeight="18">
+          <TextBlock x:Name="PrinterStatusIcon" Style="{StaticResource IconText}" FontSize="11" Margin="0,1,9,0"
+                     Text="{StaticResource IconCheck}" Foreground="{StaticResource SuccessBrush}" />
+          <TextBlock x:Name="PrinterStatusText" FontSize="12" TextWrapping="Wrap" MaxWidth="640"
+                     VerticalAlignment="Center" Foreground="{StaticResource SuccessBrush}" />
+        </StackPanel>
+
+        <!-- Label -->
+        <TextBlock x:Name="LabelHeading" Style="{StaticResource SectionHeadingText}" FontSize="17" Text="Label"
+                   Margin="0,24,0,14" />
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <StackPanel>
+            <TextBlock x:Name="LabelSizeLabel" Style="{StaticResource FieldLabelText}" Text="Label size" />
+            <ComboBox x:Name="SizeBox" Style="{StaticResource DropDown}" SelectionChanged="OnSizeChanged" />
+            <!-- Custom size: shown only when "Custom…" is chosen. -->
+            <Grid x:Name="CustomSizePanel" Margin="0,12,0,0" Visibility="Collapsed">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock x:Name="WidthLabel" Style="{StaticResource FieldLabelText}" Text="Width (mm)" />
+                <TextBox x:Name="WidthBox" Style="{StaticResource InputTextBox}" MaxLength="12" Height="32" Padding="5,0" />
+              </StackPanel>
+              <StackPanel Grid.Column="2">
+                <TextBlock x:Name="HeightLabel" Style="{StaticResource FieldLabelText}" Text="Height (mm)" />
+                <TextBox x:Name="HeightBox" Style="{StaticResource InputTextBox}" MaxLength="12" Height="32" Padding="5,0" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+          <StackPanel Grid.Column="2">
+            <TextBlock x:Name="DensityLabel" Style="{StaticResource FieldLabelText}" Text="Print density" />
+            <StackPanel Orientation="Horizontal" Margin="4,7,0,0">
+              <RadioButton x:Name="Dpi203" Style="{StaticResource OptionRadio}" GroupName="Dpi" Content="203 dpi" />
+              <RadioButton x:Name="Dpi300" Style="{StaticResource OptionRadio}" GroupName="Dpi" Content="300 dpi" />
+              <RadioButton x:Name="Dpi600" Style="{StaticResource OptionRadio}" GroupName="Dpi" Content="600 dpi" />
+            </StackPanel>
+          </StackPanel>
+        </Grid>
+
+        <!-- Behavior -->
+        <TextBlock x:Name="BehaviorHeading" Style="{StaticResource SectionHeadingText}" FontSize="17" Text="Behavior"
+                   Margin="0,24,0,14" />
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <StackPanel>
+            <TextBlock x:Name="LanguageLabel" Style="{StaticResource FieldLabelText}" Text="Language" />
+            <ComboBox x:Name="LanguageBox" Style="{StaticResource DropDown}">
+              <ComboBoxItem x:Name="LanguageWindowsItem" Tag="" Content="Windows language" />
+              <!-- Each language is named in its own language, so a person can always find theirs. -->
+              <ComboBoxItem Tag="en" Content="English" />
+              <ComboBoxItem Tag="es" Content="Español" />
+            </ComboBox>
+          </StackPanel>
+          <StackPanel Grid.Column="2" Margin="4,5,0,0">
+            <CheckBox x:Name="ShowNewestBox" Style="{StaticResource OptionCheckBox}" Margin="0,0,0,12"
+                      Content="Show the newest job as it arrives" />
+            <CheckBox x:Name="KeepJobsBox" Style="{StaticResource OptionCheckBox}" Margin="0"
+                      Content="Keep jobs after closing LabelScope" />
+          </StackPanel>
+        </Grid>
+
+        <!-- Result of Save or of a footer action: red for a problem the person must fix, muted for a note. -->
+        <TextBlock x:Name="MessageText" FontSize="12" TextWrapping="Wrap" Margin="0,18,0,0" Visibility="Collapsed"
+                   Foreground="{StaticResource ErrorBrush}" />
+      </StackPanel>
+    </DockPanel>
+  </Border>
+</Window>

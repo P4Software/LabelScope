@@ -53,16 +53,7 @@
                   Visibility="Collapsed" Foreground="{StaticResource SuccessBrush}" FontWeight="SemiBold"
                   Click="OnUpdateNow" Margin="0,0,10,0"/>
           <Button x:Name="PrinterSetupButton" Style="{StaticResource OutlineButton}" Tag="{StaticResource IconPrint}"
-                  Content="Printer setup" Click="OnPrinterSetup">
-            <Button.ContextMenu>
-              <ContextMenu x:Name="PrinterMenu">
-                <MenuItem x:Name="InstallButton" Header="Install printer" Click="OnInstallPrinter"/>
-                <MenuItem x:Name="RemoveButton" Header="Remove printer" Click="OnRemovePrinter"/>
-                <Separator/>
-                <MenuItem x:Name="PrinterSettingsItem" Header="Open settings" Click="OnOpenSettings"/>
-              </ContextMenu>
-            </Button.ContextMenu>
-          </Button>
+                  Content="Printer setup" Click="OnPrinterSetup"/>
           <Button x:Name="MoreButton" Style="{StaticResource ToolbarButton}" Tag="{StaticResource IconMore}"
                   Click="OnMore" Padding="10,7" Margin="6,0,0,0">
             <Button.ContextMenu>
@@ -79,7 +70,6 @@
                 <MenuItem x:Name="StackedBox" Header="Stacked layout" IsCheckable="True"
                           Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"/>
                 <Separator/>
-                <MenuItem x:Name="OpenSettingsItem" Header="Open settings" Click="OnOpenSettings"/>
                 <MenuItem x:Name="OpenLogItem" Header="Open log folder" Click="OnOpenLog"/>
                 <MenuItem x:Name="CheckUpdateButton" Header="Check for updates" Click="OnCheckForUpdates"/>
               </ContextMenu>
