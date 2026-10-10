@@ -96,8 +96,8 @@ internal static class HexGraphicDecoder
         return new MonoImage(bytesPerRow, rows, bits);
     }
 
-    /// <summary>Value of a hexadecimal digit, or -1.</summary>
-    private static int HexValue(char c) => c switch
+    /// <summary>Value of a hexadecimal digit, or -1. Also used for plain hex files (~DY), with no string per digit.</summary>
+    internal static int HexValue(char c) => c switch
     {
         >= '0' and <= '9' => c - '0',
         >= 'A' and <= 'F' => c - 'A' + 10,

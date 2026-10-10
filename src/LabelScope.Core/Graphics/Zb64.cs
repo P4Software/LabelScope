@@ -58,45 +58,66 @@ internal static class Zb64
         }
 
         // Base64 may be wrapped over several lines for readability; the line breaks are not data.
-        var clean = new char[payload.Length];
+        var clean = new char[payload.Length + 2];
         var n = 0;
         foreach (var c in payload)
             if (c is not (' ' or '\t' or '\r' or '\n')) clean[n++] = c;
+        // Some encoders leave out the closing '=' padding. Two or three characters left over still hold whole bytes,
+        // so the padding is put back; one left over cannot be Base64 either way and stays an error below.
+        if (n % 4 is 2 or 3)
+            while (n % 4 != 0) clean[n++] = '=';
 
         var raw = new byte[n / 4 * 3 + 3];
         if (!Convert.TryFromBase64Chars(clean.AsSpan(0, n), raw, out var written))
             throw new GraphicDataException("The graphic data marked :Z64: or :B64: is not valid Base64 text, so it cannot be read.");
 
-        byte[] result;
+        byte[]? result;
         bool more;
         if (compressed)
         {
             if (written == 0) throw new GraphicDataException(ErrorDamaged);
-            try
-            {
-                // Zebra calls the format zlib (LZ77 as in PKZIP and PNG) but the guide does not say whether the
-                // zlib wrapper (2-byte header + Adler-32) is really present. Accept both: a valid zlib header
-                // means zlib, anything else is read as raw deflate. Deciding by the header (not by trying one
-                // after the other) keeps a damaged zlib stream from being re-read as raw deflate, which could
-                // come out as wrong pixels instead of an error.
-                var source = new MemoryStream(raw, 0, written);
-                var zlib = LooksLikeZlib(raw, written);
-                using Stream z = zlib
-                    ? new ZLibStream(source, CompressionMode.Decompress)
-                    : new DeflateStream(source, CompressionMode.Decompress);
-                result = ReadCapped(z, maxBytes, out more);
 
+            // Zebra calls the format zlib (LZ77 as in PKZIP and PNG) but the guide does not say whether the zlib
+            // wrapper (2-byte header + Adler-32) is really present, so both are accepted. Data whose first two bytes
+            // pass the zlib header check is read as zlib first. About 1 in 500 raw deflate streams also pass that
+            // check by chance, so when the zlib reading fails it is tried once more as raw deflate. A damaged zlib
+            // stream practically never survives that second reading: its header bytes, read as deflate, open a
+            // stored block whose length must equal the complement of the next two bytes. A stream that unpacked
+            // completely but whose checksum is wrong is damaged zlib for certain, and is not tried again.
+            result = null;
+            more = false;
+            if (LooksLikeZlib(raw, written))
+            {
+                try
+                {
+                    using var z = new ZLibStream(new MemoryStream(raw, 0, written), CompressionMode.Decompress);
+                    result = ReadCapped(z, maxBytes, out more);
+                }
+                catch (InvalidDataException)
+                {
+                    result = null; // not zlib after all: try raw deflate below
+                }
                 // .NET does not report a stream that simply stops early (a half-sent download) and does not always
                 // check the zlib trailer, so a cut-off picture would look like a short one. When the output is
-                // complete, compare it with the Adler-32 stored in the last four bytes. (Raw deflate has no
-                // checksum, so a truncated raw stream can only show up as the "ended early" note below.)
-                if (zlib && !more && !Adler32Matches(result, raw, written))
-                    throw new InvalidDataException();
+                // complete, compare it with the Adler-32 stored in the last four bytes. Bytes a sender added after
+                // the zlib stream would sit where the checksum is expected and fail this test too; Zebra's own
+                // encoder writes nothing after the checksum, so such data is reported as damaged.
+                if (result is not null && !more && !Adler32Matches(result, raw, written))
+                    throw new GraphicDataException(ErrorDamaged);
             }
-            catch (InvalidDataException)
+            if (result is null)
             {
-                // Truncated, corrupt or checksum mismatch: .NET reports all of them this way.
-                throw new GraphicDataException(ErrorDamaged);
+                try
+                {
+                    using var d = new DeflateStream(new MemoryStream(raw, 0, written), CompressionMode.Decompress);
+                    result = ReadCapped(d, maxBytes, out more);
+                }
+                catch (InvalidDataException)
+                {
+                    // Truncated or corrupt: .NET reports both this way. Raw deflate has no checksum, so a truncated
+                    // raw stream that happens to end cleanly can only show up as the "ended early" note below.
+                    throw new GraphicDataException(ErrorDamaged);
+                }
             }
         }
         else

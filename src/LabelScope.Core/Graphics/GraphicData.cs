@@ -44,14 +44,16 @@ internal static class GraphicData
     /// <summary>Two hexadecimal digits per byte; white space between them is ignored.</summary>
     private static byte[] PlainHex(string data, long cap, ICollection<string> notes)
     {
-        var bytes = new List<byte>();
+        // Sized up front for the bytes the text can hold (never more than the cap), so a large file is not copied
+        // over and over while the list grows.
+        var bytes = new List<byte>((int)Math.Min(cap, data.Length / 2));
         var high = -1;
         foreach (var c in data)
         {
             if (c is ' ' or '\t' or '\r' or '\n') continue;
-            if (!char.IsAsciiHexDigit(c))
+            var v = HexGraphicDecoder.HexValue(c);
+            if (v < 0)
                 throw new GraphicDataException($"The file data contains a character that is not a hexadecimal digit (character code {(int)c}), so the file was not stored.");
-            var v = Convert.ToInt32(c.ToString(), 16);
             if (high < 0) { high = v; continue; }
             // The cap bounds the list, so a huge or endless text cannot grow it past the declared file size.
             if (bytes.Count >= cap)
