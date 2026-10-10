@@ -64,24 +64,33 @@ internal sealed partial class LabelPainter
         var file = letter == '@' ? _lastFontFile : _context.Memory.FontFor(letter);
         if (file is { } f)
         {
-            var (face, unreadable) = FindTypeface(f);
+            var (face, problem) = FindTypeface(f);
             // Sizes for a TrueType font follow the scalable rules: height is the size, width stretches it.
             if (face is not null) return ZplFontFactory.Scalable(face, height, width);
 
             // A TrueType or OpenType name LabelScope cannot supply (usually a font resident in the printer, as
             // ZebraDesigner names them) is drawn with the bundled scalable font, the closest stand-in (Decision 15).
-            if (unreadable || f.Extension is "TTF" or "OTF" or "TTE")
+            if (problem != FontProblem.None || f.Extension is "TTF" or "OTF" or "TTE")
             {
-                WarnFileOnce(f, line, unreadable
-                    ? $"The font {f.Display} could not be read as a TrueType or OpenType font, so LabelScope drew the text with its built-in scalable font. " +
-                      "Replace it with a working font file (in the FontsFolder, then restart LabelScope, or by sending the download again), then send the label again."
-                    : f.Extension == "TTE"
+                WarnFileOnce(f, line, problem switch
+                {
+                    FontProblem.Unreadable =>
+                        $"The font {f.Display} could not be read as a TrueType or OpenType font, so LabelScope drew the text with its built-in scalable font. " +
+                        "Replace it with a working font file (in the FontsFolder, then restart LabelScope, or by sending the download again), then send the label again.",
+                    FontProblem.Unopenable =>
+                        $"The font file for {f.Display} in the FontsFolder could not be opened (another program may be using it, or it was moved), so LabelScope drew the text with its built-in scalable font. " +
+                        "Check that the file is in the FontsFolder and not in use, then send the label again.",
+                    FontProblem.OverBudget =>
+                        $"The font {f.Display} was not loaded because LabelScope already holds {PrinterMemory.FormatBytes(_context.Fonts.LoadedBytesLimit)} of fonts from the FontsFolder, " +
+                        "so LabelScope drew the text with its built-in scalable font. Use fewer large fonts in your labels; restarting LabelScope frees the fonts it holds.",
+                    _ => f.Extension == "TTE"
                         ? $"The font {f.Display} is a TrueType extension file (.TTE), which LabelScope cannot read, so LabelScope drew the text with its built-in scalable font. " +
                           "Use the .TTF font file instead."
                         : $"The font {f.Display} is not in LabelScope's printer memory or in the FontsFolder, so LabelScope drew the text with its built-in scalable font. " +
                           "Labels made in ZebraDesigner often name fonts that are stored inside the printer, which LabelScope cannot have. " +
                           $"To use the real font, copy {f.Name}.{f.Extension} into the folder named by FontsFolder in settings.json and restart LabelScope, " +
-                          "or send the job that downloads it, then send the label again.");
+                          "or send the job that downloads it, then send the label again.",
+                });
                 return ZplFontFactory.Scalable(BundledFonts.Scalable, height, width);
             }
 
@@ -128,16 +137,18 @@ internal sealed partial class LabelPainter
 
     /// <summary>
     /// A font file from printer memory (exact drive, as a printer looks it up) or else the FontsFolder (file name
-    /// only; the drive means nothing on a PC). <c>Unreadable</c> is true when a file was found but Skia cannot read it.
+    /// only; the drive means nothing on a PC). <c>Problem</c> says why no font came back; <see cref="FontProblem.None"/>
+    /// then means the file is in neither place.
     /// </summary>
-    private (SKTypeface? Face, bool Unreadable) FindTypeface(ObjectName file)
+    private (SKTypeface? Face, FontProblem Problem) FindTypeface(ObjectName file)
     {
         var stored = _context.Memory.Find(file, out _);
-        if (stored is StoredFont { Typeface: { } storedFace }) return (storedFace, false);
+        if (stored is StoredFont { Typeface: { } storedFace }) return (storedFace, FontProblem.None);
 
-        var face = _context.Fonts.Find($"{file.Name}.{file.Extension}", out var unreadable);
-        if (face is not null) return (face, false);
-        return (null, unreadable || stored is StoredFont);
+        var face = _context.Fonts.Find($"{file.Name}.{file.Extension}", out var problem);
+        if (face is not null) return (face, FontProblem.None);
+        // A download that Skia cannot read is the more useful thing to report when the folder has no such file.
+        return (null, problem == FontProblem.None && stored is StoredFont ? FontProblem.Unreadable : problem);
     }
 
     /// <summary>Adds <paramref name="message"/> the first time <paramref name="file"/> fails in this label.</summary>
