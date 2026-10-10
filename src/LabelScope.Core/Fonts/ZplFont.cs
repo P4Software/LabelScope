@@ -33,10 +33,18 @@ internal abstract class ZplFont : IDisposable
     {
         missing = 0;
         var sb = new StringBuilder(text.Length);
+        // Asking the typeface costs two allocations per character; a field repeats few distinct characters, so
+        // each answer is remembered for the rest of this text (a 60000-character field went from 100 ms to a few).
+        var known = new Dictionary<int, bool>();
+        Span<char> utf16 = stackalloc char[2];
         foreach (var rune in text.EnumerateRunes())
         {
-            var s = rune.ToString();
-            if (rune.Value == ' ' || (!Rune.IsControl(rune) && Face.GetGlyphs(s)[0] != 0)) sb.Append(s);
+            if (!known.TryGetValue(rune.Value, out var printable))
+            {
+                printable = rune.Value == ' ' || (!Rune.IsControl(rune) && Face.GetGlyphs(rune.ToString())[0] != 0);
+                known[rune.Value] = printable;
+            }
+            if (printable) sb.Append(utf16[..rune.EncodeToUtf16(utf16)]);
             else { sb.Append(' '); missing++; }
         }
         return sb.ToString();
@@ -105,10 +113,18 @@ internal sealed class CellFont : ZplFont
         // ascent would make every ordinary letter smaller than on the printer).
         var top = baselineY - Baseline;
         var cellWidth = _spec.Width * _magX;
+        // Cells wholly outside the drawable area would be clipped away anyway; skipping them avoids a save, clip and
+        // draw for each of thousands of characters that run off the label. LocalClipBounds is the clip in this
+        // field's own (possibly rotated) coordinates, slightly enlarged, so nothing that could show is skipped.
+        var clip = canvas.LocalClipBounds;
+        if (top > clip.Bottom || top + LineHeight < clip.Top) return;
         var i = 0;
         foreach (var rune in text.EnumerateRunes())
         {
             var left = x + i++ * Advance;
+            // Cells only move right (Advance is positive), so once one starts past the clip, all later ones do too.
+            if (left > clip.Right) break;
+            if (left + cellWidth < clip.Left) continue;
             canvas.Save();
             canvas.ClipRect(new SKRect(left, top, left + cellWidth, top + LineHeight), SKClipOperation.Intersect, antialias: false);
             canvas.DrawText(rune.ToString(), left, baselineY, _font, paint);
