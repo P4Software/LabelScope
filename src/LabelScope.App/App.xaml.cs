@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
+using LabelScope.App.Localization;
 using LabelScope.Core.Diagnostics;
 using Serilog;
 
@@ -50,12 +51,14 @@ public partial class App : Application
                     // Serilog may not be configured yet; the crash log above has the details.
                 }
 
+                var details = path is null
+                    ? Say("Ui_CrashDetailsNotSaved", "The details could not be saved.")
+                    : Say("Ui_CrashDetailsSaved", "The details were saved in:\n{0}", path);
                 MessageBox.Show(
-                    "LabelScope hit an unexpected error and has to close.\n\n" + CrashLog.ShortMessage(ex.Message) + "\n\n" +
-                    (path is null
-                        ? "The details could not be saved."
-                        : "The details were saved in:\n" + path) +
-                    "\n\nStart LabelScope again to continue. If this keeps happening, send that file to support.",
+                    Say("Ui_CrashFatal",
+                        "LabelScope hit an unexpected error and has to close.\n\n{0}\n\n{1}\n\n" +
+                        "Start LabelScope again to continue. If this keeps happening, send that file to support.",
+                        CrashLog.ShortMessage(ex.Message), details),
                     "LabelScope", MessageBoxButton.OK, MessageBoxImage.Error);
                 // End the process ourselves: otherwise Windows adds its own "has stopped working" dialog after ours.
                 Environment.Exit(1);
@@ -69,6 +72,30 @@ public partial class App : Application
         {
             // Nothing more can be done.
         }
+    }
+
+    /// <summary>
+    /// The text of a crash dialog in the current language. These dialogs appear when something is already broken,
+    /// possibly the language resources themselves, so any failure (or a key the resources do not have) falls back to
+    /// <paramref name="english"/>: the person always gets a readable message, never a key name or a second crash.
+    /// </summary>
+    /// <param name="key">The UiStrings key.</param>
+    /// <param name="english">The English text with the same placeholders, used when the lookup fails.</param>
+    /// <param name="args">Values for the placeholders.</param>
+    private static string Say(string key, string english, params object[] args)
+    {
+        try
+        {
+            var text = UiText.Get(key, args);
+            // UiText returns the key itself when the text is missing.
+            if (!string.Equals(text, key, StringComparison.Ordinal)) return text;
+        }
+        catch
+        {
+            // Resources or the language setting are unusable; the English text below still works.
+        }
+        try { return args.Length == 0 ? english : string.Format(System.Globalization.CultureInfo.InvariantCulture, english, args); }
+        catch (FormatException) { return english; }
     }
 
     /// <summary>A background task failed and nobody observed it. The program keeps running.</summary>
@@ -110,22 +137,25 @@ public partial class App : Application
             dialogClaimed = _dialogGuard.TryEnterDialog();
             if (!dialogClaimed) return;
 
-            var where = path ?? "the log file (use \"Open log folder\" in LabelScope)";
+            var where = path ?? Say("Ui_CrashLogFallback", "the log file (use \"{0}\" in LabelScope)",
+                                    Say("Ui_OpenLog", "Open log folder"));
             if (loop)
             {
                 MessageBox.Show(
-                    "LabelScope keeps running into errors and has to close.\n\n" +
-                    "The details were written to " + where + ".\n\nStart LabelScope again to continue. " +
-                    "If this keeps happening, send that file to support.",
+                    Say("Ui_CrashLoop",
+                        "LabelScope keeps running into errors and has to close.\n\nThe details were written to {0}.\n\n" +
+                        "Start LabelScope again to continue. If this keeps happening, send that file to support.",
+                        where),
                     "LabelScope", MessageBoxButton.OK, MessageBoxImage.Error);
                 Shutdown(1);
                 return;
             }
 
             MessageBox.Show(
-                "Something unexpected went wrong, but LabelScope is still running.\n\n" +
-                CrashLog.ShortMessage(e.Exception.Message) +
-                "\n\nThe details were written to " + where + ".",
+                Say("Ui_CrashKeptRunning",
+                    "Something unexpected went wrong, but LabelScope is still running.\n\n{0}\n\n" +
+                    "The details were written to {1}.",
+                    CrashLog.ShortMessage(e.Exception.Message), where),
                 "LabelScope", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch
