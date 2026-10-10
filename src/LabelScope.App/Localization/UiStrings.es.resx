@@ -154,4 +154,9 @@ LabelScope se cerrará, se actualizará y volverá a abrirse. Su configuración 
   <data name="Ui_DownloadFailed" xml:space="preserve"><value>No se pudo descargar la nueva versión. Revise la conexión a internet e intente de nuevo.</value></data>
   <data name="Ui_InstallerNotSigned" xml:space="preserve"><value>El instalador descargado no está firmado por el editor de LabelScope, así que se eliminó y no se ejecutó. Descargue LabelScope de nuevo desde la página de versiones de GitHub.</value></data>
   <data name="Ui_JobPart" xml:space="preserve"><value>{0} (parte {1})</value></data>
+  <data name="Ui_BarLinesFieldsOne" xml:space="preserve"><value>{0} líneas ZPL · {1} campo</value></data>
+  <data name="Ui_ClearJobsAskOne" xml:space="preserve"><value>¿Quitar el trabajo de la lista ({0})?
+
+Solo se vacía la lista. Los gráficos y fuentes de la memoria de la impresora se conservan.</value></data>
+  <data name="Ui_ReceivedTodayOne" xml:space="preserve"><value>{0} recibido hoy</value></data>
 </root>

@@ -154,4 +154,9 @@ LabelScope will close, update itself and open again. Your settings are kept. Job
   <data name="Ui_DownloadFailed" xml:space="preserve"><value>The new version could not be downloaded. Check the internet connection and try again.</value></data>
   <data name="Ui_InstallerNotSigned" xml:space="preserve"><value>The downloaded installer is not signed by the LabelScope publisher, so it was deleted and not run. Download LabelScope again from the GitHub releases page.</value></data>
   <data name="Ui_JobPart" xml:space="preserve"><value>{0} (part {1})</value></data>
+  <data name="Ui_BarLinesFieldsOne" xml:space="preserve"><value>{0} ZPL lines · {1} field</value></data>
+  <data name="Ui_ClearJobsAskOne" xml:space="preserve"><value>Remove the {0} job from the list?
+
+This only clears the list. Graphics and fonts in printer memory are kept.</value></data>
+  <data name="Ui_ReceivedTodayOne" xml:space="preserve"><value>{0} received today</value></data>
 </root>

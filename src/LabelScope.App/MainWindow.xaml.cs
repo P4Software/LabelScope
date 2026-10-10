@@ -578,8 +578,8 @@ public partial class MainWindow : Window
             // Oldest first in 'jobs'; the list is newest first and anything that arrived meanwhile is newer.
             for (var i = jobs.Count - 1; i >= 0; i--)
             {
+                // Not counted in "received today": that counts this session's sends.
                 _jobs.Add(new JobViewModel(jobs[i]));
-                CountArrival(jobs[i].ReceivedAt);
             }
             TrimHistory();
             if (HistoryList.SelectedItem is null && _jobs.Count > 0) HistoryList.SelectedIndex = 0;
@@ -617,22 +617,24 @@ public partial class MainWindow : Window
         await EnsureStoreLoadedAsync();
         var jobs = _jobs.Select(j => j.Job).ToList();
         var limit = _settings.HistoryLimit;
-        await _saveLock.WaitAsync();
-        try
+        // The lock is taken and released on the worker thread: the save on close waits for it on the UI thread, so
+        // a release that needed the UI thread could never happen while that wait runs.
+        var result = await Task.Run(() =>
         {
-            var result = await Task.Run(() => _store.Save(jobs, limit));
-            if (result.Success)
-            {
-                _lastSaveProblem = null;
-            }
-            else if (result.Message != _lastSaveProblem)
-            {
-                _lastSaveProblem = result.Message;
-                Log.Warning("Kept jobs: {Message}", result.Message);
-                ShowMessage(result.Message);
-            }
+            _saveLock.Wait();
+            try { return _store.Save(jobs, limit); }
+            finally { _saveLock.Release(); }
+        });
+        if (result.Success)
+        {
+            _lastSaveProblem = null;
         }
-        finally { _saveLock.Release(); }
+        else if (result.Message != _lastSaveProblem)
+        {
+            _lastSaveProblem = result.Message;
+            Log.Warning("Kept jobs: {Message}", result.Message);
+            ShowMessage(result.Message);
+        }
     }
 
     /// <summary>
@@ -773,7 +775,7 @@ public partial class MainWindow : Window
         BarLabelText.Text = UiText.Get("Ui_BarLabel", _page + 1, pages.Count);
         BarSizeText.Text = UiText.Get("Ui_BarSize", page.WidthInches, page.HeightInches, page.DisplayDpi) + " · " +
                            UiText.Get("Ui_BarDots", page.Label.WidthDots, page.Label.HeightDots);
-        BarLinesText.Text = UiText.Get("Ui_BarLinesFields", job.LineCount, page.Fields.Count);
+        BarLinesText.Text = UiText.Get(page.Fields.Count == 1 ? "Ui_BarLinesFieldsOne" : "Ui_BarLinesFields", job.LineCount, page.Fields.Count);
         var errors = vm.ErrorCount;
         BarErrorsText.Text = errors == 1 ? UiText.Get("Ui_BarErrorOne") : UiText.Get("Ui_BarErrorMany", errors);
         BarErrorsText.Style = (Style)FindResource(errors == 0 ? "StatusTextSuccess" : "StatusTextError");
@@ -1512,7 +1514,7 @@ public partial class MainWindow : Window
             _receivedTodayDate = DateTime.Today;
             _receivedToday = 0;
         }
-        ReceivedTodayText.Text = UiText.Get("Ui_ReceivedToday", _receivedToday);
+        ReceivedTodayText.Text = UiText.Get(_receivedToday == 1 ? "Ui_ReceivedTodayOne" : "Ui_ReceivedToday", _receivedToday);
     }
 
     // ---- label size picker -----------------------------------------------------------------------------
@@ -2081,7 +2083,7 @@ public partial class MainWindow : Window
     private void OnClearJobs(object sender, RoutedEventArgs e)
     {
         if (_jobs.Count == 0) return;
-        var answer = MessageBox.Show(this, UiText.Get("Ui_ClearJobsAsk", _jobs.Count), UiText.Get("Ui_ClearJobs"),
+        var answer = MessageBox.Show(this, UiText.Get(_jobs.Count == 1 ? "Ui_ClearJobsAskOne" : "Ui_ClearJobsAsk", _jobs.Count), UiText.Get("Ui_ClearJobs"),
             MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
         if (answer != MessageBoxResult.Yes) return;
         _assembler.Clear();
