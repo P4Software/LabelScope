@@ -11,14 +11,24 @@ namespace LabelScope.Core.Graphics;
 internal sealed class MonoImage
 {
     /// <summary>Creates an image over <paramref name="bits"/>, which must hold exactly <paramref name="bytesPerRow"/> x <paramref name="rows"/> bytes.</summary>
-    public MonoImage(int bytesPerRow, int rows, byte[] bits)
+    public MonoImage(int bytesPerRow, int rows, byte[] bits) : this(bytesPerRow, rows, bits, copy: true)
+    {
+    }
+
+    /// <summary>
+    /// Shared constructor. The public one copies the buffer so nobody outside can change a stored image (images are
+    /// shared between jobs through printer memory); internal producers that just built the array hand it over.
+    /// </summary>
+    private MonoImage(int bytesPerRow, int rows, byte[] bits, bool copy)
     {
         if (bytesPerRow < 1 || rows < 1 || bits.LongLength != (long)bytesPerRow * rows)
             throw new ArgumentException("The bit buffer does not match the declared graphic size.", nameof(bits));
         BytesPerRow = bytesPerRow;
         Height = rows;
-        Bits = bits;
+        _bits = copy ? (byte[])bits.Clone() : bits;
     }
+
+    private readonly byte[] _bits;
 
     /// <summary>Bytes in one row.</summary>
     public int BytesPerRow { get; }
@@ -29,14 +39,22 @@ internal sealed class MonoImage
     /// <summary>Height in dots (rows).</summary>
     public int Height { get; }
 
-    /// <summary>The packed rows.</summary>
-    public byte[] Bits { get; }
+    /// <summary>The packed rows, read-only so a stored image cannot be altered from outside.</summary>
+    public ReadOnlySpan<byte> Bits => _bits;
 
     /// <summary>Memory the image occupies, used by the printer-memory budget.</summary>
-    public long SizeInBytes => Bits.LongLength;
+    public long SizeInBytes => _bits.LongLength;
 
     /// <summary>True when the dot at (<paramref name="x"/>, <paramref name="y"/>) is black.</summary>
-    public bool IsBlack(int x, int y) => (Bits[y * BytesPerRow + (x >> 3)] & (0x80 >> (x & 7))) != 0;
+    public bool IsBlack(int x, int y)
+    {
+        // Without this check an x past the right edge would silently read the first dots of the next row.
+        if ((uint)x >= (uint)Width)
+            throw new ArgumentOutOfRangeException(nameof(x), x, $"The dot column must be between 0 and {Width - 1}.");
+        if ((uint)y >= (uint)Height)
+            throw new ArgumentOutOfRangeException(nameof(y), y, $"The dot row must be between 0 and {Height - 1}.");
+        return (_bits[y * BytesPerRow + (x >> 3)] & (0x80 >> (x & 7))) != 0;
+    }
 
     /// <summary>
     /// Smallest rectangle holding every black dot, or null for an all-white image. Used for the "does not fit"
@@ -50,7 +68,7 @@ internal sealed class MonoImage
             var row = y * BytesPerRow;
             for (var b = 0; b < BytesPerRow; b++)
             {
-                var v = Bits[row + b];
+                var v = _bits[row + b];
                 if (v == 0) continue;
                 // Leading zero bits give the first black dot of this byte, trailing zero bits the last one.
                 var first = b * 8 + (BitOperations.LeadingZeroCount((uint)v) - 24);
@@ -72,11 +90,22 @@ internal sealed class MonoImage
     public SKBitmap ToMask()
     {
         var bitmap = new SKBitmap(new SKImageInfo(Width, Height, SKColorType.Alpha8, SKAlphaType.Premul));
-        var row = new byte[Width];
         var dst = bitmap.GetPixels();
+        if (dst == IntPtr.Zero)
+        {
+            bitmap.Dispose();
+            throw new GraphicDataException($"The graphic ({Width} x {Height} dots) was not drawn because there is not enough memory to draw it. Close other programs or use a smaller graphic.");
+        }
+        var row = new byte[Width];
         for (var y = 0; y < Height; y++)
         {
-            for (var x = 0; x < Width; x++) row[x] = IsBlack(x, y) ? (byte)255 : (byte)0;
+            // Expand each packed byte into eight mask bytes instead of testing every dot on its own.
+            var src = y * BytesPerRow;
+            for (var b = 0; b < BytesPerRow; b++)
+            {
+                int v = _bits[src + b], o = b * 8;
+                for (var k = 0; k < 8; k++) row[o + k] = (v & (0x80 >> k)) != 0 ? (byte)255 : (byte)0;
+            }
             // RowBytes may be padded beyond Width, so each row is copied to its own start.
             Marshal.Copy(row, 0, dst + y * bitmap.RowBytes, Width);
         }
@@ -94,11 +123,21 @@ internal sealed class MonoImage
     /// <param name="premultiplied">True when the colour channels are already multiplied by alpha.</param>
     public static MonoImage FromRgba(ReadOnlySpan<byte> pixels, int width, int height, int rowBytes, bool premultiplied)
     {
+        // All checks run before anything is allocated, and in long so hostile sizes cannot overflow.
+        if (width < 1 || height < 1)
+            throw new GraphicDataException($"The image is {width} x {height} pixels, so it was not used. Use an image with at least 1 pixel in each direction.");
+        if (width > GraphicLimits.MaxDots || height > GraphicLimits.MaxDots || (long)width * height > GraphicLimits.MaxGraphicDots)
+            throw new GraphicDataException($"The image is {width} x {height} pixels and LabelScope uses images up to {GraphicLimits.MaxDots} x {GraphicLimits.MaxDots} pixels ({GraphicLimits.MaxGraphicDots} in total), so it was not used. Use a smaller image.");
+        if (rowBytes < (long)width * 4)
+            throw new GraphicDataException($"The image rows are {rowBytes} bytes long but {width} pixels need {(long)width * 4}, so the image was not used. The image data is damaged.");
+        if (pixels.Length < (long)rowBytes * (height - 1) + (long)width * 4)
+            throw new GraphicDataException($"The image holds {pixels.Length} bytes but {height} rows of {width} pixels need more, so the image was not used. The image data is damaged.");
+
         var bytesPerRow = (width + 7) / 8;
         var bits = new byte[(long)bytesPerRow * height];
         for (var y = 0; y < height; y++)
         {
-            var src = pixels.Slice(y * rowBytes, width * 4);
+            var src = pixels.Slice((int)((long)y * rowBytes), width * 4);
             for (var x = 0; x < width; x++)
             {
                 int r = src[x * 4], g = src[x * 4 + 1], b = src[x * 4 + 2], a = src[x * 4 + 3];
@@ -108,6 +147,6 @@ internal sealed class MonoImage
                 if (over < 128) bits[y * bytesPerRow + (x >> 3)] |= (byte)(0x80 >> (x & 7));
             }
         }
-        return new MonoImage(bytesPerRow, height, bits);
+        return new MonoImage(bytesPerRow, height, bits, copy: false);
     }
 }
