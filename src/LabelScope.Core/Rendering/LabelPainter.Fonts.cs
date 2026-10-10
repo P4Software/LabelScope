@@ -66,7 +66,12 @@ internal sealed partial class LabelPainter
         {
             var (face, problem) = FindTypeface(f);
             // Sizes for a TrueType font follow the scalable rules: height is the size, width stretches it.
-            if (face is not null) return ZplFontFactory.Scalable(face, height, width);
+            if (face is not null)
+            {
+                var scalable = ZplFontFactory.Scalable(face, height, width, out var sizeNote);
+                AddSizeNote(sizeNote, line);
+                return scalable;
+            }
 
             // A TrueType or OpenType name LabelScope cannot supply (usually a font resident in the printer, as
             // ZebraDesigner names them) is drawn with the bundled scalable font, the closest stand-in (Decision 15).
@@ -91,7 +96,9 @@ internal sealed partial class LabelPainter
                           $"To use the real font, copy {f.Name}.{f.Extension} into the folder named by FontsFolder in settings.json and restart LabelScope, " +
                           "or send the job that downloads it, then send the label again.",
                 });
-                return ZplFontFactory.Scalable(BundledFonts.Scalable, height, width);
+                var standIn = ZplFontFactory.Scalable(BundledFonts.Scalable, height, width, out var standInNote);
+                AddSizeNote(standInNote, line);
+                return standIn;
             }
 
             // Other files (.FNT bitmap fonts): ^A@ falls back to the ^CF font, as the guide says ("if invalid or

@@ -21,8 +21,9 @@ internal sealed partial class LabelPainter : IDisposable
 
     // Limits for hostile or mistyped numbers. Without them a value such as ^GB999999999,999999999 or
     // ^A0N,99999 would make Skia work on absurd geometry, and ^FO2147483647 would overflow int maths.
+    // Font sizes are not capped here: the font model limits them (10 times a bitmap cell, 2000 dots for a scalable
+    // font) and says so, which a silent cap here would hide.
     private const int MaxCoordinate = 100_000;
-    private const int MaxFontDots = 2000;
     private const int MaxFieldBlockLines = 1000;
     private const int MaxCopies = 99_999_999; // the ZPL limit for ^PQ
 
@@ -173,8 +174,8 @@ internal sealed partial class LabelPainter : IDisposable
     private void SetDefaultFont(ZplCommand cmd, string[] a)
     {
         if (a.Length > 0 && a[0].Length > 0) _defaultFont = a[0][0];
-        if (TryInt(a, 1, out var h) && h > 0) _defaultHeight = Math.Min(h, MaxFontDots);
-        if (TryInt(a, 2, out var w) && w > 0) _defaultWidth = Math.Min(w, MaxFontDots);
+        if (FontDots(cmd, "^CF", a, 1, "height") is { } h) _defaultHeight = h;
+        if (FontDots(cmd, "^CF", a, 2, "width") is { } w) _defaultWidth = w;
     }
 
     private void SetFieldFont(ZplCommand cmd, string[] a)
@@ -190,8 +191,28 @@ internal sealed partial class LabelPainter : IDisposable
             var file = a.Length > 3 ? a[3].Trim() : "";
             if (file.Length > 0) _lastFontFile = ObjectName.Parse(file, "TTF", 'R');
         }
-        if (TryInt(a, 1, out var h) && h > 0) _fontHeight = Math.Min(h, MaxFontDots);
-        if (TryInt(a, 2, out var w) && w > 0) _fontWidth = Math.Min(w, MaxFontDots);
+        var name = "^A" + (_fieldFont?.ToString() ?? "");
+        if (FontDots(cmd, name, a, 1, "height") is { } h) _fontHeight = h;
+        if (FontDots(cmd, name, a, 2, "width") is { } w) _fontWidth = w;
+    }
+
+    /// <summary>
+    /// A font height or width from ^A or ^CF: null when it is not given (empty or 0, which mean "follow the font"), and
+    /// also null, with a warning, when something is there that is not a size (text, a negative number). Large values
+    /// are kept as they are (up to int.MaxValue) for the font model to limit and explain.
+    /// </summary>
+    private int? FontDots(ZplCommand cmd, string command, string[] a, int index, string what)
+    {
+        var text = index < a.Length ? a[index].Trim() : "";
+        if (text.Length == 0) return null;
+        if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) || v < 0)
+        {
+            // Quoted back to the user, so a hostile megabyte of text is cut to a readable length.
+            var shown = text.Length > 20 ? text[..20] + "..." : text;
+            _warnings.Add(new(cmd.Line, $"{command}: The font {what} \"{shown}\" is not a size in dots, so it was ignored. Give the {what} as a whole number of dots."));
+            return null;
+        }
+        return v == 0 ? null : (int)Math.Min(v, int.MaxValue);
     }
 
     // ---- fields ------------------------------------------------------------------------------

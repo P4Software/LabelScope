@@ -194,15 +194,22 @@ internal static class ZplFontFactory
                 note = $"Font {id} can be enlarged up to 10 times ({spec.Height * 10} dots high, {spec.Width * 10} dots wide); 10 times was used.";
             return new CellFont(spec, magX, magY, BundledFonts.Mono);
         }
-        return FontMatrices.IsScalableBuiltIn(id) ? Scalable(BundledFonts.Scalable, height, width) : null;
+        return FontMatrices.IsScalableBuiltIn(id) ? Scalable(BundledFonts.Scalable, height, width, out note) : null;
     }
 
-    /// <summary>A scalable font; when only the height or only the width is given, the other follows it (the face's own proportion).</summary>
-    public static ScalableFont Scalable(SKTypeface face, int height, int width)
+    /// <summary>
+    /// A scalable font; when only the height or only the width is given, the other follows it (the face's own
+    /// proportion). <paramref name="note"/> explains a size above <see cref="MaxScalableDots"/> that had to be limited.
+    /// </summary>
+    public static ScalableFont Scalable(SKTypeface face, int height, int width, out string? note)
     {
         if (height <= 0) height = width > 0 ? width : 9;   // 9 dots: Zebra's ^CF default height
         if (width <= 0) width = height;
-        return new ScalableFont(face, Math.Min(height, MaxScalableDots), Math.Min(width, MaxScalableDots));
+        var (h, w) = (Math.Min(height, MaxScalableDots), Math.Min(width, MaxScalableDots));
+        note = (h, w) == (height, width)
+            ? null
+            : $"LabelScope draws fonts up to {MaxScalableDots} dots high and {MaxScalableDots} dots wide, so the font size {height} x {width} dots (height x width) was drawn as {h} x {w} dots.";
+        return new ScalableFont(face, h, w);
     }
 
     /// <summary>
