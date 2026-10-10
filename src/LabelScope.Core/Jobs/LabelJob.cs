@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using LabelScope.Core.Rendering;
 
@@ -24,26 +25,58 @@ public sealed record JobLogEntry(DateTimeOffset At, string Message, int? Line);
 
 /// <summary>
 /// One print job: everything that came in with one send (one TCP connection, one opened file or one paste), which
-/// may hold several labels (^XA..^XZ blocks). The ZPL is kept exactly as received so the job can be drawn again when
-/// the language or the label size changes; assigning <see cref="Result"/> rebuilds the <see cref="Log"/>.
+/// may hold several labels (^XA..^XZ blocks). The job keeps raw facts (the ZPL exactly as received, the sender's
+/// address, a name that is empty when the default applies); everything a person reads is produced from them when it
+/// is read, in the current language, so a language switch changes every card without losing jobs.
 /// </summary>
 public sealed class LabelJob
 {
     private readonly string _zpl = "";
+    private readonly string _zplName = "";
+    private string? _name;
     private RenderResult _result = new([], []);
-    // Built on first read, after the object initializer has set every property, and dropped when Result changes.
-    private IReadOnlyList<JobLogEntry>? _log;
+    private string? _resolvedHost;
+
+    // The Log, together with everything it was built from. Replaced as one reference, so a reader on another thread
+    // always sees a log that matches one result, never a mix of an old log and a new result.
+    private LogCache? _logCache;
+
+    private sealed record LogCache(RenderResult Result, string? Host, CultureInfo Culture, IReadOnlyList<JobLogEntry> Log);
 
     /// <summary>Identifies the job across saves, so a reloaded job is the same job.</summary>
     public Guid Id { get; init; } = Guid.NewGuid();
 
-    /// <summary>The name shown on the card (see <see cref="JobNamer.Name"/>).</summary>
-    public required string Name { get; init; }
+    /// <summary>
+    /// The stored name: by default the name found in the ZPL (<see cref="JobNamer.NameFromZpl"/>), or a name set by
+    /// the caller. Empty when the localized default applies; show <see cref="DisplayName"/>.
+    /// </summary>
+    public string Name
+    {
+        get => _name ?? _zplName;
+        // Empty means "no name of its own": the name found in the ZPL (or the default) applies.
+        init => _name = string.IsNullOrWhiteSpace(value) ? null : value;
+    }
 
-    /// <summary>Where the job came from, as shown on the card (see <see cref="JobNamer.Source"/>).</summary>
-    public required string Source { get; init; }
+    /// <summary>The name shown on the card, in the current language ("Label" when the ZPL gives none).</summary>
+    public string DisplayName => JobNamer.DisplayName(Name);
 
-    /// <summary>How the job reached LabelScope; decides the wording of the "received" log line.</summary>
+    /// <summary>The sender's IP address as received; null for a file or a paste (and for an unknown sender).</summary>
+    public string? RemoteAddress { get; init; }
+
+    /// <summary>
+    /// The sender's short host name, once found by <see cref="ResolveHostAsync"/> (or restored from jobs.json); null
+    /// while unknown or when the sender has none. Never looked up on read.
+    /// </summary>
+    public string? ResolvedHost
+    {
+        get => Volatile.Read(ref _resolvedHost);
+        init => _resolvedHost = value;
+    }
+
+    /// <summary>Where the job came from, as shown on the card, in the current language (see <see cref="JobNamer.DisplaySource"/>).</summary>
+    public string DisplaySource => JobNamer.DisplaySource(Origin, RemoteAddress, ResolvedHost);
+
+    /// <summary>How the job reached LabelScope; decides the source text and the wording of the "received" log line.</summary>
     public JobOrigin Origin { get; init; }
 
     /// <summary>When the job arrived.</summary>
@@ -56,9 +89,10 @@ public sealed class LabelJob
         init
         {
             _zpl = value ?? "";
-            // Counted once here: a job can be 16 MB, and the card asks for this number on every repaint.
+            // Worked out once here: a job can be 16 MB, and the card asks for these on every repaint.
             LineCount = CountLines(ZplFormatter.Format(_zpl));
             ByteCount = Encoding.UTF8.GetByteCount(_zpl);
+            _zplName = JobNamer.NameFromZpl(_zpl);
         }
     }
 
@@ -70,16 +104,13 @@ public sealed class LabelJob
 
     /// <summary>
     /// The drawn labels, warnings and memory notes. Replace it after drawing <see cref="Zpl"/> again (language or label
-    /// size changed); the <see cref="Log"/> is rebuilt at once, in the current language.
+    /// size changed); the <see cref="Log"/> follows at once. It may be replaced from any thread (a re-render can finish
+    /// on a worker thread while the window reads the job): every reader sees either the old or the new result whole.
     /// </summary>
     public required RenderResult Result
     {
-        get => _result;
-        set
-        {
-            _result = value ?? throw new ArgumentNullException(nameof(value));
-            _log = null;
-        }
+        get => Volatile.Read(ref _result);
+        set => Volatile.Write(ref _result, value ?? throw new ArgumentNullException(nameof(value)));
     }
 
     /// <summary>Lines of the formatted ZPL (as shown in the ZPL tab); 0 for empty ZPL.</summary>
@@ -99,12 +130,42 @@ public sealed class LabelJob
 
     /// <summary>
     /// What happened with the job, in order: received (time, source, size), a note when the job was cut off, each
-    /// printer-memory note, then each warning with its line.
+    /// printer-memory note, then each warning with its line. Built from the current <see cref="Result"/> in the
+    /// current language, and rebuilt when either (or the host name) changes.
     /// </summary>
-    public IReadOnlyList<JobLogEntry> Log => _log ??= BuildLog();
+    public IReadOnlyList<JobLogEntry> Log
+    {
+        get
+        {
+            // Each input is read once, so the log and the cache key describe the same state even if another thread
+            // replaces the result meanwhile.
+            var result = Result;
+            var host = ResolvedHost;
+            var culture = Text.Culture;
+            var cache = Volatile.Read(ref _logCache);
+            if (cache is not null && ReferenceEquals(cache.Result, result) && cache.Host == host && Equals(cache.Culture, culture))
+                return cache.Log;
+            var log = BuildLog(result, host);
+            Volatile.Write(ref _logCache, new LogCache(result, host, culture, log));
+            return log;
+        }
+    }
 
-    /// <summary>The fields to write to jobs.json; the drawn result is not saved because it is redrawn on load.</summary>
-    public SavedJob ToSaved() => new(Id, Name, Source, Origin, ReceivedAt, Zpl, Complete);
+    /// <summary>
+    /// Looks up the sender's host name once and keeps it in <see cref="ResolvedHost"/>; later calls, a file, a paste or
+    /// a sender on this computer return at once. Runs without blocking; never throws.
+    /// </summary>
+    /// <param name="resolver">Looks up host names; null uses <see cref="HostNameResolver.Default"/> (system DNS, 300 ms).</param>
+    /// <param name="cancellationToken">Stops waiting; the IP address stays the source.</param>
+    public async Task ResolveHostAsync(HostNameResolver? resolver = null, CancellationToken cancellationToken = default)
+    {
+        if (ResolvedHost is not null || !JobNamer.NeedsLookup(Origin, RemoteAddress)) return;
+        var host = await (resolver ?? HostNameResolver.Default).ResolveAsync(RemoteAddress!, cancellationToken).ConfigureAwait(false);
+        if (host is not null) Interlocked.CompareExchange(ref _resolvedHost, host, null);
+    }
+
+    /// <summary>The raw facts to write to jobs.json; the drawn result is not saved because it is redrawn on load.</summary>
+    public SavedJob ToSaved() => new(Id, Name, RemoteAddress, ResolvedHost, Origin, ReceivedAt, Zpl, Complete);
 
     /// <summary>Rebuilds a job read from jobs.json, with <paramref name="result"/> from drawing its ZPL again.</summary>
     public static LabelJob FromSaved(SavedJob saved, RenderResult result)
@@ -113,32 +174,31 @@ public sealed class LabelJob
         return new LabelJob
         {
             Id = saved.Id,
-            Name = saved.Name,
-            Source = saved.Source,
+            Name = saved.Name ?? "",
+            RemoteAddress = saved.RemoteAddress,
+            ResolvedHost = saved.ResolvedHost,
             Origin = saved.Origin,
             ReceivedAt = saved.ReceivedAt,
-            Zpl = saved.Zpl,
+            Zpl = saved.Zpl ?? "",
             Complete = saved.Complete,
             Result = result,
         };
     }
 
-    private List<JobLogEntry> BuildLog()
+    private List<JobLogEntry> BuildLog(RenderResult result, string? host)
     {
-        // Messages are looked up now, not when the job arrived, so a re-render after a language switch reads in the
-        // new language.
         var log = new List<JobLogEntry>
         {
             new(ReceivedAt, Origin switch
             {
                 JobOrigin.OpenedFromFile => Text.Get("Log_OpenedFromFile", ByteCount),
                 JobOrigin.Pasted => Text.Get("Log_Pasted", ByteCount),
-                _ => Text.Get("Log_Received", Source, ByteCount),
+                _ => Text.Get("Log_Received", JobNamer.DisplaySource(Origin, RemoteAddress, host), ByteCount),
             }, null),
         };
         if (!Complete) log.Add(new(ReceivedAt, Text.Get("Log_Incomplete"), null));
-        foreach (var note in _result.MemoryNotes) log.Add(new(ReceivedAt, note, null));
-        foreach (var w in _result.Warnings) log.Add(new(ReceivedAt, w.Message, w.Line));
+        foreach (var note in result.MemoryNotes) log.Add(new(ReceivedAt, note, null));
+        foreach (var w in result.Warnings) log.Add(new(ReceivedAt, w.Message, w.Line));
         return log;
     }
 

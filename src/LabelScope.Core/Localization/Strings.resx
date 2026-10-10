@@ -327,4 +327,5 @@
   <data name="Jobs_LoadDamaged" xml:space="preserve"><value>The saved jobs in {0} could not be read because the file is damaged ({1}). LabelScope started with an empty list. New jobs replace the file when LabelScope closes.</value></data>
   <data name="Jobs_NoVersion" xml:space="preserve"><value>the file has no valid version number</value></data>
   <data name="Jobs_LoadNewer" xml:space="preserve"><value>The saved jobs in {0} were written by a newer version of LabelScope and cannot be read by this one. LabelScope started with an empty list. Install the newer version to see those jobs again.</value></data>
+  <data name="Jobs_SaveRefusedNewer" xml:space="preserve"><value>The job list was not saved, because {0} was written by a newer version of LabelScope (file version {1}) and saving would erase those jobs. Install the newer version, or move the file elsewhere if you no longer need those jobs.</value></data>
 </root>

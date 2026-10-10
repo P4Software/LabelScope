@@ -327,4 +327,5 @@
   <data name="Jobs_LoadDamaged" xml:space="preserve"><value>No se pudieron leer los trabajos guardados en {0} porque el archivo está dañado ({1}). LabelScope empezó con la lista vacía. Los trabajos nuevos reemplazarán el archivo cuando cierre LabelScope.</value></data>
   <data name="Jobs_NoVersion" xml:space="preserve"><value>el archivo no tiene un número de versión válido</value></data>
   <data name="Jobs_LoadNewer" xml:space="preserve"><value>Los trabajos guardados en {0} los escribió una versión más nueva de LabelScope y esta no puede leerlos. LabelScope empezó con la lista vacía. Instale la versión más nueva para ver esos trabajos otra vez.</value></data>
+  <data name="Jobs_SaveRefusedNewer" xml:space="preserve"><value>La lista de trabajos no se guardó, porque {0} lo escribió una versión más nueva de LabelScope (versión de archivo {1}) y guardarla borraría esos trabajos. Instale la versión más nueva, o mueva el archivo a otro lugar si ya no necesita esos trabajos.</value></data>
 </root>
