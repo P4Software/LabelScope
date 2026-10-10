@@ -39,7 +39,8 @@ public sealed class SettingsStore
           // true or false. Handy on a narrow screen. The "Stacked layout" box in the window does the same while running.
           "StackedLayout": false,
 
-          // Folder with your own TrueType fonts (used by a later version). Leave empty for none.
+          // Folder with your own TrueType (.ttf) or OpenType (.otf) fonts. A label that names a font such as
+          // E:ARIAL.TTF (with ^A@ or ^CW) uses the file with that name from this folder. Leave empty for none.
           "FontsFolder": "",
 
           // Where log files are written. A relative folder is created next to LabelScope.

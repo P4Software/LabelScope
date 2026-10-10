@@ -26,6 +26,9 @@ internal static class StorageCommands
             case "~EG":
                 warnings.Add(new(cmd.Line, "~EG (erase graphics) is described in the ZPL guide only as \"see ^ID\", so LabelScope did not erase anything. Use ^IDR:*.GRF to delete stored graphics."));
                 return true;
+            case "^CW":
+                AssignFontLetter(cmd, context, warnings);
+                return true;
             case "~DN":
                 // Ends a ~DG download early. Each command is complete by the time LabelScope reads it, so nothing is pending.
                 return true;
@@ -189,6 +192,26 @@ internal static class StorageCommands
             FlushNotes();
             Warn($"{ex.Message} Nothing was stored.");
         }
+    }
+
+    /// <summary>
+    /// ^CWa,d:o.x: gives a downloaded or folder font a one-character name (plan Decision 10: kept for the session in
+    /// printer memory). The file is not looked up here: the name is accepted now, and the font is found, or reported
+    /// missing, when a label uses the letter.
+    /// </summary>
+    private static void AssignFontLetter(ZplCommand cmd, PaintContext context, List<RenderWarning> warnings)
+    {
+        var a = cmd.Args.Split(',', 2);
+        var id = a[0].Trim();
+        if (id.Length != 1 || !char.IsAsciiLetterOrDigit(id[0]) || a.Length < 2 || a[1].Trim().Length == 0)
+        {
+            warnings.Add(new(cmd.Line, "^CW needs a font letter (A to Z or 0 to 9) and a font name such as E:MYFONT.TTF; it was ignored."));
+            return;
+        }
+        // Parsed like every stored object's name: upper-cased, cut to a safe length, and only ever a dictionary key.
+        var file = ObjectName.Parse(a[1], "TTF", 'R');
+        context.Memory.AssignFont(id[0], file);
+        context.MemoryNotes.Add($"Font {char.ToUpperInvariant(id[0])} now means {file.Display} (^CW), until LabelScope closes or its printer memory is cleared.");
     }
 
     /// <summary>^IDd:o.x: deletes stored objects; '*' is a wildcard. A printer ignores a name that matches nothing.</summary>

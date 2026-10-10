@@ -19,6 +19,10 @@ public sealed class PrinterMemory
     private readonly Dictionary<string, (ObjectName Name, StoredObject Item)> _items = new(StringComparer.Ordinal);
     private long _bytes;
 
+    // ^CW assignments: font letter -> font file, also guarded by _gate. At most 36 entries (A to Z, 0 to 9), so the
+    // map needs no limit of its own. Kept for the session like stored objects (plan Decision 10).
+    private readonly Dictionary<char, ObjectName> _fontIds = new();
+
     /// <summary>Creates an empty memory with the default limits.</summary>
     public PrinterMemory() : this(DefaultMaxBytes, DefaultMaxObjects)
     {
@@ -147,15 +151,28 @@ public sealed class PrinterMemory
         return count;
     }
 
-    /// <summary>Empties the memory (the window's "Clear printer memory" button).</summary>
+    /// <summary>^CW: from now on font letter <paramref name="id"/> means the font file <paramref name="file"/>.</summary>
+    internal void AssignFont(char id, ObjectName file)
+    {
+        lock (_gate) _fontIds[char.ToUpperInvariant(id)] = file;
+    }
+
+    /// <summary>The font file a ^CW gave letter <paramref name="id"/>, or null.</summary>
+    internal ObjectName? FontFor(char id)
+    {
+        lock (_gate) return _fontIds.TryGetValue(char.ToUpperInvariant(id), out var file) ? file : null;
+    }
+
+    /// <summary>Empties the memory and forgets every ^CW font letter (the window's "Clear printer memory" button).</summary>
     public void Clear()
     {
         bool any;
         lock (_gate)
         {
-            any = _items.Count > 0;
+            any = _items.Count > 0 || _fontIds.Count > 0;
             _items.Clear();
             _bytes = 0;
+            _fontIds.Clear();
         }
         if (any) RaiseChanged();
     }

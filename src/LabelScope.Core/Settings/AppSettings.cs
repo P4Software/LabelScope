@@ -27,7 +27,7 @@ public sealed class AppSettings
     /// <summary>Start with the label picture above the ZPL text instead of beside it (the window has a box for it too).</summary>
     public bool StackedLayout { get; set; }
 
-    /// <summary>Folder with custom TrueType fonts (used from a later release).</summary>
+    /// <summary>Folder with your own TrueType (.ttf) and OpenType (.otf) fonts; a label that names a font file with ^A@ or ^CW uses the file of the same name from here. Empty = none.</summary>
     public string FontsFolder { get; set; } = "";
 
     /// <summary>Folder for log files; a relative path is relative to the program folder.</summary>

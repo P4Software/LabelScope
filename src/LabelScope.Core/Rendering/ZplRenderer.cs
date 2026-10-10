@@ -1,3 +1,4 @@
+using LabelScope.Core.Fonts;
 using LabelScope.Core.Memory;
 
 namespace LabelScope.Core.Rendering;
@@ -5,19 +6,32 @@ namespace LabelScope.Core.Rendering;
 /// <summary>Converts ZPL text into label images without any online service.</summary>
 public sealed class ZplRenderer
 {
-    /// <summary>Creates a renderer with its own, empty printer memory.</summary>
-    public ZplRenderer() : this(new PrinterMemory())
+    /// <summary>Creates a renderer with its own, empty printer memory and only the built-in fonts.</summary>
+    public ZplRenderer() : this(new PrinterMemory(), FontLibrary.Empty)
     {
     }
 
     /// <summary>
-    /// Creates a renderer that keeps downloaded graphics and fonts in <paramref name="memory"/>. The window passes one
-    /// memory for the whole session, so a graphic downloaded in one job can be used by a label in a later job.
+    /// Creates a renderer that keeps downloaded graphics and fonts in <paramref name="memory"/> and uses only the
+    /// built-in fonts. The window passes one memory for the whole session, so a graphic downloaded in one job can be
+    /// used by a label in a later job.
     /// </summary>
-    public ZplRenderer(PrinterMemory memory)
+    public ZplRenderer(PrinterMemory memory) : this(memory, FontLibrary.Empty)
+    {
+    }
+
+    /// <summary>
+    /// Creates a renderer that keeps downloaded graphics and fonts in <paramref name="memory"/> and finds fonts named by
+    /// ^A@ and ^CW in <paramref name="fonts"/>. The window passes one memory and one library for the whole session.
+    /// </summary>
+    public ZplRenderer(PrinterMemory memory, FontLibrary fonts)
     {
         Memory = memory ?? throw new ArgumentNullException(nameof(memory));
+        Fonts = fonts ?? throw new ArgumentNullException(nameof(fonts));
     }
+
+    /// <summary>The fonts from the FontsFolder setting.</summary>
+    public FontLibrary Fonts { get; }
 
     /// <summary>The printer memory this renderer stores downloads in and recalls them from.</summary>
     public PrinterMemory Memory { get; }
@@ -31,7 +45,7 @@ public sealed class ZplRenderer
         var labels = new List<RenderedLabel>();
         var warnings = new List<RenderWarning>();
         var notes = new List<string>();
-        var context = new PaintContext(Memory, notes);
+        var context = new PaintContext(Memory, notes, Fonts);
         var block = new List<ZplCommand>();
         var inLabel = false;
 

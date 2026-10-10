@@ -183,6 +183,13 @@ internal sealed partial class LabelPainter : IDisposable
         // ^A0R: the first character is the font, the second the orientation (absent = follow ^FW).
         _fieldFont = first.Length > 0 ? char.ToUpperInvariant(first[0]) : null;
         _textOrientation = first.Length > 1 ? FieldPlacement.Normalize(first[1]) : null;
+        // ^A@o,h,w,d:f.x names a font file; without a name the last one given in this label stays active (the guide).
+        // It is kept for this label only (plan Decision 10), so it lives in the painter and is not reset by ^FS.
+        if (_fieldFont == '@')
+        {
+            var file = a.Length > 3 ? a[3].Trim() : "";
+            if (file.Length > 0) _lastFontFile = ObjectName.Parse(file, "TTF", 'R');
+        }
         if (TryInt(a, 1, out var h) && h > 0) _fontHeight = Math.Min(h, MaxFontDots);
         if (TryInt(a, 2, out var w) && w > 0) _fontWidth = Math.Min(w, MaxFontDots);
     }
