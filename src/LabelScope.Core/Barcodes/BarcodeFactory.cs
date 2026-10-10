@@ -58,6 +58,19 @@ internal static class BarcodeFactory
         ["^BR"] = "GS1 DataBar", ["^BS"] = "UPC/EAN extension", ["^BT"] = "TLC39", ["^BZ"] = "postal code",
     };
 
+    /// <summary>Names of the drawn symbologies, for the Fields list. Brand names, so the same in every language.</summary>
+    private static readonly Dictionary<string, string> Names = new()
+    {
+        ["^BC"] = "Code 128", ["^B3"] = "Code 39", ["^BL"] = "LOGMARS", ["^BA"] = "Code 93",
+        ["^BE"] = "EAN-13", ["^BU"] = "UPC-A", ["^B8"] = "EAN-8", ["^B9"] = "UPC-E",
+        ["^B2"] = "Interleaved 2 of 5", ["^BK"] = "Codabar", ["^B1"] = "Code 11", ["^BM"] = "MSI",
+        ["^BQ"] = "QR Code", ["^BX"] = "Data Matrix", ["^B7"] = "PDF417",
+    };
+
+    /// <summary>The symbology name for <paramref name="command"/> (for example "Code 128" for ^BC); the command itself when it has none.</summary>
+    public static string SymbologyName(string command) =>
+        Names.GetValueOrDefault(command) ?? DeferredName(command) ?? command;
+
     /// <summary>True when <paramref name="command"/> (for example "^BC") can be drawn.</summary>
     public static bool IsSupported(string command) => Encoders.ContainsKey(command);
 

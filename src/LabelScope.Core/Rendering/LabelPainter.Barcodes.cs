@@ -18,7 +18,9 @@ internal sealed partial class LabelPainter
     // The ^B? command waiting for its ^FD / ^FS. Skip is true for symbologies planned for a later release.
     private BarcodeRequest? _barcode;
 
-    private sealed record BarcodeRequest(string Command, string[] Args, int Line, bool Skip);
+    /// <summary>A barcode command waiting for its data.</summary>
+    /// <param name="SkipReason">The warning given for a symbology planned for a later release, reused as the field's problem.</param>
+    private sealed record BarcodeRequest(string Command, string[] Args, int Line, bool Skip, string? SkipReason = null);
 
     private void SetBarDefaults(ZplCommand cmd, string[] a)
     {
@@ -44,8 +46,9 @@ internal sealed partial class LabelPainter
         if (deferred is null) return false;
 
         // Marked Skip so the field data that follows is not drawn as ordinary text.
-        _barcode = new BarcodeRequest(cmd.Name, a, cmd.Line, Skip: true);
-        _warnings.Add(new(cmd.Line, Text.Get("Painter_BarcodeDeferred", cmd.Name, deferred)));
+        var reason = Text.Get("Painter_BarcodeDeferred", cmd.Name, deferred);
+        _barcode = new BarcodeRequest(cmd.Name, a, cmd.Line, Skip: true, reason);
+        _warnings.Add(new(cmd.Line, reason));
         return true;
     }
 
@@ -60,9 +63,13 @@ internal sealed partial class LabelPainter
     {
         if (data.Length == 0) return; // a field such as ^FD^FS has nothing to draw
         var req = _barcode!;
+        // Counted before any early return, so a field that is not drawn still takes its place in the Fields list.
+        var record = RoomForField(req.Line);
         if (data.Length > MaxBarcodeDataLength)
         {
-            _warnings.Add(new(req.Line, Text.Get("Painter_BarcodeDataTooLong", req.Command, data.Length)));
+            var why = Text.Get("Painter_BarcodeDataTooLong", req.Command, data.Length);
+            _warnings.Add(new(req.Line, why));
+            if (record) RecordBarcodeNotDrawn(req, data, why);
             return;
         }
         BarcodeField field;
@@ -72,16 +79,21 @@ internal sealed partial class LabelPainter
         }
         catch (BarcodeDataException ex)
         {
-            _warnings.Add(new(req.Line, Text.Get("Painter_BarcodeNotDrawn", req.Command, ex.Message)));
+            var why = Text.Get("Painter_BarcodeNotDrawn", req.Command, ex.Message);
+            _warnings.Add(new(req.Line, why));
+            if (record) RecordBarcodeNotDrawn(req, data, why);
             return;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // An encoder bug must cost this one field, not the whole label (ZplRenderer.PaintSafely is the last resort).
-            _warnings.Add(new(req.Line, Text.Get("Painter_BarcodeInternalError", req.Command)));
+            var why = Text.Get("Painter_BarcodeInternalError", req.Command);
+            _warnings.Add(new(req.Line, why));
+            if (record) RecordBarcodeNotDrawn(req, data, why);
             return;
         }
         if (field.Note is not null) _warnings.Add(new(req.Line, Text.Get("Common_Prefixed", req.Command, field.Note)));
+        var name = BarcodeFactory.SymbologyName(req.Command);
 
         switch (field)
         {
@@ -90,7 +102,9 @@ internal sealed partial class LabelPainter
                 var lay = LinearDrawer.Measure(linear.Symbol, linear.Look, linear.Narrow);
                 // The interpretation line uses the bundled fixed-width font, like a printer's own fixed-width font, so it no longer
                 // depends on Arial being installed.
-                PlaceAndDraw(req, linear.Orientation, lay.Width, lay.Height, lay.BaseY, ink =>
+                // The measured layout includes the interpretation line, so the recorded box covers it too.
+                var detail = record ? Text.Get("Field_BarcodeLinearDetail", name, linear.Narrow, linear.Look.BarHeight) : null;
+                PlaceAndDraw(req, linear.Orientation, lay.Width, lay.Height, lay.BaseY, data, name, detail, ink =>
                     LinearDrawer.Draw(_canvas, linear.Symbol, linear.Look, linear.Narrow, ink, BundledFonts.Mono));
                 break;
             }
@@ -100,15 +114,22 @@ internal sealed partial class LabelPainter
                 var h = matrix.Modules.Height * matrix.ModuleHeight;
                 // No quiet zone is added: the symbol's own corner sits at the origin. For ^FT the origin is the
                 // bottom-left corner of a 2D symbol, so the anchor is its bottom edge.
-                PlaceAndDraw(req, matrix.Orientation, w, h, h, ink =>
+                var detail = record
+                    ? Text.Get("Field_BarcodeMatrixDetail", name, matrix.ModuleWidth, matrix.ModuleHeight, matrix.Modules.Width, matrix.Modules.Height)
+                    : null;
+                PlaceAndDraw(req, matrix.Orientation, w, h, h, data, name, detail, ink =>
                     MatrixDrawer.Draw(_canvas, matrix.Modules, matrix.ModuleWidth, matrix.ModuleHeight, ink));
                 break;
             }
         }
     }
 
-    /// <summary>Applies the rotation transform for a w x h field, warns when it leaves the label, and runs <paramref name="draw"/>.</summary>
-    private void PlaceAndDraw(BarcodeRequest req, char orientation, int w, int h, int baseY, Action<SKPaint> draw)
+    /// <summary>
+    /// Applies the rotation transform for a w x h field, warns when it leaves the label, records the field (when
+    /// <paramref name="detail"/> is given, that is, while there is room in the Fields list) and runs <paramref name="draw"/>.
+    /// </summary>
+    private void PlaceAndDraw(BarcodeRequest req, char orientation, int w, int h, int baseY, string data, string name,
+                              string? detail, Action<SKPaint> draw)
     {
         _canvas.Save();
         try
@@ -120,6 +141,8 @@ internal sealed partial class LabelPainter
             if (box.Left < 0 || box.Top < 0 || box.Right > _bitmap.Width || box.Bottom > _bitmap.Height)
                 _warnings.Add(new(req.Line,
                     Text.Get("Painter_BarcodeOffLabel", req.Command, w, h)));
+            if (detail is not null)
+                RecordField(FieldKind.Barcode, Text.Get("Field_BarcodeSummary", name), data, new SKRect(0, 0, w, h), req.Line, detail);
 
             using var ink = InkPaint();
             draw(ink);
@@ -128,5 +151,13 @@ internal sealed partial class LabelPainter
         {
             _canvas.Restore();
         }
+    }
+
+    /// <summary>Records a barcode that was not drawn, with the warning it caused as the field's problem.</summary>
+    private void RecordBarcodeNotDrawn(BarcodeRequest req, string data, string why)
+    {
+        var name = BarcodeFactory.SymbologyName(req.Command);
+        RecordNotDrawn(FieldKind.Barcode, Text.Get("Field_BarcodeSummary", name), data, req.Line,
+            Text.Get("Field_BarcodeNotDrawnDetail", name), why);
     }
 }

@@ -13,7 +13,14 @@ public sealed record RenderOptions(int Dpi = 203);
 /// <param name="HeightFromZpl">True when the height came from a ^LL (in this job or an earlier one); false when the picture ends at the lowest thing drawn.</param>
 /// <param name="Dpi">Dots per inch used to turn dots into millimetres (0 when unknown).</param>
 public sealed record RenderedLabel(byte[] PngBytes, int WidthDots, int HeightDots, int Copies,
-                                   bool WidthFromZpl = false, bool HeightFromZpl = false, int Dpi = 0);
+                                   bool WidthFromZpl = false, bool HeightFromZpl = false, int Dpi = 0)
+{
+    /// <summary>
+    /// Every field drawn on the label, in drawing order (at most 5000, then one note that says how many there were);
+    /// empty for a label that records none, such as the placeholder.
+    /// </summary>
+    public IReadOnlyList<LabelField> Fields { get; init; } = [];
+}
 
 /// <summary>Something in the ZPL that could not be drawn as written.</summary>
 /// <param name="Line">1-based line in the ZPL text.</param>

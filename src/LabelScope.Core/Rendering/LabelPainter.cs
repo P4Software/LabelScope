@@ -170,6 +170,9 @@ internal sealed partial class LabelPainter : IDisposable
         var (right, bottom) = InkExtent();
         var w = fitWidth ? (right > 0 ? right : Math.Min(dpi, _bitmap.Width)) : _bitmap.Width;
         var h = fitHeight ? (bottom > 0 ? bottom : Math.Min(dpi, _bitmap.Height)) : _bitmap.Height;
+        // Fields on a side cut to the drawing are judged against the sheet they were drawn on (see _judgeWidth).
+        if (fitWidth) _judgeWidth = _bitmap.Width;
+        if (fitHeight) _judgeHeight = _bitmap.Height;
         if (w == _bitmap.Width && h == _bitmap.Height) return;
         var old = _bitmap;
         ReplaceSheet(w, h, canvas => canvas.DrawBitmap(old, 0, 0));
@@ -203,6 +206,7 @@ internal sealed partial class LabelPainter : IDisposable
         _canvas.Flush();
         int w = _bitmap.Width, h = _bitmap.Height;
         var old = _bitmap;
+        _turnedAfterCut = true; // the field boxes are turned the same way in FinishFields
         ReplaceSheet(w, h, canvas =>
         {
             canvas.Translate(w, h);
@@ -246,8 +250,8 @@ internal sealed partial class LabelPainter : IDisposable
         {
             case "^PW": case "^LL": break; // already applied in ResolveSize
             case "^LH": _homeX = Coord(a, 0); _homeY = Coord(a, 1); _homeSet = true; break;
-            case "^FO": _x = Offset(_homeX, Coord(a, 0)); _y = Offset(_homeY, Coord(a, 1)); _baseline = false; break;
-            case "^FT": _x = Offset(_homeX, Coord(a, 0)); _y = Offset(_homeY, Coord(a, 1)); _baseline = true; break;
+            case "^FO": _x = Offset(_homeX, Coord(a, 0)); _y = Offset(_homeY, Coord(a, 1)); _baseline = false; _originLine = cmd.Line; break;
+            case "^FT": _x = Offset(_homeX, Coord(a, 0)); _y = Offset(_homeY, Coord(a, 1)); _baseline = true; _originLine = cmd.Line; break;
             case "^FR": _reverse = true; break;
             case "^LR": _reverseAll = a.Length > 0 && a[0].Trim().StartsWith("Y", StringComparison.OrdinalIgnoreCase); _reverseAllSet = true; break;
             case "^PQ": _copies = Math.Clamp(Int(a, 0, 1), 1, MaxCopies); break;
@@ -261,8 +265,8 @@ internal sealed partial class LabelPainter : IDisposable
             case "^IM": RecallGraphic(cmd, a, scalable: false); break;
             case "^IL": LoadImage(cmd, a); break;
             case "^IS": RememberImageSave(cmd, a); break;
-            case "^GC": DrawCircle(a); break;
-            case "^GD": DrawDiagonal(a); break;
+            case "^GC": DrawCircle(cmd, a); break;
+            case "^GD": DrawDiagonal(cmd, a); break;
             case "^PO": break; // already applied in Paint
             case "^BY": SetBarDefaults(cmd, a); break;
             case "^FW": _fieldOrientation = a.Length > 0 && a[0].Length > 0 ? FieldPlacement.Normalize(a[0][0]) : 'N'; break;
@@ -343,6 +347,8 @@ internal sealed partial class LabelPainter : IDisposable
         if (_barcode is not null)
         {
             if (_hasData && !_barcode.Skip) DrawBarcode(data);
+            else if (_hasData && data.Length > 0 && _barcode.SkipReason is { } reason && RoomForField(_barcode.Line))
+                RecordBarcodeNotDrawn(_barcode, data, reason);
         }
         else if (_hasData && data.Length > 0)
         {
@@ -352,6 +358,7 @@ internal sealed partial class LabelPainter : IDisposable
         _data = ""; _hasData = false; _reverse = false;
         _fontHeight = null; _fontWidth = null; _fieldFont = null; _fieldBlock = null; _textOrientation = null;
         _barcode = null; _hexIndicator = null; // both apply to one field only
+        _originLine = 0;
     }
 
     private void DrawText()
@@ -360,7 +367,10 @@ internal sealed partial class LabelPainter : IDisposable
         {
             // Zebra: a block width of 0 is "unset" and nothing prints. Drawing one long line instead would
             // show something a printer never prints.
-            _warnings.Add(new(zero.Line, Text.Get("Painter_FbZeroWidth")));
+            var why = Text.Get("Painter_FbZeroWidth");
+            _warnings.Add(new(zero.Line, why));
+            if (RoomForField(_dataLine))
+                RecordNotDrawn(FieldKind.Text, Text.Get("Field_TextSummary", Quote(_data)), _data, _dataLine, "", why);
             return;
         }
 
@@ -422,6 +432,11 @@ internal sealed partial class LabelPainter : IDisposable
                 (int)Math.Ceiling(boxWidth), boxHeight, _baseline, baseline);
             for (var i = 0; i < lines.Count; i++)
                 font.Draw(_canvas, lines[i].Text, lines[i].X, baseline + i * lineStep, paint);
+
+            // The box the layout already gave the placement: no extra measuring, and the same box rotation used.
+            if (RoomForField(_dataLine))
+                RecordField(FieldKind.Text, Text.Get("Field_TextSummary", Quote(data)), data,
+                    new SKRect(0, 0, (int)Math.Ceiling(boxWidth), boxHeight), _dataLine, TextDetail(font));
         }
         finally
         {
@@ -502,6 +517,9 @@ internal sealed partial class LabelPainter : IDisposable
 
         // For graphics ^FT names the bottom-left corner (for text it is the baseline), so the box grows upwards.
         var y = _baseline ? _y - height : _y;
+        if (RoomForField(cmd.Line))
+            RecordField(FieldKind.Box, Text.Get("Field_BoxSummary"), "", SKRect.Create(_x, y, width, height), cmd.Line,
+                Text.Get("Field_BoxDetail", width, height, thickness));
 
         using var paint = InkPaint(white);
         paint.IsAntialias = false; // boxes are made of whole dots on a real printer
@@ -521,7 +539,7 @@ internal sealed partial class LabelPainter : IDisposable
     /// ^GD: a line across the corners of a w x h box. Drawn as a parallelogram whose horizontal width is the
     /// thickness (the extract does not say how thickness is measured; this matches how thin lines look on paper).
     /// </summary>
-    private void DrawDiagonal(string[] a)
+    private void DrawDiagonal(ZplCommand cmd, string[] a)
     {
         var t = Math.Clamp(Int(a, 2, 1), 1, MaxDots);
         var w = Math.Clamp(Int(a, 0, t), 3, MaxDots);
@@ -531,6 +549,9 @@ internal sealed partial class LabelPainter : IDisposable
 
         t = Math.Min(t, w);
         var top = _baseline ? _y - h : _y; // ^FT names the bottom-left corner of a graphic
+        if (RoomForField(cmd.Line))
+            RecordField(FieldKind.Line, Text.Get("Field_LineSummary"), "", SKRect.Create(_x, top, w, h), cmd.Line,
+                Text.Get("Field_LineDetail", w, h, t));
         using var path = new SKPath();
         if (left)
         {
@@ -549,7 +570,7 @@ internal sealed partial class LabelPainter : IDisposable
         _canvas.DrawPath(path, paint);
     }
 
-    private void DrawCircle(string[] a)
+    private void DrawCircle(ZplCommand cmd, string[] a)
     {
         var diameter = Math.Clamp(Int(a, 0, 3), 3, MaxDots);
         var thickness = Math.Clamp(Int(a, 1, 1), 1, MaxDots);
@@ -559,6 +580,9 @@ internal sealed partial class LabelPainter : IDisposable
         var radius = diameter / 2f;
         // ^FT names the bottom-left corner of a graphic, so the circle's box grows upwards from _y.
         var top = _baseline ? _y - diameter : _y;
+        if (RoomForField(cmd.Line))
+            RecordField(FieldKind.Circle, Text.Get("Field_CircleSummary"), "", SKRect.Create(_x, top, diameter, diameter), cmd.Line,
+                Text.Get("Field_CircleDetail", diameter, thickness));
         var centre = (X: _x + radius, Y: top + radius);
         if (thickness >= radius)
         {
@@ -597,7 +621,10 @@ internal sealed partial class LabelPainter : IDisposable
         using var pixmap = _bitmap.PeekPixels();
         using var data = pixmap.Encode(SKPngEncoderOptions.Default)
             ?? throw new InvalidOperationException("PNG encoding failed.");
-        return new RenderedLabel(data.ToArray(), _bitmap.Width, _bitmap.Height, _copies, widthFromZpl, heightFromZpl, dpi);
+        return new RenderedLabel(data.ToArray(), _bitmap.Width, _bitmap.Height, _copies, widthFromZpl, heightFromZpl, dpi)
+        {
+            Fields = FinishFields(),
+        };
     }
 
     /// <inheritdoc />

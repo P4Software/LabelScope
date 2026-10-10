@@ -284,4 +284,26 @@
   <data name="Listener_AcceptTrouble" xml:space="preserve"><value>LabelScope tuvo problemas para aceptar una conexión y sigue escuchando. Si dejan de llegar etiquetas, reinicie LabelScope.</value></data>
   <data name="Listener_Busy" xml:space="preserve"><value>LabelScope está ocupado: demasiados programas envían etiquetas a la vez. Se rechazaron las conexiones nuevas. Inténtelo de nuevo en un momento.</value></data>
   <data name="Listener_TooLarge" xml:space="preserve"><value>Se recibió una etiqueta de más de 16 MB sin marca de fin (^XZ) y se descartó. Revise el programa que envía las etiquetas.</value></data>
+  <data name="Field_TextSummary" xml:space="preserve"><value>Texto "{0}"</value></data>
+  <data name="Field_TextDetail" xml:space="preserve"><value>fuente {0}, {1} puntos</value></data>
+  <data name="Field_TextBlockDetail" xml:space="preserve"><value>fuente {0}, {1} puntos, bloque de {2} puntos de ancho, hasta {3} líneas</value></data>
+  <data name="Field_BarcodeSummary" xml:space="preserve"><value>Código de barras {0}</value></data>
+  <data name="Field_BarcodeLinearDetail" xml:space="preserve"><value>{0}, módulo {1}, altura {2}</value></data>
+  <data name="Field_BarcodeMatrixDetail" xml:space="preserve"><value>{0}, módulo de {1} x {2} puntos, {3} x {4} módulos</value></data>
+  <data name="Field_BarcodeNotDrawnDetail" xml:space="preserve"><value>{0}, no se dibujó</value></data>
+  <data name="Field_BoxSummary" xml:space="preserve"><value>Recuadro</value></data>
+  <data name="Field_BoxDetail" xml:space="preserve"><value>{0} x {1}, grosor {2}</value></data>
+  <data name="Field_LineSummary" xml:space="preserve"><value>Línea diagonal</value></data>
+  <data name="Field_LineDetail" xml:space="preserve"><value>{0} x {1}, grosor {2}</value></data>
+  <data name="Field_CircleSummary" xml:space="preserve"><value>Círculo</value></data>
+  <data name="Field_CircleDetail" xml:space="preserve"><value>diámetro {0}, grosor {1}</value></data>
+  <data name="Field_GraphicInlineSummary" xml:space="preserve"><value>Gráfico</value></data>
+  <data name="Field_GraphicSummary" xml:space="preserve"><value>Gráfico {0}</value></data>
+  <data name="Field_ImageSummary" xml:space="preserve"><value>Imagen {0}</value></data>
+  <data name="Field_BackgroundSummary" xml:space="preserve"><value>Imagen de fondo {0}</value></data>
+  <data name="Field_GraphicDetail" xml:space="preserve"><value>{0} x {1} puntos</value></data>
+  <data name="Field_GraphicMagnifiedDetail" xml:space="preserve"><value>{0} x {1} puntos, ampliado {2} x {3}</value></data>
+  <data name="Field_OffLabel" xml:space="preserve"><value>Este campo queda fuera de la etiqueta, así que no se imprime nada de él. Revise su posición (^FO o ^FT) y el tamaño de la etiqueta (^PW, ^LL).</value></data>
+  <data name="Field_PartlyOffLabel" xml:space="preserve"><value>Parte de este campo queda fuera de la etiqueta y se recorta. Mueva el campo o hágalo más pequeño.</value></data>
+  <data name="Fields_TooMany" xml:space="preserve"><value>Esta etiqueta tiene {0} campos; solo se listan los primeros 5000.</value></data>
 </root>

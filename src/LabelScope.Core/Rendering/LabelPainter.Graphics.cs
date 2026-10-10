@@ -59,7 +59,7 @@ internal sealed partial class LabelPainter
         foreach (var note in notes) Warn(cmd, Text.Get("Common_Prefixed", "^GF", note));
 
         // Graphics have no rotation parameter, so ^FW does not turn them (the guide lists ^FW for text and barcodes only).
-        DrawImage(cmd.Name, cmd.Line, image, 1, 1, _x, _y, 'N', _baseline);
+        DrawImage(cmd.Name, cmd.Line, "", image, 1, 1, _x, _y, 'N', _baseline);
     }
 
     /// <summary>
@@ -102,7 +102,7 @@ internal sealed partial class LabelPainter
                 return;
             }
             // ^FW never turns graphics: the guide lists it for text and barcodes only.
-            DrawImage(cmd.Name, cmd.Line, graphic.Image, magX, magY, _x, _y, 'N', _baseline);
+            DrawImage(cmd.Name, cmd.Line, name.Display, graphic.Image, magX, magY, _x, _y, 'N', _baseline);
             return;
         }
         Warn(cmd, MissingGraphic(cmd.Name, name, found, elsewhere));
@@ -154,7 +154,7 @@ internal sealed partial class LabelPainter
             // fields) must not reverse it. Reverse is switched off for this one draw and restored right after.
             var (reverse, reverseAll) = (_reverse, _reverseAll);
             (_reverse, _reverseAll) = (false, false);
-            try { DrawImage(cmd.Name, cmd.Line, graphic.Image, 1, 1, _homeX, _homeY, 'N', fromBase: false); }
+            try { DrawImage(cmd.Name, cmd.Line, name.Display, graphic.Image, 1, 1, _homeX, _homeY, 'N', fromBase: false); }
             finally { (_reverse, _reverseAll) = (reverse, reverseAll); }
             return;
         }
@@ -207,7 +207,8 @@ internal sealed partial class LabelPainter
     /// dots, as a field at (<paramref name="x"/>, <paramref name="y"/>). White dots are transparent, so a graphic never
     /// erases what is under it; the ink follows ^FR and ^LR like every other field.
     /// </summary>
-    private void DrawImage(string command, int line, MonoImage image, int magX, int magY, int x, int y, char orientation, bool fromBase)
+    /// <param name="name">The stored graphic's name for the Fields list; empty for ^GF, whose data is the bitmap itself.</param>
+    private void DrawImage(string command, int line, string name, MonoImage image, int magX, int magY, int x, int y, char orientation, bool fromBase)
     {
         // At most 8000 dots x 10 magnification per side, far inside int.
         var w = image.Width * magX;
@@ -220,7 +221,23 @@ internal sealed partial class LabelPainter
             // usually a mistake in the data (inverted bits, the wrong graphic), so it is said rather than left silent.
             // Not for ^IL: label programs routinely store an empty format with ^IS and load it as every label's
             // background, so a blank background is normal and a warning on every label would only be noise.
-            if (command != "^IL") _warnings.Add(new(line, Text.Get("Painter_GraphicAllWhite", command, w, h)));
+            if (command == "^IL") return;
+            var why = Text.Get("Painter_GraphicAllWhite", command, w, h);
+            _warnings.Add(new(line, why));
+            if (RoomForField(line))
+            {
+                _canvas.Save();
+                try
+                {
+                    FieldPlacement.Apply(_canvas, orientation, x, y, w, h, fromBase, h);
+                    RecordField(GraphicKind(command), GraphicSummary(command, name), name, new SKRect(0, 0, w, h), line,
+                        GraphicDetail(w, h, magX, magY), problem: why);
+                }
+                finally
+                {
+                    _canvas.Restore();
+                }
+            }
             return;
         }
 
@@ -236,6 +253,12 @@ internal sealed partial class LabelPainter
             var box = _canvas.TotalMatrix.MapRect(inked);
             if (box.Left < 0 || box.Top < 0 || box.Right > _bitmap.Width || box.Bottom > _bitmap.Height)
                 _warnings.Add(new(line, Text.Get("Painter_GraphicOffLabel", command, w, h)));
+
+            // Recorded before the early returns below: a graphic entirely off the label is still a field, with a problem.
+            // The box is the whole graphic; whether it fits is judged on its black dots, as the warning above is.
+            if (RoomForField(line))
+                RecordField(GraphicKind(command), GraphicSummary(command, name), name, new SKRect(0, 0, w, h), line,
+                    GraphicDetail(w, h, magX, magY), judgeLocal: inked);
 
             // Only the dots that land on the label (and hold ink) become a drawing mask. A stored 40-million-dot
             // graphic recalled by many fields of a small label would otherwise cost a 40 MB mask per field: 50 such
@@ -259,6 +282,22 @@ internal sealed partial class LabelPainter
             _canvas.Restore();
         }
     }
+
+    /// <summary>^GF and ^XG are graphics; ^IM and ^IL place a stored image as it is, so they are images.</summary>
+    private static FieldKind GraphicKind(string command) => command is "^IM" or "^IL" ? FieldKind.Image : FieldKind.Graphic;
+
+    /// <summary>The Fields-list name of a graphic field.</summary>
+    private static string GraphicSummary(string command, string name) => command switch
+    {
+        "^GF" => Text.Get("Field_GraphicInlineSummary"),
+        "^IL" => Text.Get("Field_BackgroundSummary", name),
+        "^IM" => Text.Get("Field_ImageSummary", name),
+        _ => Text.Get("Field_GraphicSummary", name),
+    };
+
+    /// <summary>Size in dots, with the magnification when ^XG enlarged the graphic.</summary>
+    private static string GraphicDetail(int w, int h, int magX, int magY) =>
+        magX == 1 && magY == 1 ? Text.Get("Field_GraphicDetail", w, h) : Text.Get("Field_GraphicMagnifiedDetail", w, h, magX, magY);
 
     /// <summary>A dot position from the inverse-mapped label edge, kept inside 0 to <paramref name="limit"/> before the int cast.</summary>
     private static int Dot(double value, int limit) => (int)Math.Clamp(value, 0, limit);
