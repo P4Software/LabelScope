@@ -89,6 +89,6 @@ internal static class StorageCommands
         var count = context.Memory.Delete(pattern);
         context.MemoryNotes.Add(count == 0
             ? $"^ID {pattern.Display}: nothing in LabelScope's printer memory matched, so nothing was deleted."
-            : $"Deleted {count} object(s) matching {pattern.Display} from LabelScope's printer memory.");
+            : $"Deleted {count} {(count == 1 ? "object" : "objects")} matching {pattern.Display} from LabelScope's printer memory.");
     }
 }

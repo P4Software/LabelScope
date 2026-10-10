@@ -63,18 +63,18 @@ internal readonly record struct ObjectName(char? Drive, string Name, string Exte
 
     /// <summary>
     /// True when this name matches <paramref name="pattern"/> as ^ID reads it: same drive (R: when omitted) and
-    /// '*' standing for any run of characters in the name and in the extension.
+    /// '*' standing for any run of characters and '?' for exactly one, in the name and in the extension.
     /// </summary>
     public bool Matches(ObjectName pattern) =>
         (pattern.Drive ?? 'R') == (Drive ?? 'R') && Glob(pattern.Name, Name) && Glob(pattern.Extension, Extension);
 
-    /// <summary>Iterative '*' matcher: linear in practice and immune to the exponential blow-up of naive recursion.</summary>
+    /// <summary>Iterative '*' and '?' matcher: linear in practice and immune to the exponential blow-up of naive recursion.</summary>
     private static bool Glob(string pattern, string text)
     {
         int p = 0, t = 0, star = -1, mark = 0;
         while (t < text.Length)
         {
-            if (p < pattern.Length && pattern[p] != '*' && pattern[p] == text[t]) { p++; t++; }
+            if (p < pattern.Length && pattern[p] != '*' && (pattern[p] == '?' || pattern[p] == text[t])) { p++; t++; }
             else if (p < pattern.Length && pattern[p] == '*') { star = p++; mark = t; }
             else if (star >= 0) { p = star + 1; t = ++mark; }
             else return false;

@@ -1,6 +1,6 @@
-using LabelScope.Core.Memory;
 using System.Globalization;
 using LabelScope.Core.Barcodes;
+using LabelScope.Core.Memory;
 using SkiaSharp;
 
 namespace LabelScope.Core.Rendering;
