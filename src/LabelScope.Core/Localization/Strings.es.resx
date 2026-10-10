@@ -315,9 +315,9 @@
   <data name="Field_BarcodePartlyOffLabel" xml:space="preserve"><value>Parte de este código de barras queda fuera de la etiqueta, así que se recorta y no se podrá escanear. Use un ancho de módulo menor (^BY), datos más cortos o mueva el campo.</value></data>
   <data name="Job_DefaultName" xml:space="preserve"><value>Etiqueta</value></data>
   <data name="Job_ThisComputer" xml:space="preserve"><value>Esta computadora</value></data>
-  <data name="Job_OpenedFromFile" xml:space="preserve"><value>Archivo abierto</value></data>
+  <data name="Job_OpenedFromFile" xml:space="preserve"><value>Abierto desde archivo</value></data>
   <data name="Job_Pasted" xml:space="preserve"><value>Pegado</value></data>
-  <data name="Log_Received" xml:space="preserve"><value>Recibido de {0}, {1} bytes.</value></data>
+  <data name="Log_Received" xml:space="preserve"><value>Se recibieron {1} bytes. Remitente: {0}.</value></data>
   <data name="Log_OpenedFromFile" xml:space="preserve"><value>Abierto desde un archivo, {0} bytes.</value></data>
   <data name="Log_Pasted" xml:space="preserve"><value>Pegado desde el portapapeles, {0} bytes.</value></data>
   <data name="Log_Incomplete" xml:space="preserve"><value>El remitente se detuvo antes del final de la última etiqueta (^XZ), así que a esa etiqueta le pueden faltar partes. Envíe el trabajo de nuevo; si sigue pasando, revise la red o el programa que envía.</value></data>

@@ -315,9 +315,9 @@
   <data name="Field_BarcodePartlyOffLabel" xml:space="preserve"><value>Part of this barcode is outside the label, so it is cut off and will not scan. Use a smaller module width (^BY), shorter data, or move the field.</value></data>
   <data name="Job_DefaultName" xml:space="preserve"><value>Label</value></data>
   <data name="Job_ThisComputer" xml:space="preserve"><value>This computer</value></data>
-  <data name="Job_OpenedFromFile" xml:space="preserve"><value>Opened file</value></data>
+  <data name="Job_OpenedFromFile" xml:space="preserve"><value>Opened from file</value></data>
   <data name="Job_Pasted" xml:space="preserve"><value>Pasted</value></data>
-  <data name="Log_Received" xml:space="preserve"><value>Received from {0}, {1} bytes.</value></data>
+  <data name="Log_Received" xml:space="preserve"><value>Received {1} bytes. Sender: {0}.</value></data>
   <data name="Log_OpenedFromFile" xml:space="preserve"><value>Opened from a file, {0} bytes.</value></data>
   <data name="Log_Pasted" xml:space="preserve"><value>Pasted from the clipboard, {0} bytes.</value></data>
   <data name="Log_Incomplete" xml:space="preserve"><value>The sender stopped before the end of the last label (^XZ), so that label may be missing parts. Send the job again; if this keeps happening, check the network or the sending program.</value></data>
