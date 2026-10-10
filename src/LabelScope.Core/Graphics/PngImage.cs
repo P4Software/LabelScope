@@ -13,6 +13,9 @@ internal static class PngImage
 
     private const string Damaged = "The PNG picture is damaged or incomplete, so it cannot be used. Send it again.";
 
+    /// <summary>For data that is not a PNG at all: says which picture formats a ~DY download can carry.</summary>
+    private const string NotPng = "The data is not a PNG picture. Send the picture as a PNG file (type P) or a GRF bitmap (type G).";
+
     /// <summary>
     /// Decodes <paramref name="file"/>. The size comes from the image header and is checked first, so a small file that
     /// claims a huge picture (a "decompression bomb") is refused without allocating its pixels.
@@ -23,7 +26,7 @@ internal static class PngImage
         // Untrusted bytes must only ever reach the PNG decoder: SKCodec would otherwise sniff and open JPEG, GIF, BMP,
         // WebP and more, a much larger attack surface than a PNG download needs.
         if (!HasPngSignature(file))
-            throw new GraphicDataException("The data is not a PNG picture.");
+            throw new GraphicDataException(NotPng);
         // Before Skia sees it: the decoder sets aside the full-size bitmap first, so a 100-byte file claiming 6000 x 6000
         // pixels would cost 144 MB before it was found to be incomplete.
         if (ImpossiblySmall(file))
@@ -31,20 +34,35 @@ internal static class PngImage
         using var data = SKData.CreateCopy(file);
         // SKCodec.Create reads only the header; no pixel memory exists yet.
         using var codec = SKCodec.Create(data)
-            ?? throw new GraphicDataException("The data is not a PNG picture.");
+            ?? throw new GraphicDataException(NotPng);
         var info = codec.Info;
         if (CheckSize(info.Width, info.Height) is { } problem)
             throw new GraphicDataException($"The image was not stored because {problem}.");
 
         using var bitmap = new SKBitmap(new SKImageInfo(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+        var pixels = PixelsOrThrow(bitmap, info.Width, info.Height);
         bitmap.Erase(SKColors.Transparent);
-        var result = codec.GetPixels(bitmap.Info, bitmap.GetPixels());
+        var result = codec.GetPixels(bitmap.Info, pixels);
         // A printer would not print a corrupt PNG, and a half logo must never be stored as if it were the logo, so a
         // cut-off or damaged file is refused outright instead of being kept with a white remainder.
         if (result != SKCodecResult.Success)
             throw new GraphicDataException(Damaged);
 
         return MonoImage.FromRgba(bitmap.GetPixelSpan(), info.Width, info.Height, bitmap.RowBytes, premultiplied: false);
+    }
+
+    /// <summary>
+    /// The pixel memory of <paramref name="bitmap"/>. Skia does not throw when it cannot set aside the memory for a
+    /// big picture; the bitmap simply has no pixels. Decoding into nothing would fail and be reported as a damaged
+    /// file, which would send the user looking for a fault in a good PNG, so the real reason is given instead.
+    /// </summary>
+    /// <exception cref="GraphicDataException">The bitmap has no pixel memory.</exception>
+    internal static IntPtr PixelsOrThrow(SKBitmap bitmap, int width, int height)
+    {
+        var pixels = bitmap.GetPixels();
+        if (pixels == IntPtr.Zero)
+            throw new GraphicDataException($"The image ({width} x {height} pixels) was not stored because there is not enough memory to decode it. Close other programs or send a smaller image.");
+        return pixels;
     }
 
     /// <summary>

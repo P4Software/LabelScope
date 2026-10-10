@@ -82,6 +82,12 @@ public sealed class FontLibrary
     internal Func<SKData, SKTypeface?> TypefaceFactory { get; set; } = data => SKTypeface.FromData(data);
 
     /// <summary>
+    /// Sets aside native memory for a font file of the given length: Skia's allocator. Tests replace it to simulate
+    /// memory running out, which Skia reports with no buffer (null or a zero pointer) instead of an exception.
+    /// </summary>
+    internal Func<long, SKData?> DataFactory { get; set; } = length => SKData.Create(length);
+
+    /// <summary>
     /// Lists the fonts in <paramref name="folder"/> (relative to <paramref name="programFolder"/> when not rooted).
     /// Problems are added to <paramref name="messages"/> in plain language; the result is never null and this method
     /// never throws for a bad setting or an unreadable folder. The setting is only read, never written back.
@@ -284,11 +290,18 @@ public sealed class FontLibrary
     /// Copies <paramref name="length"/> bytes of <paramref name="stream"/> into a new SKData through a small buffer, so
     /// the file exists once in memory (in Skia's block) instead of twice. The copy is done in managed code rather
     /// than by Skia reading the stream, so an IO error is an ordinary .NET exception and never crosses native frames.
-    /// Null when the file turned out shorter than it said.
+    /// Null when the file turned out shorter than it said, or when Skia could not set aside the memory (the caller
+    /// reports both as "could not be opened", which is not remembered, so the font is tried again later).
     /// </summary>
-    private static SKData? ReadInto(Stream stream, long length)
+    private SKData? ReadInto(Stream stream, long length)
     {
-        var data = SKData.Create(length);
+        var data = DataFactory(length);
+        if (data is null) return null;
+        if (data.Data == IntPtr.Zero)
+        {
+            data.Dispose();
+            return null;
+        }
         var buffer = new byte[81920];
         long done = 0;
         try

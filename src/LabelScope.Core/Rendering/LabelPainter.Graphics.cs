@@ -145,8 +145,8 @@ internal sealed partial class LabelPainter
     /// <summary>
     /// ^ILd:o.x: a stored image as the background of the whole label. The guide places it at ^FO0,0 (so ^LH
     /// applies) and it is never turned. Only black dots are drawn, so where it appears among the fields does not
-    /// change the picture, except under ^FR / ^LR, where it reverses like any field. A missing image costs the
-    /// background, never the label.
+    /// change the picture, and it never reverses: ^FR and ^LR act on fields, and a printer loads the background
+    /// before any field. A missing image costs the background, never the label.
     /// </summary>
     private void LoadImage(ZplCommand cmd, string[] a)
     {

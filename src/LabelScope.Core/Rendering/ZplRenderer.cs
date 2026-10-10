@@ -125,9 +125,11 @@ public sealed class ZplRenderer
         {
             return StorageHandler(cmd, context, warnings);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            warnings.Add(new(cmd.Line, $"{cmd.Name} could not be handled ({ex.Message}); nothing was stored."));
+            // A fixed sentence, never the exception's own text: that is written for programmers, may be in another
+            // language, and reading it can itself fail. Core has no log of its own, so the detail stays out of sight.
+            warnings.Add(new(cmd.Line, $"{cmd.Name} could not be handled because of an internal error; nothing was stored."));
             return true;
         }
     }
