@@ -25,7 +25,7 @@ public static partial class JobNamer
     private static partial Regex FirstFieldPattern();
 
     /// <summary>
-    /// The job name (spec decision 2): the text of a ^FX comment that comes before the first ^FO, ^FT or ^FD, because
+    /// The job name: the text of a ^FX comment that comes before the first ^FO, ^FT or ^FD, because
     /// programs often put the label type there; otherwise the first ^FD data; otherwise the localized default
     /// ("Label"). The text is put on one line, trimmed, and cut to <see cref="MaxNameLength"/> characters with an
     /// ellipsis. ^FH escapes are not decoded. Never returns an empty string.
@@ -154,7 +154,8 @@ public sealed class HostNameResolver
     private readonly TimeSpan _timeout;
     private readonly ConcurrentDictionary<string, string?> _cache = new();
 
-    /// <summary>Creates a resolver; tests pass a fake lookup so no real DNS is asked.</summary>
+    /// <summary>Creates a resolver with its own lookup, so the way names are found (and how long that may take) can be
+    /// chosen by the caller instead of always asking DNS.</summary>
     /// <param name="lookup">Returns the host name of an address, or null when it has none.</param>
     /// <param name="timeout">How long to wait for <paramref name="lookup"/> before giving up.</param>
     public HostNameResolver(Func<IPAddress, CancellationToken, Task<string?>> lookup, TimeSpan timeout)
