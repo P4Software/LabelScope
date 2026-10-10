@@ -1,4 +1,5 @@
 using LabelScope.Core.Graphics;
+using LabelScope.Core.Memory;
 using SkiaSharp;
 
 namespace LabelScope.Core.Rendering;
@@ -52,6 +53,65 @@ internal sealed partial class LabelPainter
 
         // Graphics have no rotation parameter, so ^FW does not turn them (Decision 5).
         DrawImage(cmd.Name, cmd.Line, image, 1, 1, _x, _y, 'N', _baseline);
+    }
+
+    /// <summary>
+    /// ^XGd:o.x,mx,my (with magnification) and ^IMd:o.x (original size): a stored graphic at the field origin.
+    /// A missing graphic costs this one field, never the label.
+    /// </summary>
+    private void RecallGraphic(ZplCommand cmd, string[] a, bool scalable)
+    {
+        var name = ObjectName.Parse(a.Length > 0 ? a[0] : "", "GRF", null);
+        int magX = 1, magY = 1;
+        if (scalable)
+        {
+            var clamped = false;
+            magX = Magnification(a, 1, ref clamped);
+            magY = Magnification(a, 2, ref clamped);
+            if (clamped)
+                Warn(cmd, $"{cmd.Name}: The magnification must be 1 to 10; {magX},{magY} was used.");
+        }
+
+        var found = _context.Memory.Find(name, out var elsewhere);
+        if (found is StoredGraphic graphic)
+        {
+            // The magnified size is computed in long arithmetic and judged BEFORE any bitmap is made: an 8000 x 8000
+            // dot graphic at x10 would otherwise ask for 6.4 billion dots.
+            var w = (long)graphic.Image.Width * magX;
+            var h = (long)graphic.Image.Height * magY;
+            if (w > GraphicLimits.MaxDots || h > GraphicLimits.MaxDots || w * h > GraphicLimits.MaxGraphicDots)
+            {
+                Warn(cmd, $"{cmd.Name}: {name.Display} at magnification {magX} x {magY} would be {w} x {h} dots ({w * h} dots); " +
+                          $"LabelScope draws graphics up to {GraphicLimits.MaxGraphicDots} dots, so it was not drawn. Use a smaller magnification.");
+                return;
+            }
+            // ^FW never turns graphics (Decision 5).
+            DrawImage(cmd.Name, cmd.Line, graphic.Image, magX, magY, _x, _y, 'N', _baseline);
+            return;
+        }
+        Warn(cmd, MissingGraphic(cmd.Name, name, found, elsewhere));
+    }
+
+    /// <summary>^XG magnification: 1 to 10 (the guide's range), 1 when omitted.</summary>
+    private static int Magnification(string[] a, int index, ref bool clamped)
+    {
+        if (!ZplArgs.TryLong(a, index, out var v)) return 1;
+        if (v is >= 1 and <= 10) return (int)v;
+        clamped = true;
+        return v < 1 ? 1 : 10;
+    }
+
+    /// <summary>The plain-language reason why a stored graphic could not be drawn, with the fix.</summary>
+    private static string MissingGraphic(string command, ObjectName name, StoredObject? found, ObjectName? elsewhere)
+    {
+        if (found is not null)
+            return $"{command}: {name.Display} in LabelScope's printer memory is a {found.Kind}, not a graphic, so nothing was drawn for this field.";
+        var where = elsewhere is { } other
+            ? $" LabelScope does have {other.Display}, but this label asks for drive {name.Drive}:."
+            : "";
+        return $"{command}: The graphic {name.Display} is not in LabelScope's printer memory, so it was not drawn.{where} " +
+               "A printer keeps graphics that were sent to it earlier (with ~DG or ~DY) until it is switched off; " +
+               "send that download job to LabelScope first, then this label again.";
     }
 
     private void Warn(ZplCommand cmd, string message) => _warnings.Add(new(cmd.Line, message));

@@ -148,6 +148,8 @@ internal sealed partial class LabelPainter : IDisposable
             case "^FD": _data = cmd.Args; _hasData = true; break;
             case "^FS": EndField(); break;
             case "^GB": DrawBox(cmd, a); break;
+            case "^XG": RecallGraphic(cmd, a, scalable: true); break;
+            case "^IM": RecallGraphic(cmd, a, scalable: false); break;
             case "^GC": DrawCircle(a); break;
             case "^GD": DrawDiagonal(a); break;
             case "^PO": break; // already applied in Paint
