@@ -151,6 +151,7 @@ internal static class StorageCommands
                 {
                     var file = GraphicData.DecodeFile(a[5], total, notes);
                     FlushNotes();
+                    // Defence in depth: DecodeFile already stops at the 16 MB file ceiling, but this cap must hold on its own if that changes.
                     if (file.LongLength > FontFile.MaxFileBytes)
                     {
                         Warn($"The font is {file.LongLength} bytes and LabelScope reads fonts up to {FontFile.MaxFileBytes} bytes (16 MB). Nothing was stored.");

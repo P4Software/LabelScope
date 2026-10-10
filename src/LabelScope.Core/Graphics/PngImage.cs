@@ -18,24 +18,32 @@ internal static class PngImage
     /// <exception cref="GraphicDataException">The data is not a picture, is too large, or cannot be decoded.</exception>
     public static MonoImage Decode(byte[] file, ICollection<string> notes)
     {
+        // Untrusted bytes must only ever reach the PNG decoder: SKCodec would otherwise sniff and open JPEG, GIF, BMP,
+        // WebP and more, a much larger attack surface than a PNG download needs.
+        if (!HasPngSignature(file))
+            throw new GraphicDataException("The data is not a PNG picture.");
         using var data = SKData.CreateCopy(file);
         // SKCodec.Create reads only the header; no pixel memory exists yet.
         using var codec = SKCodec.Create(data)
-            ?? throw new GraphicDataException("The data is not a PNG (or another picture format) that LabelScope can read, so the image was not stored.");
+            ?? throw new GraphicDataException("The data is not a PNG picture.");
         var info = codec.Info;
         if (CheckSize(info.Width, info.Height) is { } problem)
             throw new GraphicDataException($"The image was not stored because {problem}.");
 
         using var bitmap = new SKBitmap(new SKImageInfo(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
-        bitmap.Erase(SKColors.Transparent); // whatever a damaged file leaves undecoded stays white
+        bitmap.Erase(SKColors.Transparent);
         var result = codec.GetPixels(bitmap.Info, bitmap.GetPixels());
-        if (result == SKCodecResult.IncompleteInput)
-            notes.Add("The image data ended early; the missing part is white.");
-        else if (result != SKCodecResult.Success)
-            throw new GraphicDataException($"The image could not be decoded ({result}), so it was not stored.");
+        // A printer would not print a corrupt PNG, and a half logo must never be stored as if it were the logo, so a
+        // cut-off or damaged file is refused outright instead of being kept with a white remainder.
+        if (result != SKCodecResult.Success)
+            throw new GraphicDataException("The PNG picture is damaged or incomplete, so it cannot be used. Send it again.");
 
         return MonoImage.FromRgba(bitmap.GetPixelSpan(), info.Width, info.Height, bitmap.RowBytes, premultiplied: false);
     }
+
+    /// <summary>True when <paramref name="file"/> starts with the 8-byte PNG signature.</summary>
+    private static bool HasPngSignature(byte[] file) =>
+        file.AsSpan().StartsWith(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
 
     /// <summary>Why an image of this size is refused (finishing "was not stored because ..."), or null when it is fine.</summary>
     internal static string? CheckSize(int width, int height) =>
