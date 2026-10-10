@@ -904,7 +904,7 @@ public partial class MainWindow : Window
                 ShowMessage(UiText.Get("Ui_FileTooLarge"));
                 return;
             }
-            text = File.ReadAllText(dialog.FileName);
+            text = DecodeLikePrinter(File.ReadAllBytes(dialog.FileName));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -918,6 +918,26 @@ public partial class MainWindow : Window
             return;
         }
         RenderLocalJob(text, LabelEntry.FileSource);
+    }
+
+    /// <summary>
+    /// Turns file bytes into text the way the printer listener does (strict UTF-8, otherwise Windows-1252), so a
+    /// file opened here and the same file printed to LabelScope give the same label, accented text included.
+    /// </summary>
+    private static string DecodeLikePrinter(byte[] bytes)
+    {
+        // A UTF-8 byte-order mark is not part of the ZPL.
+        var start = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? 3 : 0;
+        try
+        {
+            return new System.Text.UTF8Encoding(false, throwOnInvalidBytes: true).GetString(bytes, start, bytes.Length - start);
+        }
+        catch (System.Text.DecoderFallbackException)
+        {
+            // Not valid UTF-8: older programs send Windows-1252, as the listener assumes too.
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            return System.Text.Encoding.GetEncoding(1252).GetString(bytes, start, bytes.Length - start);
+        }
     }
 
     /// <summary>Shows the ZPL on the clipboard as a new job.</summary>
