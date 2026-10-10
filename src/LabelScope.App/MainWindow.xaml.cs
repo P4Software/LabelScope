@@ -1369,6 +1369,10 @@ public partial class MainWindow : Window
         UpdateSizePicker();
         UpdateZoomText();
         UpdateMemoryText(); // the memory line comes from Core, which follows the same language
+        // The picker entry depends on the Language setting as well as the culture: a Printer setup save from
+        // "English" to "Windows language" on English Windows changes no culture, but must change the entry. It is
+        // selected before measuring because "Windows language" is wider than "English".
+        SelectLanguageInPicker();
         MeasureFullToolbar();
     }
 
