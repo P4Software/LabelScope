@@ -35,10 +35,19 @@ public sealed class FieldRowViewModel
     /// <summary>How the field was drawn, for example "font 0, 56 dots".</summary>
     public string Detail => Field.Detail;
 
-    /// <summary>Second line of the row: "Text · 40, 200 · 320 × 56 · font 0, 56 dots".</summary>
-    public string Facts => Field.Detail.Length == 0
-        ? KindText + " · " + PositionText
-        : KindText + " · " + PositionText + " · " + Field.Detail;
+    /// <summary>
+    /// Second line of the row: "Text · 40, 200 · 320 × 56 · font 0, 56 dots". Boxes, lines and pictures already name
+    /// their size in the detail ("732 x 4, thickness 4"), so for them only the position is added, not the size again.
+    /// </summary>
+    public string Facts
+    {
+        get
+        {
+            var detailHasSize = Field.Kind is FieldKind.Box or FieldKind.Line or FieldKind.Graphic or FieldKind.Image;
+            var where = detailHasSize ? UiText.Get("Ui_FieldPositionOnly", Field.X, Field.Y) : PositionText;
+            return Field.Detail.Length == 0 ? KindText + " · " + where : KindText + " · " + where + " · " + Field.Detail;
+        }
+    }
 
     /// <summary>"line 7": the ZPL line the field comes from.</summary>
     public string LineText => UiText.Get("Ui_FieldLine", Field.Line);

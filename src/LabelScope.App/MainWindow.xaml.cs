@@ -59,7 +59,24 @@ public partial class MainWindow : Window
     // The job list kept between runs ("Keep jobs"). One store for the whole session: after Load has seen a file from a
     // newer LabelScope, the same instance refuses to overwrite it.
     private readonly JobStore _store = new(JobStore.DefaultPath);
-    private bool _storeLoaded;
+    private KeptJobsState _keptJobs = KeptJobsState.NotRead;
+
+    /// <summary>Where the session stands with jobs.json; saving is only allowed in <see cref="KeptJobsState.Ready"/>.</summary>
+    private enum KeptJobsState
+    {
+        /// <summary>The file has not been read this session (Keep jobs was off at start).</summary>
+        NotRead,
+
+        /// <summary>
+        /// The file is being read and its jobs drawn and added. A save now would write a list without them, so none
+        /// happens: not from the timer, not on close (the file then stays exactly as it was). Also the state for good
+        /// when loading failed unexpectedly, so a broken load never overwrites the file.
+        /// </summary>
+        Loading,
+
+        /// <summary>Read (and, at start, its jobs are in the list): saves may write the file.</summary>
+        Ready,
+    }
     private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly SemaphoreSlim _saveLock = new(1, 1);
     private string? _lastSaveProblem;
@@ -94,6 +111,7 @@ public partial class MainWindow : Window
 
     // "N received today": a counter of arrivals, not of cards, so clearing the list or a trim does not lower it.
     private int _receivedToday;
+    private readonly HashSet<long> _countedSends = new(); // connections already counted; cleared at midnight
     private DateTime _receivedTodayDate = DateTime.Today;
 
     // Zoom: "fit" follows the window size; otherwise _zoom is the screen size of one label dot (1 = 100 %).
@@ -223,6 +241,7 @@ public partial class MainWindow : Window
             _listener = new ZplListener(IPAddress.Parse(_settings.ListenAddress), _settings.ListenPort);
             _listener.LabelReceived += OnLabelReceived;
             _listener.ProblemReported += OnProblemReported;
+            _listener.ConnectionClosed += OnConnectionClosed;
             _listener.Start();
             _listening = true;
             UpdateStatusLine();
@@ -279,7 +298,9 @@ public partial class MainWindow : Window
                 received.Source, result.Labels.Count, result.Warnings.Count, received.Complete, received.ConnectionId);
 
             var job = _assembler.TryAppend(received.ConnectionId, received.Zpl, formatted, result, received.Complete);
-            var part = 1;
+            // An appended label belongs to the part being filled; carried along so a card that has to be made again
+            // (its earlier versions were trimmed or skipped) still says which part it is.
+            var part = job is null ? 1 : _assembler.CurrentPart(received.ConnectionId);
             if (job is null)
             {
                 part = _assembler.NextPart(received.ConnectionId);
@@ -366,7 +387,8 @@ public partial class MainWindow : Window
             // A later version of the same job (one more label of the same send) makes the waiting one pointless; it
             // takes its place (so jobs keep their arrival order) rather than counting as skipped. A note is kept.
             var index = _pendingForUi.FindIndex(p => p.Job.Id == result.Job.Id);
-            if (index >= 0) _pendingForUi[index] = result with { Note = result.Note ?? _pendingForUi[index].Note };
+            if (index >= 0)
+                _pendingForUi[index] = result with { Note = result.Note ?? _pendingForUi[index].Note, Part = _pendingForUi[index].Part };
             else _pendingForUi.Add(result);
             while (_pendingForUi.Count > MaxPendingForUi)
             {
@@ -423,8 +445,8 @@ public partial class MainWindow : Window
                 var follow = _settings.ShowNewestJob || pending.Job.Origin != JobOrigin.Printed || HistoryList.SelectedItem is null;
                 // The ListBox keeps tracking the selected card through Insert(0), so "off" leaves the view alone.
                 _jobs.Insert(0, vm);
-                // A continuation card is the same send, not a new arrival.
-                if (pending.Part == 1) CountArrival(pending.Job.ReceivedAt);
+                // One send is one arrival, whatever number of cards it makes (parts, or a card made again).
+                if (pending.ConnectionId == 0 || _countedSends.Add(pending.ConnectionId)) CountArrival(pending.Job.ReceivedAt);
                 TrimHistory();
                 if (follow) HistoryList.SelectedItem = vm;
             }
@@ -445,6 +467,7 @@ public partial class MainWindow : Window
         {
             _receivedTodayDate = DateTime.Today;
             _receivedToday = 0;
+            _countedSends.Clear();
         }
         if (at.LocalDateTime.Date == DateTime.Today) _receivedToday++;
         UpdateReceivedToday();
@@ -457,8 +480,20 @@ public partial class MainWindow : Window
     private void TrimHistory()
     {
         var keep = HistoryBudget.EntriesToKeep(_jobs.Select(j => j.ApproximateBytes).ToList(), _settings.HistoryLimit);
-        while (_jobs.Count > keep) _jobs.RemoveAt(_jobs.Count - 1);
+        while (_jobs.Count > keep)
+        {
+            var dropped = _jobs[^1];
+            _jobs.RemoveAt(_jobs.Count - 1);
+            // The assembler must not keep a dropped job's pictures alive outside this budget.
+            if (dropped.ConnectionId != 0) _assembler.Forget(dropped.ConnectionId, dropped.Job.Id);
+        }
     }
+
+    /// <summary>
+    /// Runs on a socket thread when a send has ended (after its last label was processed): its job is complete, so
+    /// the assembler lets go of it; the card keeps it as long as the list does.
+    /// </summary>
+    private void OnConnectionClosed(long connectionId) => _assembler.Forget(connectionId);
 
     /// <summary>Runs on a socket thread when the listener had to drop a connection.</summary>
     private void OnProblemReported(string message)
@@ -545,18 +580,22 @@ public partial class MainWindow : Window
     {
         try
         {
-            _storeLoaded = true;
+            _keptJobs = KeptJobsState.Loading;
             var (saved, message) = await Task.Run(_store.Load);
             if (message is not null)
             {
                 Log.Warning("Kept jobs: {Message}", message);
                 AddStartupNote(message);
             }
-            if (saved.Count == 0) return;
+            if (saved.Count == 0)
+            {
+                _keptJobs = KeptJobsState.Ready;
+                ScheduleSave(); // jobs that arrived during the read are written now
+                return;
+            }
 
             var limit = Math.Max(1, _settings.HistoryLimit);
             var keep = saved.OrderByDescending(s => s.ReceivedAt).Take(limit).Reverse().ToList();
-            var options = OptionsFor(_settings);
             var fonts = _fonts;
             var jobs = await Task.Run(() =>
             {
@@ -565,6 +604,9 @@ public partial class MainWindow : Window
                 foreach (var s in keep)
                 {
                     if (_closing) break;
+                    // The settings of this moment, per job: the label size or language may change while a long list
+                    // is drawn, and the jobs must come out as the window now draws them.
+                    var options = OptionsFor(_settings);
                     RenderResult result;
                     _renderGate.Wait();
                     try { result = renderer.Render(ZplFormatter.Format(s.Zpl), options); }
@@ -573,7 +615,7 @@ public partial class MainWindow : Window
                 }
                 return list;
             });
-            if (_closing) return;
+            if (_closing) return; // still Loading: the close does not save, so the file stays as it was
 
             // Oldest first in 'jobs'; the list is newest first and anything that arrived meanwhile is newer.
             for (var i = jobs.Count - 1; i >= 0; i--)
@@ -584,6 +626,9 @@ public partial class MainWindow : Window
             TrimHistory();
             if (HistoryList.SelectedItem is null && _jobs.Count > 0) HistoryList.SelectedIndex = 0;
             Log.Information("Kept jobs: {Count} job(s) loaded", jobs.Count);
+            // Only now may the list be written: it holds the kept jobs and whatever arrived meanwhile.
+            _keptJobs = KeptJobsState.Ready;
+            ScheduleSave();
         }
         catch (Exception ex)
         {
@@ -614,7 +659,7 @@ public partial class MainWindow : Window
     private async Task SaveJobsAsync()
     {
         if (!_settings.KeepJobs) return;
-        await EnsureStoreLoadedAsync();
+        if (!await EnsureStoreLoadedAsync()) return;
         var jobs = _jobs.Select(j => j.Job).ToList();
         var limit = _settings.HistoryLimit;
         // The lock is taken and released on the worker thread: the save on close waits for it on the UI thread, so
@@ -642,16 +687,20 @@ public partial class MainWindow : Window
     /// so a file written by a newer LabelScope is recognised and never overwritten. Its jobs are not shown: only a
     /// start brings kept jobs back.
     /// </summary>
-    private async Task EnsureStoreLoadedAsync()
+    /// <returns>True when saving may go ahead; false while the file is still being read (or a load failed).</returns>
+    private async Task<bool> EnsureStoreLoadedAsync()
     {
-        if (_storeLoaded) return;
-        _storeLoaded = true;
+        if (_keptJobs == KeptJobsState.Ready) return true;
+        if (_keptJobs == KeptJobsState.Loading) return false;
+        _keptJobs = KeptJobsState.Loading;
         var (_, message) = await Task.Run(_store.Load);
         if (message is not null)
         {
             Log.Warning("Kept jobs: {Message}", message);
             ShowMessage(message);
         }
+        _keptJobs = KeptJobsState.Ready;
+        return true;
     }
 
     // ---- showing the selected job ---------------------------------------------------------------------
@@ -929,12 +978,16 @@ public partial class MainWindow : Window
     {
         if (_shownPage is not { IsPlaceholder: false } page || LabelImage.Source is not BitmapSource src
             || src.PixelWidth == 0 || LabelImage.ActualWidth <= 0) return;
-        var scale = LabelImage.ActualWidth / src.PixelWidth; // screen pixels per label dot
+        // Screen pixels per label dot, from the label's size in dots (not the picture's pixels, which need not be
+        // one per dot).
+        var (dotsWide, dotsHigh) = ShownDots(src);
+        var scaleX = LabelImage.ActualWidth / dotsWide;
+        var scaleY = LabelImage.ActualHeight / dotsHigh;
         var p = e.GetPosition(LabelImage);
-        var x = (int)Math.Floor(p.X / scale);
-        var y = (int)Math.Floor(p.Y / scale);
+        var x = (int)Math.Floor(p.X / scaleX);
+        var y = (int)Math.Floor(p.Y / scaleY);
         // About three screen pixels of slack, so a thin line shown small can still be hit.
-        var slop = (int)Math.Ceiling(3 / scale);
+        var slop = (int)Math.Ceiling(3 / Math.Min(scaleX, scaleY));
         var field = FieldHitTest.Find(page.Label.Fields, x, y, slop);
         _selectedLine = null;
         SelectField(field is null ? null : page.Fields.First(r => ReferenceEquals(r.Field, field)));
@@ -971,19 +1024,21 @@ public partial class MainWindow : Window
         OutlineLayer.Children.Clear();
         if (_shownPage is not { } page || LabelImage.Source is not BitmapSource src || src.PixelWidth == 0
             || LabelImage.ActualWidth <= 0) return;
-        var scale = LabelImage.ActualWidth / src.PixelWidth;
+        var (dotsWide, dotsHigh) = ShownDots(src);
+        var scaleX = LabelImage.ActualWidth / dotsWide;
+        var scaleY = LabelImage.ActualHeight / dotsHigh;
 
         var drawn = 0;
         foreach (var f in page.Label.Fields)
         {
             if (f.Problem is null) continue;
             if (++drawn > MaxProblemOutlines) break;
-            AddOutline(f, scale, (Media.Brush)FindResource("ErrorBrush"), dashed: false);
+            AddOutline(f, scaleX, scaleY, (Media.Brush)FindResource("ErrorBrush"), dashed: false);
         }
-        if (_selectedField is { } row) AddOutline(row.Field, scale, (Media.Brush)FindResource("PrimaryBrush"), dashed: true);
+        if (_selectedField is { } row) AddOutline(row.Field, scaleX, scaleY, (Media.Brush)FindResource("PrimaryBrush"), dashed: true);
     }
 
-    private void AddOutline(LabelField f, double scale, Media.Brush brush, bool dashed)
+    private void AddOutline(LabelField f, double scaleX, double scaleY, Media.Brush brush, bool dashed)
     {
         if (f.Width <= 0 || f.Height <= 0) return; // not drawn: nothing on the label to outline
         // Outside the field, so the outline never covers the ink it marks; the selection sits further out than a
@@ -991,15 +1046,15 @@ public partial class MainWindow : Window
         var gap = dashed ? 4.0 : 2.0;
         var rect = new Rectangle
         {
-            Width = f.Width * scale + 2 * gap,
-            Height = f.Height * scale + 2 * gap,
+            Width = f.Width * scaleX + 2 * gap,
+            Height = f.Height * scaleY + 2 * gap,
             Stroke = brush,
             StrokeThickness = dashed ? 1.5 : 1.25,
             SnapsToDevicePixels = true,
         };
         if (dashed) rect.StrokeDashArray = [3, 2];
-        Canvas.SetLeft(rect, f.X * scale - gap);
-        Canvas.SetTop(rect, f.Y * scale - gap);
+        Canvas.SetLeft(rect, f.X * scaleX - gap);
+        Canvas.SetTop(rect, f.Y * scaleY - gap);
         OutlineLayer.Children.Add(rect);
     }
 
@@ -1033,8 +1088,17 @@ public partial class MainWindow : Window
     /// <summary>Screen size of one label dot as shown now; the manual zoom when no label is shown.</summary>
     private double CurrentScale() =>
         LabelImage.Source is BitmapSource { PixelWidth: > 0 } src && LabelImage.Width > 0 && !double.IsNaN(LabelImage.Width)
-            ? LabelImage.Width / src.PixelWidth
+            ? LabelImage.Width / ShownDots(src).Width
             : _zoom;
+
+    /// <summary>
+    /// The size in label dots of the picture on screen: the label's own size, which zoom, hit test, outlines and the
+    /// grid are measured in. The picture's pixels are only used when no label is known.
+    /// </summary>
+    private (int Width, int Height) ShownDots(BitmapSource src) =>
+        _shownPage is { Label: { WidthDots: > 0, HeightDots: > 0 } label }
+            ? (label.WidthDots, label.HeightDots)
+            : (Math.Max(1, src.PixelWidth), Math.Max(1, src.PixelHeight));
 
     /// <summary>
     /// Sizes the picture: in fit mode so that the label and its captions fill the canvas, otherwise at the chosen
@@ -1060,7 +1124,8 @@ public partial class MainWindow : Window
             var availableWidth = ImageScroll.ActualWidth - 48 - 30;
             var availableHeight = ImageScroll.ActualHeight - 48 - 30;
             if (availableWidth <= 0 || availableHeight <= 0) return; // not laid out yet; SizeChanged calls again
-            scale = Math.Clamp(Math.Min(availableWidth / src.PixelWidth, availableHeight / src.PixelHeight), 0.02, 8);
+            var (w, h) = ShownDots(src);
+            scale = Math.Clamp(Math.Min(availableWidth / w, availableHeight / h), 0.02, 8);
         }
         else
         {
@@ -1069,8 +1134,9 @@ public partial class MainWindow : Window
             scale = _zoom;
         }
 
-        LabelImage.Width = src.PixelWidth * scale;
-        LabelImage.Height = src.PixelHeight * scale;
+        var (dotsWide, dotsHigh) = ShownDots(src);
+        LabelImage.Width = dotsWide * scale;
+        LabelImage.Height = dotsHigh * scale;
         // Shrinking with nearest-neighbour makes thin barcode bars vanish; smooth scaling keeps them visible.
         // Enlarging keeps sharp pixels so every dot can be counted.
         Media.RenderOptions.SetBitmapScalingMode(LabelImage,
@@ -1177,7 +1243,7 @@ public partial class MainWindow : Window
 
         // The label's own resolution: a label drawn before a density change keeps the dots it was drawn with.
         var dpi = _shownPage?.DisplayDpi ?? _settings.DefaultDpi;
-        var cell = LabelGrid.CellDots(dpi) * (LabelImage.ActualWidth / src.PixelWidth);
+        var cell = LabelGrid.CellDots(dpi) * (LabelImage.ActualWidth / ShownDots(src).Width);
         if (cell < 6)
         {
             GridOverlay.Visibility = Visibility.Collapsed; // lines closer than this are just a grey wash
@@ -2272,6 +2338,7 @@ public partial class MainWindow : Window
             {
                 _listener.LabelReceived -= OnLabelReceived;
                 _listener.ProblemReported -= OnProblemReported;
+                _listener.ConnectionClosed -= OnConnectionClosed;
                 _listener.Dispose();
             }
             SaveJobsOnClose();
@@ -2291,13 +2358,20 @@ public partial class MainWindow : Window
     {
         _saveTimer.Stop();
         if (!_settings.KeepJobs) return;
+        // Closed while the kept jobs were still being read or drawn: the list does not hold them yet, so writing it
+        // would lose them. The file stays exactly as it was.
+        if (_keptJobs == KeptJobsState.Loading)
+        {
+            Log.Information("Kept jobs on close: not saved, the kept jobs were still loading");
+            return;
+        }
         if (!_saveLock.Wait(TimeSpan.FromSeconds(5))) return;
         try
         {
-            if (!_storeLoaded)
+            if (_keptJobs == KeptJobsState.NotRead)
             {
-                _storeLoaded = true;
                 _store.Load(); // so a newer version's file is recognised and left alone
+                _keptJobs = KeptJobsState.Ready;
             }
             var result = _store.Save(_jobs.Select(j => j.Job).ToList(), _settings.HistoryLimit);
             Log.Information("Kept jobs on close: {Success} {Message}", result.Success, result.Message);

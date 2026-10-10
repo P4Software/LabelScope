@@ -75,6 +75,13 @@ public sealed class ZplListener : IDisposable
     /// </summary>
     public event Action<string>? ProblemReported;
 
+    /// <summary>
+    /// Raised on a background thread when a connection has ended, after its last label was raised. The argument is
+    /// the connection number of <see cref="ReceivedLabel.ConnectionId"/>, so the app can stop adding labels to that
+    /// send's job and let go of what it kept for it.
+    /// </summary>
+    public event Action<long>? ConnectionClosed;
+
     /// <summary>Starts listening. Throws <see cref="ListenerStartException"/> with advice if the port cannot be used.</summary>
     public void Start()
     {
@@ -187,43 +194,51 @@ public sealed class ZplListener : IDisposable
         {
             var source = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString() ?? "unknown";
             var connectionId = Interlocked.Increment(ref _lastConnectionId);
-            var splitter = new ZplStreamSplitter();
-            var buffer = new byte[8192];
-            // One timer for the whole connection: CancelAfter is called again before every read, which restarts it.
-            // When it fires the read is cancelled and the code below flushes whatever partial label arrived.
-            using var idle = CancellationTokenSource.CreateLinkedTokenSource(ct);
             try
             {
-                var stream = client.GetStream();
-                while (true)
+                var splitter = new ZplStreamSplitter();
+                var buffer = new byte[8192];
+                // One timer for the whole connection: CancelAfter is called again before every read, which restarts it.
+                // When it fires the read is cancelled and the code below flushes whatever partial label arrived.
+                using var idle = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                try
                 {
-                    idle.CancelAfter(IdleTimeout);
-                    var read = await stream.ReadAsync(buffer, idle.Token);
-                    if (read <= 0) break;
-                    // The sender just proved it is alive. Stop the idle timer while we process what arrived: handling
-                    // can wait for the render gate for a long time under load, and that wait must not count as the
-                    // sender being idle (it would cut off an active sender and flush its label as incomplete).
-                    idle.CancelAfter(Timeout.InfiniteTimeSpan);
-                    foreach (var zpl in splitter.Feed(buffer, read))
-                        Raise(LabelReceived, new ReceivedLabel(zpl, DateTimeOffset.Now, source, true, connectionId));
+                    var stream = client.GetStream();
+                    while (true)
+                    {
+                        idle.CancelAfter(IdleTimeout);
+                        var read = await stream.ReadAsync(buffer, idle.Token);
+                        if (read <= 0) break;
+                        // The sender just proved it is alive. Stop the idle timer while we process what arrived: handling
+                        // can wait for the render gate for a long time under load, and that wait must not count as the
+                        // sender being idle (it would cut off an active sender and flush its label as incomplete).
+                        idle.CancelAfter(Timeout.InfiniteTimeSpan);
+                        foreach (var zpl in splitter.Feed(buffer, read))
+                            Raise(LabelReceived, new ReceivedLabel(zpl, DateTimeOffset.Now, source, true, connectionId));
+                    }
                 }
-            }
-            catch (ZplTooLargeException ex)
-            {
-                // This sender is not sending real labels: tell the app and drop only this connection.
-                // The splitter already discarded the oversized text, so there is nothing left to flush.
-                Raise(ProblemReported, ex.Message);
-                return;
-            }
-            catch (Exception ex) when (ex is IOException or SocketException or OperationCanceledException)
-            {
-                // A sender that drops the connection is normal; fall through and flush what arrived.
-            }
+                catch (ZplTooLargeException ex)
+                {
+                    // This sender is not sending real labels: tell the app and drop only this connection.
+                    // The splitter already discarded the oversized text, so there is nothing left to flush.
+                    Raise(ProblemReported, ex.Message);
+                    return;
+                }
+                catch (Exception ex) when (ex is IOException or SocketException or OperationCanceledException)
+                {
+                    // A sender that drops the connection is normal; fall through and flush what arrived.
+                }
 
-            // The spooler can cut a job off; show what we got instead of silently losing it.
-            var rest = splitter.Flush();
-            if (rest is not null)
-                Raise(LabelReceived, new ReceivedLabel(rest, DateTimeOffset.Now, source, false, connectionId));
+                // The spooler can cut a job off; show what we got instead of silently losing it.
+                var rest = splitter.Flush();
+                if (rest is not null)
+                    Raise(LabelReceived, new ReceivedLabel(rest, DateTimeOffset.Now, source, false, connectionId));
+            }
+            finally
+            {
+                // Every label of this connection has been handed over by now (LabelReceived runs synchronously).
+                Raise(ConnectionClosed, connectionId);
+            }
         }
     }
 

@@ -159,4 +159,5 @@ LabelScope will close, update itself and open again. Your settings are kept. Job
 
 This only clears the list. Graphics and fonts in printer memory are kept.</value></data>
   <data name="Ui_ReceivedTodayOne" xml:space="preserve"><value>{0} received today</value></data>
+  <data name="Ui_FieldPositionOnly" xml:space="preserve"><value>{0}, {1}</value></data>
 </root>

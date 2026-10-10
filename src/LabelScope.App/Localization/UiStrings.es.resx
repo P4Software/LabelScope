@@ -159,4 +159,5 @@ LabelScope se cerrará, se actualizará y volverá a abrirse. Su configuración 
 
 Solo se vacía la lista. Los gráficos y fuentes de la memoria de la impresora se conservan.</value></data>
   <data name="Ui_ReceivedTodayOne" xml:space="preserve"><value>{0} recibido hoy</value></data>
+  <data name="Ui_FieldPositionOnly" xml:space="preserve"><value>{0}, {1}</value></data>
 </root>

@@ -55,6 +55,16 @@
         </Setter.Value>
       </Setter>
     </Style>
+    <!-- Each row tells screen readers what it is: the job's name, the field's summary, the log message. -->
+    <Style x:Key="JobCardNamed" TargetType="ListBoxItem" BasedOn="{StaticResource JobCard}">
+      <Setter Property="AutomationProperties.Name" Value="{Binding Title, Mode=OneWay}" />
+    </Style>
+    <Style x:Key="FieldRowNamed" TargetType="ListBoxItem" BasedOn="{StaticResource DetailRow}">
+      <Setter Property="AutomationProperties.Name" Value="{Binding Summary, Mode=OneWay}" />
+    </Style>
+    <Style x:Key="LogRowNamed" TargetType="ListBoxItem" BasedOn="{StaticResource DetailRow}">
+      <Setter Property="AutomationProperties.Name" Value="{Binding Message, Mode=OneWay}" />
+    </Style>
   </Window.Resources>
 
   <DockPanel>
@@ -190,7 +200,7 @@
           </Border>
 
           <!-- One card per job, newest first. -->
-          <ListBox x:Name="HistoryList" Style="{StaticResource JobList}" ItemContainerStyle="{StaticResource JobCard}"
+          <ListBox x:Name="HistoryList" Style="{StaticResource JobList}" ItemContainerStyle="{StaticResource JobCardNamed}"
                    SelectionChanged="OnSelectionChanged">
             <ListBox.ItemTemplate>
               <DataTemplate>
@@ -303,7 +313,7 @@
                 <Grid TextElement.FontWeight="Normal" TextElement.Foreground="{StaticResource TextBrush}">
                   <!-- Virtualised (a label may list 5000 fields): no outer ScrollViewer, recycled rows. -->
                   <ListBox x:Name="FieldsList" BorderThickness="0" Background="Transparent"
-                           ItemContainerStyle="{StaticResource DetailRow}"
+                           ItemContainerStyle="{StaticResource FieldRowNamed}"
                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                            VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                            SelectionChanged="OnFieldRowSelected">
@@ -339,7 +349,7 @@
                 <Grid TextElement.FontWeight="Normal" TextElement.Foreground="{StaticResource TextBrush}">
                   <!-- Arrow keys only move through the rows; Enter, a double-click or the "Line N" link jumps. -->
                   <ListBox x:Name="LogList" BorderThickness="0" Background="Transparent"
-                           ItemContainerStyle="{StaticResource DetailRow}"
+                           ItemContainerStyle="{StaticResource LogRowNamed}"
                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                            KeyDown="OnLogKeyDown" MouseDoubleClick="OnLogDoubleClick">
                     <ListBox.ItemTemplate>

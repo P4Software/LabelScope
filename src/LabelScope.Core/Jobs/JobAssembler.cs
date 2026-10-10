@@ -50,7 +50,7 @@ public sealed class JobAssembler
 
     private readonly object _lock = new();
     private readonly Dictionary<long, Open> _open = new();
-    private readonly Queue<long> _order = new();
+    private Queue<long> _order = new();
 
     /// <summary>Number of connections remembered now (for tests and diagnostics).</summary>
     public int OpenConnections
@@ -127,6 +127,33 @@ public sealed class JobAssembler
     /// </summary>
     /// <param name="connectionId">The connection; 0 always gives null.</param>
     public LabelJob? CurrentJob(long connectionId) => Current(connectionId)?.Job;
+
+    /// <summary>
+    /// The part number of the job connection <paramref name="connectionId"/> is filling now (1 for the first job of
+    /// the send), or 1 when the connection is not known. An appended label belongs to that part.
+    /// </summary>
+    /// <param name="connectionId">The connection; 0 always gives 1.</param>
+    public int CurrentPart(long connectionId) => Current(connectionId)?.Part ?? 1;
+
+    /// <summary>
+    /// Forgets connection <paramref name="connectionId"/>: its send has ended, or its card left the list. Nothing of
+    /// the job stays referenced here, so its pictures count only where the window still shows them.
+    /// </summary>
+    /// <param name="connectionId">The connection to forget.</param>
+    /// <param name="onlyJob">When given, the connection is forgotten only while it is still filling this job (a card
+    /// that left the list must not stop a later part of the same send).</param>
+    public void Forget(long connectionId, Guid? onlyJob = null)
+    {
+        lock (_lock)
+        {
+            if (!_open.TryGetValue(connectionId, out var open)) return;
+            if (onlyJob is { } id && open.Job.Id != id) return;
+            _open.Remove(connectionId);
+            // Out of the eviction order too: if a later part of the same send is remembered again, a leftover entry
+            // would otherwise evict it early. At most MaxOpenConnections entries, so rebuilding is cheap.
+            _order = new Queue<long>(_order.Where(c => c != connectionId));
+        }
+    }
 
     private Open? Current(long connectionId)
     {
