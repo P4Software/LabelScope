@@ -5,7 +5,7 @@ using LabelScope.Core.Listening;
 namespace LabelScope.Core.Rendering;
 
 /// <summary>
-/// Recognises ^GF and ~DY commands that announce binary data (format B). Their bytes may contain '^', '~', CR and
+/// Recognises ^GF and ~DY commands that announce binary data (format B or C). Their bytes may contain '^', '~', CR and
 /// LF, which must not be read as commands or line breaks; the header gives the exact byte count, and the guide says a
 /// printer ignores command prefixes until that many bytes have arrived.
 /// </summary>
@@ -16,8 +16,10 @@ internal static class BinaryDownloads
 
     /// <summary>
     /// For the command <paramref name="name"/> whose name ends at <paramref name="afterName"/>, returns true when it
-    /// announces binary data, with the index where the data starts and its length in characters (one character per
-    /// byte, as the listener decodes such jobs).
+    /// announces binary data, with the index where the data starts and its length in characters. The skip is by
+    /// characters, which equals the byte count only when the job was read as Windows-1252 (one character per byte).
+    /// Binary data almost always is, because it is not valid UTF-8; a payload that happens to be valid UTF-8 can be
+    /// mis-counted until the splitter is byte-aware (planned for a later release).
     /// </summary>
     public static bool TryMeasure(string text, int afterName, string name, out int dataStart, out long dataLength)
     {
@@ -48,7 +50,8 @@ internal static class BinaryDownloads
         if (fields.Count < commas) return false;
 
         var format = fields[formatIndex].Trim();
-        if (format.Length == 0 || char.ToUpperInvariant(format[0]) != 'B') return false;
+        // Formats B and C both carry raw bytes (C is compressed binary); only the byte count matters here.
+        if (format.Length == 0 || char.ToUpperInvariant(format[0]) is not ('B' or 'C')) return false;
         if (!long.TryParse(fields[lengthIndex].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var length)
             || length < 1 || length > ZplStreamSplitter.MaxPendingChars) return false;
 
