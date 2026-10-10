@@ -4527,8 +4527,8 @@ You are solely responsible for determining the appropriateness of using and dist
 
 ==============================================================================
 G. SIL Open Font License 1.1 - IBM Plex Mono
-(Source of this text: OFL.txt in ofl/ibmplexsanscondensed of the google/fonts repository at the
-commit named above; ofl/ibmplexmono carries the same text)
+(Source of this text: OFL.txt in ofl/ibmplexmono of the google/fonts repository at the
+commit named above)
 ==============================================================================
 
 Copyright © 2017 IBM Corp. with Reserved Font Name "Plex"
