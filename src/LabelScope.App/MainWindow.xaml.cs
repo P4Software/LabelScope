@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -115,7 +114,7 @@ public partial class MainWindow : Window
     // than the window can show labels, the oldest waiting results are dropped from the display (they stay
     // in the log) and the user is told once, instead of the dispatcher queue growing without limit.
     private readonly SemaphoreSlim _renderGate = new(2);
-    private readonly ConcurrentQueue<PendingResult> _pendingForUi = new();
+    private readonly List<PendingResult> _pendingForUi = new(); // guarded by itself
     private const int MaxPendingForUi = 20;
     private int _drainScheduled; // 1 while a drain is already queued on the dispatcher
 
@@ -123,7 +122,8 @@ public partial class MainWindow : Window
     private int _renderGeneration;
 
     /// <summary>A job (new, or an existing one with one more label) waiting to be shown, plus the note to show with it.</summary>
-    private sealed record PendingResult(LabelJob Job, long ConnectionId, string? Note);
+    /// <param name="Part">1 for the first job of a send, 2 and up for its continuation jobs.</param>
+    private sealed record PendingResult(LabelJob Job, long ConnectionId, string? Note, int Part = 1);
 
     /// <summary>Creates the window; real startup work happens in <see cref="OnLoaded"/>.</summary>
     public MainWindow()
@@ -279,8 +279,12 @@ public partial class MainWindow : Window
                 received.Source, result.Labels.Count, result.Warnings.Count, received.Complete, received.ConnectionId);
 
             var job = _assembler.TryAppend(received.ConnectionId, received.Zpl, formatted, result, received.Complete);
+            var part = 1;
             if (job is null)
             {
+                part = _assembler.NextPart(received.ConnectionId);
+                // A continuation of a very large send keeps the name of the send's first job.
+                if (name is null && part > 1) name = _assembler.CurrentJob(received.ConnectionId)?.Name;
                 job = new LabelJob
                 {
                     Name = name ?? "",
@@ -291,12 +295,12 @@ public partial class MainWindow : Window
                     Complete = received.Complete,
                     Result = result,
                 };
-                _assembler.Remember(received.ConnectionId, job, formatted);
+                _assembler.Remember(received.ConnectionId, job, formatted, part);
                 if (JobNamer.NeedsLookup(origin, job.RemoteAddress)) _ = ResolveHostAsync(job);
             }
 
             if (Dispatcher.HasShutdownStarted) return;
-            QueueForUi(new PendingResult(job, received.ConnectionId, NoteFor(received, result)));
+            QueueForUi(new PendingResult(job, received.ConnectionId, NoteFor(received, result), part));
         }
         catch (Exception ex)
         {
@@ -356,13 +360,23 @@ public partial class MainWindow : Window
     /// </summary>
     private void QueueForUi(PendingResult result)
     {
-        _pendingForUi.Enqueue(result);
-
         var skipped = 0;
-        while (_pendingForUi.Count > MaxPendingForUi && _pendingForUi.TryDequeue(out _)) skipped++;
+        lock (_pendingForUi)
+        {
+            // A later version of the same job (one more label of the same send) makes the waiting one pointless; it
+            // takes its place (so jobs keep their arrival order) rather than counting as skipped. A note is kept.
+            var index = _pendingForUi.FindIndex(p => p.Job.Id == result.Job.Id);
+            if (index >= 0) _pendingForUi[index] = result with { Note = result.Note ?? _pendingForUi[index].Note };
+            else _pendingForUi.Add(result);
+            while (_pendingForUi.Count > MaxPendingForUi)
+            {
+                _pendingForUi.RemoveAt(0);
+                skipped++;
+            }
+        }
         if (skipped > 0)
         {
-            Log.Warning("Skipped showing {Skipped} label(s) because they arrived faster than they can be displayed", skipped);
+            Log.Warning("Skipped showing {Skipped} job(s) because they arrived faster than they can be displayed", skipped);
             ReportOnUi(UiText.Get("Ui_SkippedLabels", skipped));
         }
 
@@ -376,8 +390,13 @@ public partial class MainWindow : Window
     {
         // Reset first: a result that arrives while we work schedules the next drain.
         Interlocked.Exchange(ref _drainScheduled, 0);
-        while (_pendingForUi.TryDequeue(out var pending))
-            AddOrUpdateJob(pending);
+        List<PendingResult> waiting;
+        lock (_pendingForUi)
+        {
+            waiting = [.. _pendingForUi];
+            _pendingForUi.Clear();
+        }
+        foreach (var pending in waiting) AddOrUpdateJob(pending);
     }
 
     /// <summary>
@@ -394,15 +413,18 @@ public partial class MainWindow : Window
             if (existing is not null)
             {
                 existing.Replace(pending.Job);
+                // The job grew (one more label): the memory budget may now require dropping old cards.
+                TrimHistory();
                 if (existing == _shownJob) ShowJob(keepPage: true);
             }
             else
             {
-                var vm = new JobViewModel(pending.Job, pending.ConnectionId);
+                var vm = new JobViewModel(pending.Job, pending.ConnectionId, pending.Part);
                 var follow = _settings.ShowNewestJob || pending.Job.Origin != JobOrigin.Printed || HistoryList.SelectedItem is null;
                 // The ListBox keeps tracking the selected card through Insert(0), so "off" leaves the view alone.
                 _jobs.Insert(0, vm);
-                CountArrival(pending.Job.ReceivedAt);
+                // A continuation card is the same send, not a new arrival.
+                if (pending.Part == 1) CountArrival(pending.Job.ReceivedAt);
                 TrimHistory();
                 if (follow) HistoryList.SelectedItem = vm;
             }

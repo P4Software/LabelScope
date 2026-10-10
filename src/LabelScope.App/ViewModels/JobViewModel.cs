@@ -59,11 +59,16 @@ public sealed class JobViewModel : INotifyPropertyChanged
     /// <param name="job">The job.</param>
     /// <param name="connectionId">The connection it arrived over (0 for a file, paste or a job kept from an earlier run);
     /// later labels of the same connection are added to this job.</param>
-    public JobViewModel(LabelJob job, long connectionId = 0)
+    /// <param name="part">1 for the first job of a send; 2 and up when one send held more labels than one job takes.</param>
+    public JobViewModel(LabelJob job, long connectionId = 0, int part = 1)
     {
         Job = job;
         ConnectionId = connectionId;
+        Part = Math.Max(1, part);
     }
+
+    /// <summary>Which part of its send this job is: 1, or 2 and up for a continuation of a very large send.</summary>
+    public int Part { get; }
 
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -84,8 +89,11 @@ public sealed class JobViewModel : INotifyPropertyChanged
     /// <summary>Makes the card read every text again: after a language switch, a re-render or a host name lookup.</summary>
     public void Refresh() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
 
-    /// <summary>Bold first line of the card: the job name ("Shipping label", the file name, or "Label").</summary>
-    public string Title => Job.DisplayName;
+    /// <summary>
+    /// Bold first line of the card: the job name ("Shipping label", the file name, or "Label"); a continuation of a very
+    /// large send says which part it is ("Pallet label (part 2)"), so one print making several cards is understood.
+    /// </summary>
+    public string Title => Part == 1 ? Job.DisplayName : UiText.Get("Ui_JobPart", Job.DisplayName, Part);
 
     /// <summary>Arrival time, "14:31:40".</summary>
     public string TimeText => Job.ReceivedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture);

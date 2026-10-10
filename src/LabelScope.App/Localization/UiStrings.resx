@@ -108,7 +108,7 @@
   <data name="Ui_LogFolderFailed" xml:space="preserve"><value>LabelScope could not create its log folder ({0}). It keeps working without a log file; choose another LogFolder in settings.json to get one.</value></data>
   <data name="Ui_ListenAllNote" xml:space="preserve"><value>LabelScope accepts labels from other computers on your network (ListenAddress 0.0.0.0). Windows may ask you to allow LabelScope through the firewall; answering that needs an administrator.</value></data>
   <data name="Ui_LabelFailed" xml:space="preserve"><value>A label arrived but LabelScope could not show it. Send it again; details are in the log file.</value></data>
-  <data name="Ui_SkippedLabels" xml:space="preserve"><value>Skipped showing {0} labels because they arrived faster than they can be displayed. They are listed in the log file.</value></data>
+  <data name="Ui_SkippedLabels" xml:space="preserve"><value>Skipped showing {0} job(s) because they arrived faster than they can be displayed. They are listed in the log file.</value></data>
   <data name="Ui_NotDrawnNote" xml:space="preserve"><value>Data arrived but no label picture could be drawn from it. The ZPL and the reasons are shown on the right.</value></data>
   <data name="Ui_IncompleteNote" xml:space="preserve"><value>A label arrived incomplete (no ^XZ at the end). It is shown as far as it arrived.</value></data>
   <data name="Ui_ShowFailed" xml:space="preserve"><value>This job could not be shown. Details are in the log file.</value></data>
@@ -153,4 +153,5 @@ LabelScope will close, update itself and open again. Your settings are kept. Job
   <data name="Ui_InstallerBlocked" xml:space="preserve"><value>Windows did not allow the installer to start. Download LabelScope-Setup.exe from the GitHub releases page and run it yourself; details are in the log file.</value></data>
   <data name="Ui_DownloadFailed" xml:space="preserve"><value>The new version could not be downloaded. Check the internet connection and try again.</value></data>
   <data name="Ui_InstallerNotSigned" xml:space="preserve"><value>The downloaded installer is not signed by the LabelScope publisher, so it was deleted and not run. Download LabelScope again from the GitHub releases page.</value></data>
+  <data name="Ui_JobPart" xml:space="preserve"><value>{0} (part {1})</value></data>
 </root>

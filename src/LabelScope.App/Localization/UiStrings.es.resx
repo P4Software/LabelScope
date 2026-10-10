@@ -108,7 +108,7 @@
   <data name="Ui_LogFolderFailed" xml:space="preserve"><value>LabelScope no pudo crear su carpeta de registros ({0}). Sigue funcionando sin archivo de registro; elija otra LogFolder en settings.json para tenerlo.</value></data>
   <data name="Ui_ListenAllNote" xml:space="preserve"><value>LabelScope acepta etiquetas de otras computadoras de su red (ListenAddress 0.0.0.0). Windows puede pedirle que permita LabelScope en el firewall; para responder se necesita un administrador.</value></data>
   <data name="Ui_LabelFailed" xml:space="preserve"><value>Llegó una etiqueta, pero LabelScope no pudo mostrarla. Envíela de nuevo; los detalles están en el archivo de registro.</value></data>
-  <data name="Ui_SkippedLabels" xml:space="preserve"><value>Se omitió mostrar {0} etiquetas porque llegaron más rápido de lo que se pueden mostrar. Están anotadas en el archivo de registro.</value></data>
+  <data name="Ui_SkippedLabels" xml:space="preserve"><value>No se mostraron {0} trabajo(s) porque llegaron más rápido de lo que se pueden mostrar. Están anotados en el archivo de registro.</value></data>
   <data name="Ui_NotDrawnNote" xml:space="preserve"><value>Llegaron datos, pero no se pudo dibujar ninguna etiqueta con ellos. El ZPL y los motivos se muestran a la derecha.</value></data>
   <data name="Ui_IncompleteNote" xml:space="preserve"><value>Una etiqueta llegó incompleta (sin ^XZ al final). Se muestra hasta donde llegó.</value></data>
   <data name="Ui_ShowFailed" xml:space="preserve"><value>No se pudo mostrar este trabajo. Los detalles están en el archivo de registro.</value></data>
@@ -153,4 +153,5 @@ LabelScope se cerrará, se actualizará y volverá a abrirse. Su configuración 
   <data name="Ui_InstallerBlocked" xml:space="preserve"><value>Windows no permitió que se iniciara el instalador. Descargue LabelScope-Setup.exe de la página de versiones de GitHub y ejecútelo usted mismo; los detalles están en el archivo de registro.</value></data>
   <data name="Ui_DownloadFailed" xml:space="preserve"><value>No se pudo descargar la nueva versión. Revise la conexión a internet e intente de nuevo.</value></data>
   <data name="Ui_InstallerNotSigned" xml:space="preserve"><value>El instalador descargado no está firmado por el editor de LabelScope, así que se eliminó y no se ejecutó. Descargue LabelScope de nuevo desde la página de versiones de GitHub.</value></data>
+  <data name="Ui_JobPart" xml:space="preserve"><value>{0} (parte {1})</value></data>
 </root>
