@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows.Media.Imaging;
+using LabelScope.App.Localization;
 using LabelScope.Core;
 using LabelScope.Core.Rendering;
 
@@ -57,10 +58,88 @@ public sealed class LabelEntry
     /// </summary>
     public string? PlaceholderTitle { get; }
 
-    /// <summary>First line in the history list.</summary>
-    public string Title => PlaceholderTitle ?? At.ToString("HH:mm:ss") + (Complete ? "" : "  (incomplete)");
-    /// <summary>Second line in the history list.</summary>
-    public string Subtitle => PlaceholderTitle is null ? $"{Label.WidthDots} x {Label.HeightDots} dots · {Source}" : $"{At:HH:mm:ss} · {Source}";
+    /// <summary>Source value used for a job opened from a file (shown as "Opened from file" in the window language).</summary>
+    public const string FileSource = "<file>";
+    /// <summary>Source value used for a job pasted from the clipboard (shown as "Pasted" in the window language).</summary>
+    public const string PastedSource = "<pasted>";
+
+    // Computed once: the ZPL never changes, and the job list asks for the name on every redraw.
+    private string? _jobName;
+
+    /// <summary>
+    /// Job name for the card and the window title: the text of a ^FX comment before the first field, else the first
+    /// ^FD text (trimmed, at most 40 characters), else "Label". A placeholder entry uses its placeholder title.
+    /// </summary>
+    public string JobName
+    {
+        get
+        {
+            if (PlaceholderTitle is not null) return PlaceholderTitle;
+            _jobName ??= JobNaming.NameFrom(Zpl);
+            // The fallback is looked up on each call so it follows a language switch.
+            return _jobName.Length > 0 ? _jobName : UiText.Get("Ui_DefaultJobName");
+        }
+    }
+
+    /// <summary>Arrival time for the card and the status bar.</summary>
+    public string TimeText => At.ToString("HH:mm:ss");
+
+    /// <summary>
+    /// Where the job came from, in the window language: "This computer" for the local machine, "Opened from file",
+    /// "Pasted", or the sender's address. Resolved on each call so a language switch shows at once.
+    /// </summary>
+    public string SourceText => Source switch
+    {
+        "127.0.0.1" or "::1" or "::ffff:127.0.0.1" => UiText.Get("Ui_SourceThisComputer"),
+        FileSource => UiText.Get("Ui_SourceFile"),
+        PastedSource => UiText.Get("Ui_SourcePasted"),
+        _ => Source,
+    };
+
+    /// <summary>True for a job opened from a file or pasted, rather than received over the network.</summary>
+    public bool IsLocal => Source is FileSource or PastedSource;
+
+    /// <summary>Second line of the job card: source and size in dots, plus a note when the job arrived incomplete.</summary>
+    public string CardDetail => UiText.Get("Ui_CardDots", SourceText, Label.WidthDots, Label.HeightDots)
+                                + (Complete ? "" : " · " + UiText.Get("Ui_Incomplete"));
+
+    /// <summary>True when rendering reported warnings; the card then shows its status in red.</summary>
+    public bool IsError => Warnings.Count > 0;
+
+    /// <summary>Third line of the job card: "Rendered OK", or the warning count with the first warning, shortened.</summary>
+    public string CardStatus
+    {
+        get
+        {
+            if (Warnings.Count == 0) return UiText.Get("Ui_RenderedOk");
+            var first = Shorten(Warnings[0].Message, 40);
+            return Warnings.Count == 1 ? UiText.Get("Ui_WarningOne", first) : UiText.Get("Ui_WarningMany", Warnings.Count, first);
+        }
+    }
+
+    /// <summary>Print resolution used to turn dots into inches; the default printer resolution when the label has none.</summary>
+    private int DpiOr203 => Label.Dpi > 0 ? Label.Dpi : 203;
+
+    /// <summary>Label width in inches, as shown in captions ("4", "2.5").</summary>
+    public string WidthInches => (Label.WidthDots / (double)DpiOr203).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    /// <summary>Label height in inches, as shown in captions.</summary>
+    public string HeightInches => (Label.HeightDots / (double)DpiOr203).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    /// <summary>Caption above the label: "4 in (812 dots)".</summary>
+    public string WidthCaption => UiText.Get("Ui_Caption", WidthInches, Label.WidthDots);
+    /// <summary>Caption beside the label, drawn rotated: "6 in (1218 dots)".</summary>
+    public string HeightCaption => UiText.Get("Ui_Caption", HeightInches, Label.HeightDots);
+    /// <summary>The resolution shown in the status bar.</summary>
+    public int DisplayDpi => DpiOr203;
+    /// <summary>Number of lines of the ZPL as shown in the ZPL tab.</summary>
+    public int LineCount => Zpl.Length == 0 ? 0 : Zpl.Count(c => c == '\n') + 1;
+
+    /// <summary>Cuts <paramref name="text"/> to <paramref name="max"/> characters with an ellipsis, on one line.</summary>
+    private static string Shorten(string text, int max)
+    {
+        var line = text.ReplaceLineEndings(" ");
+        return line.Length <= max ? line : line[..(max - 1)].TrimEnd() + "…";
+    }
+
     /// <summary>
     /// Says where the label size came from: the sender's ^PW / ^LL, or the default size in settings.json
     /// (used when the ZPL does not state it, as a real printer would use the size stored in the printer).

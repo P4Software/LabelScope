@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Window texts of the LabelScope app (main window). Keys start with Ui_. Generated from one table so
+     the English and Spanish files always hold the same keys. -->
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Ui_OpenFile" xml:space="preserve"><value>Open ZPL file</value></data>
+  <data name="Ui_OpenFileTip" xml:space="preserve"><value>Shows a ZPL file from disk as if it had been printed to LabelScope</value></data>
+  <data name="Ui_PasteZpl" xml:space="preserve"><value>Paste ZPL</value></data>
+  <data name="Ui_PasteZplTip" xml:space="preserve"><value>Shows the ZPL that is on the clipboard</value></data>
+  <data name="Ui_CopyZpl" xml:space="preserve"><value>Copy ZPL</value></data>
+  <data name="Ui_CopyZplTip" xml:space="preserve"><value>Copies the ZPL of the selected label</value></data>
+  <data name="Ui_SavePng" xml:space="preserve"><value>Save as PNG</value></data>
+  <data name="Ui_ClearJobs" xml:space="preserve"><value>Clear jobs</value></data>
+  <data name="Ui_ClearJobsTip" xml:space="preserve"><value>Removes every job from the list. Printer memory is kept.</value></data>
+  <data name="Ui_ZoomOut" xml:space="preserve"><value>Zoom out</value></data>
+  <data name="Ui_ZoomIn" xml:space="preserve"><value>Zoom in</value></data>
+  <data name="Ui_Fit" xml:space="preserve"><value>Fit {0}%</value></data>
+  <data name="Ui_Zoom" xml:space="preserve"><value>{0}%</value></data>
+  <data name="Ui_FitTip" xml:space="preserve"><value>Fits the whole label in the window</value></data>
+  <data name="Ui_SizePicker" xml:space="preserve"><value>{0} × {1} in · {2} dpi</value></data>
+  <data name="Ui_SizePickerTip" xml:space="preserve"><value>The label loaded in the printer. LabelScope uses it only when the ZPL does not give a size. Choosing another size arrives in the next update.</value></data>
+  <data name="Ui_LanguageTip" xml:space="preserve"><value>Language of the window</value></data>
+  <data name="Ui_PrinterSetup" xml:space="preserve"><value>Printer setup</value></data>
+  <data name="Ui_More" xml:space="preserve"><value>More actions</value></data>
+  <data name="Ui_InstallPrinter" xml:space="preserve"><value>Install printer</value></data>
+  <data name="Ui_InstallPrinterTip" xml:space="preserve"><value>Adds the Windows printer that sends labels to LabelScope</value></data>
+  <data name="Ui_RemovePrinter" xml:space="preserve"><value>Remove printer</value></data>
+  <data name="Ui_CopyImage" xml:space="preserve"><value>Copy image</value></data>
+  <data name="Ui_CopyOriginal" xml:space="preserve"><value>Copy original ZPL</value></data>
+  <data name="Ui_CopyOriginalTip" xml:space="preserve"><value>Copies the ZPL exactly as it was received</value></data>
+  <data name="Ui_ClearMemory" xml:space="preserve"><value>Clear printer memory</value></data>
+  <data name="Ui_ClearMemoryTip" xml:space="preserve"><value>Deletes the graphics and fonts that LabelScope keeps from ~DG, ~DY and ^IS downloads, and the font letters set with ^CW</value></data>
+  <data name="Ui_LightGrid" xml:space="preserve"><value>Light grid (10 mm)</value></data>
+  <data name="Ui_StackedLayout" xml:space="preserve"><value>Stacked layout</value></data>
+  <data name="Ui_OpenSettings" xml:space="preserve"><value>Open settings</value></data>
+  <data name="Ui_OpenLog" xml:space="preserve"><value>Open log folder</value></data>
+  <data name="Ui_CheckUpdates" xml:space="preserve"><value>Check for updates</value></data>
+  <data name="Ui_UpdateTo" xml:space="preserve"><value>Update to {0}</value></data>
+  <data name="Ui_PrintJobs" xml:space="preserve"><value>Print jobs</value></data>
+  <data name="Ui_ReceivedToday" xml:space="preserve"><value>{0} received today</value></data>
+  <data name="Ui_StatusStarting" xml:space="preserve"><value>Starting…</value></data>
+  <data name="Ui_StatusReady" xml:space="preserve"><value>Ready — Windows printer “{0}” is listening</value></data>
+  <data name="Ui_StatusNoPrinter" xml:space="preserve"><value>Listening, but the Windows printer “{0}” is not installed. Choose Printer setup to install it.</value></data>
+  <data name="Ui_StatusNameTaken" xml:space="preserve"><value>Listening, but another Windows printer already uses the name “{0}”. Change PrinterName in the settings.</value></data>
+  <data name="Ui_StatusPrinterUnknown" xml:space="preserve"><value>Listening on {0}. The Windows printer could not be checked.</value></data>
+  <data name="Ui_StatusPrinterSettings" xml:space="preserve"><value>Listening on {0}. The printer settings need fixing; see the message at the bottom.</value></data>
+  <data name="Ui_StatusNotListening" xml:space="preserve"><value>Not listening — labels cannot arrive. See the message at the bottom for what to do.</value></data>
+  <data name="Ui_RenderedOk" xml:space="preserve"><value>Rendered OK</value></data>
+  <data name="Ui_WarningOne" xml:space="preserve"><value>1 warning — {0}</value></data>
+  <data name="Ui_WarningMany" xml:space="preserve"><value>{0} warnings — {1}</value></data>
+  <data name="Ui_Incomplete" xml:space="preserve"><value>incomplete</value></data>
+  <data name="Ui_SourceThisComputer" xml:space="preserve"><value>This computer</value></data>
+  <data name="Ui_SourceFile" xml:space="preserve"><value>Opened from file</value></data>
+  <data name="Ui_SourcePasted" xml:space="preserve"><value>Pasted</value></data>
+  <data name="Ui_DefaultJobName" xml:space="preserve"><value>Label</value></data>
+  <data name="Ui_CardDots" xml:space="preserve"><value>{0} · {1} × {2} dots</value></data>
+  <data name="Ui_Caption" xml:space="preserve"><value>{0} in ({1} dots)</value></data>
+  <data name="Ui_TabZpl" xml:space="preserve"><value>ZPL</value></data>
+  <data name="Ui_TabFields" xml:space="preserve"><value>Fields</value></data>
+  <data name="Ui_TabLog" xml:space="preserve"><value>Log</value></data>
+  <data name="Ui_FieldsComingSoon" xml:space="preserve"><value>Field details arrive in the next update.</value></data>
+  <data name="Ui_LogEmpty" xml:space="preserve"><value>No warnings: every command of this label was drawn.</value></data>
+  <data name="Ui_LogNoLabel" xml:space="preserve"><value>Select a job on the left to see what happened with it.</value></data>
+  <data name="Ui_LogLine" xml:space="preserve"><value>Line {0}</value></data>
+  <data name="Ui_SelectedNone" xml:space="preserve"><value>Selected: nothing. Click a ZPL line or a warning in the Log tab.</value></data>
+  <data name="Ui_SelectedLine" xml:space="preserve"><value>Selected: line {0}</value></data>
+  <data name="Ui_SelectedWarning" xml:space="preserve"><value>Selected: line {0} — {1}</value></data>
+  <data name="Ui_EmptyCanvas" xml:space="preserve"><value>No label yet. Print to the Windows printer “{0}”, open a ZPL file or paste ZPL.</value></data>
+  <data name="Ui_BarLabel" xml:space="preserve"><value>Label {0} of {1}</value></data>
+  <data name="Ui_BarSize" xml:space="preserve"><value>{0} × {1} in · {2} dpi</value></data>
+  <data name="Ui_BarDots" xml:space="preserve"><value>{0} × {1} dots</value></data>
+  <data name="Ui_BarLines" xml:space="preserve"><value>{0} ZPL lines</value></data>
+  <data name="Ui_BarWarningOne" xml:space="preserve"><value>1 warning</value></data>
+  <data name="Ui_BarWarningMany" xml:space="preserve"><value>{0} warnings</value></data>
+  <data name="Ui_ReceivedFrom" xml:space="preserve"><value>Received from {0} at {1}</value></data>
+  <data name="Ui_ReceivedLocal" xml:space="preserve"><value>{0} at {1}</value></data>
+  <data name="Ui_OpenFileFilter" xml:space="preserve"><value>ZPL files|*.zpl;*.prn;*.txt|All files|*.*</value></data>
+  <data name="Ui_FileTooLarge" xml:space="preserve"><value>This file is larger than 16 MB, more than a label job can be. Choose a smaller file.</value></data>
+  <data name="Ui_FileReadFailed" xml:space="preserve"><value>The file could not be read ({0}). Check that no other program has it open, then try again.</value></data>
+  <data name="Ui_FileEmpty" xml:space="preserve"><value>This file holds no ZPL (no ^XA found). Choose a ZPL file.</value></data>
+  <data name="Ui_PasteEmpty" xml:space="preserve"><value>The clipboard holds no ZPL (no ^XA found). Copy the label text first, then press Paste ZPL.</value></data>
+  <data name="Ui_PasteFailed" xml:space="preserve"><value>The clipboard could not be read because another program is using it. Try again.</value></data>
+</root>

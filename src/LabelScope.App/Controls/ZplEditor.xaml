@@ -13,7 +13,7 @@
                          WordWrap="False"
                          ShowLineNumbers="False"
                          FontFamily="Consolas"
-                         FontSize="13"
+                         FontSize="14"
                          Padding="0,8,0,8"
                          Background="#F7F8FA"
                          Foreground="#1B2430"

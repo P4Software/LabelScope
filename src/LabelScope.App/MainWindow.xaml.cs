@@ -7,7 +7,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media.Imaging;
+using LabelScope.App.Localization;
 using LabelScope.Core;
+using LabelScope.Core.Localization;
 using System.Reflection;
 using LabelScope.Core.Fonts;
 using LabelScope.Core.Listening;
@@ -21,7 +23,7 @@ using Serilog;
 
 namespace LabelScope.App;
 
-/// <summary>The single window: history, label picture and ZPL side by side.</summary>
+/// <summary>The single window: print jobs on the left, the label in the centre, its ZPL, fields and log on the right.</summary>
 public partial class MainWindow : Window
 {
     private readonly string _settingsPath = Path.Combine(AppContext.BaseDirectory, "settings.json");
@@ -57,6 +59,22 @@ public partial class MainWindow : Window
     // Last time the printer status was checked; used to throttle the re-check on window activation.
     private DateTime _lastStatusCheck = DateTime.MinValue;
 
+    // What the status line in the Print jobs card says. Kept as state (not text) so a language switch can rebuild it.
+    private bool? _listening;              // null while starting
+    private PrinterStatus? _printerStatus; // null until the first check
+    private bool _printerSettingsBroken;   // the printer name or port in settings.json cannot be used
+
+    // Zoom: "fit" follows the window size; otherwise _zoom is the screen size of one label dot (1 = 100 %).
+    private bool _fit = true;
+    private double _zoom = 1;
+    private static readonly double[] ZoomSteps = [0.1, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4];
+
+    // Largest file "Open ZPL file" accepts: the same limit as one job sent over the network.
+    private const long MaxOpenFileBytes = 16L * 1024 * 1024;
+
+    /// <summary>One row of the Log tab: a warning with its line caption already in the window language.</summary>
+    private sealed record WarningRow(int Line, string LineText, string Message);
+
     // Back-pressure design. Rendering is the expensive step and runs on the socket threads, so at most two
     // labels are rendered at the same time (a socket thread simply waits its turn; TCP slows the sender down).
     // Finished results then wait in a queue for the UI thread. That queue is bounded: if senders are faster
@@ -82,7 +100,12 @@ public partial class MainWindow : Window
         // The grid cell size depends on how large the picture is shown, which changes with zoom and window size.
         LabelImage.SizeChanged += (_, _) => UpdateGrid();
         HistoryList.ItemsSource = _history;
+        // The "received today" count follows every insert, trim and clear.
+        _history.CollectionChanged += (_, _) => UpdateReceivedToday();
+        ZplView.LineClicked += OnZplLineClicked;
         Activated += OnActivated;
+        SelectLanguageInPicker();
+        ApplyTexts();
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -97,6 +120,8 @@ public partial class MainWindow : Window
             GridBox.IsChecked = _settings.ShowGrid;
             StackedBox.IsChecked = _settings.StackedLayout;
             ApplyView();
+            ApplyTexts(); // again: some texts name the printer from settings.json
+            ShowSelected();
             foreach (var message in load.Messages) Log.Information("Settings: {Message}", message);
             foreach (var message in load.Messages) AddStartupNote(message);
 
@@ -109,6 +134,7 @@ public partial class MainWindow : Window
             if (fonts.Count > 0) Log.Information("Fonts: {Count} font file(s) found in the FontsFolder", fonts.Count);
             _renderer = new ZplRenderer(_memory, fonts);
             UpdateMemoryText();
+            UpdateSizePicker();
 
             StartListener();
             CreateInstaller();
@@ -152,14 +178,16 @@ public partial class MainWindow : Window
             _listener.LabelReceived += OnLabelReceived;
             _listener.ProblemReported += OnProblemReported;
             _listener.Start();
-            ListeningText.Text = $"Listening on {_settings.ListenAddress}:{_settings.ListenPort}";
+            _listening = true;
+            UpdateStatusLine();
             if (_settings.ListenAddress == "0.0.0.0")
                 AddStartupNote("LabelScope accepts labels from other computers on your network (ListenAddress 0.0.0.0). " +
                                "Windows may ask you to allow LabelScope through the firewall; answering that needs an administrator.");
         }
         catch (ListenerStartException ex)
         {
-            ListeningText.Text = "NOT listening";
+            _listening = false;
+            UpdateStatusLine();
             Log.Warning(ex, "Listener could not start");
             // Not a crash: the window stays open so the message can be read.
             MessageBox.Show(ex.Message, "LabelScope", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -275,7 +303,9 @@ public partial class MainWindow : Window
             if (_closing) return;
             // Follow the newest label only when the user is already looking at the newest one (or at nothing);
             // otherwise leave their selection alone. The ListBox keeps tracking the selected item through Insert(0).
-            var followNewest = HistoryList.SelectedIndex <= 0;
+            // A file the user just opened or pasted is always shown: they asked to see it.
+            var followNewest = HistoryList.SelectedIndex <= 0
+                || entries.Any(x => x.IsLocal);
             // Insert in reverse so label 1 of a multi-label job ends up above label 2.
             for (var i = entries.Count - 1; i >= 0; i--) _history.Insert(0, entries[i]);
             TrimHistory();
@@ -325,35 +355,76 @@ public partial class MainWindow : Window
 
     // ---- showing the selected label ---------------------------------------------------------
 
-    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) => ShowSelected();
+
+    /// <summary>
+    /// Shows the selected job everywhere: picture and captions, ZPL tab, Log tab, status bar and window title.
+    /// Also called after a language switch, because every one of those texts is in the window language.
+    /// </summary>
+    private void ShowSelected()
     {
         try
         {
-            // Drop the previous picture first so at most one decoded bitmap is alive.
-            _currentImage = null;
-            LabelImage.Source = null;
-
-            if (HistoryList.SelectedItem is not LabelEntry entry)
+            var entry = HistoryList.SelectedItem as LabelEntry;
+            // Only decode again when the job changed; a language switch keeps the picture already shown.
+            if (!ReferenceEquals(LabelImage.Tag, entry))
             {
-                ZplBox.Text = "";
-                LineNumbers.Text = "";
-                CopyZplButton.IsEnabled = false;
-                CopyOriginalButton.IsEnabled = false;
-                InfoText.Text = "";
+                // Drop the previous picture first so at most one decoded bitmap is alive.
+                _currentImage = null;
+                LabelImage.Source = null;
+                LabelImage.Tag = entry;
+                ZplView.Text = entry?.Zpl ?? "";
+                if (entry is not null)
+                {
+                    _currentImage = entry.CreateImage();
+                    LabelImage.Source = _currentImage;
+                }
+                SelectedText.Text = UiText.Get("Ui_SelectedNone");
+            }
+
+            CopyZplButton.IsEnabled = entry is not null;
+            CopyOriginalButton.IsEnabled = entry is not null;
+            LabelFrame.Visibility = entry is null ? Visibility.Collapsed : Visibility.Visible;
+            EmptyCanvasText.Visibility = entry is null ? Visibility.Visible : Visibility.Collapsed;
+            Title = entry is null ? "LabelScope" : "LabelScope — " + entry.JobName;
+
+            if (entry is null)
+            {
+                TopCaption.Text = SideCaption.Text = "";
                 WarningList.ItemsSource = null;
+                LogEmptyText.Text = UiText.Get("Ui_LogNoLabel");
+                LogEmptyText.Visibility = Visibility.Visible;
+                SelectedText.Text = UiText.Get("Ui_SelectedNone");
+                BarLabelText.Text = BarSizeText.Text = BarLinesText.Text = BarWarningsText.Text = ReceivedText.Text = "";
                 UpdateGrid();
+                UpdateZoomText();
                 return;
             }
 
-            _currentImage = entry.CreateImage();
-            LabelImage.Source = _currentImage;
-            InfoText.Text = entry.Info;
-            ZplBox.Text = entry.Zpl;
-            CopyZplButton.IsEnabled = true;
-            CopyOriginalButton.IsEnabled = true;
-            LineNumbers.Text = string.Join("\n", Enumerable.Range(1, entry.Zpl.Split('\n').Length));
-            WarningList.ItemsSource = entry.Warnings;
-            OnZoomChanged(sender, e);
+            TopCaption.Text = entry.WidthCaption;
+            SideCaption.Text = entry.HeightCaption;
+            // The longer explanation of where the size came from (^PW/^LL or not) stays one hover away.
+            TopCaption.ToolTip = SideCaption.ToolTip = entry.Info;
+
+            WarningList.ItemsSource = entry.Warnings
+                .Select(w => new WarningRow(w.Line, UiText.Get("Ui_LogLine", w.Line), w.Message)).ToList();
+            LogEmptyText.Text = UiText.Get("Ui_LogEmpty");
+            LogEmptyText.Visibility = entry.Warnings.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            // A job with several labels gives several entries that share the very same received text.
+            var siblings = _history.Where(h => ReferenceEquals(h.OriginalZpl, entry.OriginalZpl)).ToList();
+            var page = siblings.IndexOf(entry) + 1;
+            BarLabelText.Text = UiText.Get("Ui_BarLabel", Math.Max(1, page), Math.Max(1, siblings.Count));
+            BarSizeText.Text = UiText.Get("Ui_BarSize", entry.WidthInches, entry.HeightInches, entry.DisplayDpi) + " · " +
+                               UiText.Get("Ui_BarDots", entry.Label.WidthDots, entry.Label.HeightDots);
+            BarLinesText.Text = UiText.Get("Ui_BarLines", entry.LineCount);
+            BarWarningsText.Text = entry.Warnings.Count == 1 ? UiText.Get("Ui_BarWarningOne")
+                : UiText.Get("Ui_BarWarningMany", entry.Warnings.Count);
+            BarWarningsText.Style = (Style)FindResource(entry.Warnings.Count == 0 ? "StatusTextSuccess" : "StatusTextError");
+            // "Received from This computer at …", but "Pasted at …" for a job that did not arrive over the network.
+            ReceivedText.Text = UiText.Get(entry.IsLocal ? "Ui_ReceivedLocal" : "Ui_ReceivedFrom", entry.SourceText, entry.TimeText);
+
+            OnZoomChanged(this, new RoutedEventArgs());
             UpdateGrid();
         }
         catch (Exception ex)
@@ -363,48 +434,95 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Moving the slider means the user wants a manual zoom, so "Fit to window" is switched off.</summary>
-    private void OnZoomSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    // ---- zoom --------------------------------------------------------------------------------------
+
+    /// <summary>"Fit NN%" was pressed: fit the whole label into the canvas again.</summary>
+    private void OnFit(object sender, RoutedEventArgs e)
     {
-        if (!IsLoaded) return; // fires while the window is being built
-        if (FitBox.IsChecked == true) FitBox.IsChecked = false; // triggers OnZoomChanged through Unchecked
-        else OnZoomChanged(sender, e);
+        _fit = true;
+        OnZoomChanged(sender, e);
     }
 
+    /// <summary>"–": the next smaller zoom step below what is shown now (fit or not).</summary>
+    private void OnZoomOut(object sender, RoutedEventArgs e)
+    {
+        var current = CurrentScale();
+        _zoom = ZoomSteps.Where(z => z < current - 0.001).DefaultIfEmpty(ZoomSteps[0]).Max();
+        _fit = false;
+        OnZoomChanged(sender, e);
+    }
+
+    /// <summary>"+": the next larger zoom step above what is shown now (fit or not).</summary>
+    private void OnZoomIn(object sender, RoutedEventArgs e)
+    {
+        var current = CurrentScale();
+        _zoom = ZoomSteps.Where(z => z > current + 0.001).DefaultIfEmpty(ZoomSteps[^1]).Min();
+        _fit = false;
+        OnZoomChanged(sender, e);
+    }
+
+    /// <summary>Screen size of one label dot as shown now; the manual zoom when no label is shown.</summary>
+    private double CurrentScale() =>
+        LabelImage.Source is BitmapSource { PixelWidth: > 0 } src && LabelImage.Width > 0 && !double.IsNaN(LabelImage.Width)
+            ? LabelImage.Width / src.PixelWidth
+            : _zoom;
+
+    /// <summary>
+    /// Sizes the picture: in fit mode so that the label and its captions fill the canvas, otherwise at the chosen
+    /// zoom with scroll bars. The size is set explicitly (not with Stretch) because the captions around the label
+    /// need room that a stretched image would take.
+    /// </summary>
     private void OnZoomChanged(object sender, RoutedEventArgs e)
     {
-        if (LabelImage is null || FitBox is null || ZoomSlider is null || ImageScroll is null) return; // fires during InitializeComponent
-        var src = LabelImage.Source as BitmapSource;
-        if (FitBox.IsChecked == true)
+        if (LabelImage is null || ImageScroll is null || FitButton is null) return; // fires during InitializeComponent
+        if (LabelImage.Source is not BitmapSource src || src.PixelWidth == 0 || src.PixelHeight == 0)
         {
-            // Scrollbars off: a ScrollViewer with scrollbars measures its child without a size limit,
-            // so the image would stay at native size instead of fitting the viewport.
+            UpdateZoomText();
+            return;
+        }
+
+        double scale;
+        if (_fit)
+        {
+            // Scroll bars off: the stage is centred in the visible area and never scrolls in fit mode.
             ImageScroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
             ImageScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
-            LabelImage.Stretch = System.Windows.Media.Stretch.Uniform;
-            LabelImage.Width = double.NaN;
-            LabelImage.Height = double.NaN;
-            // Shrinking with nearest-neighbour makes thin barcode bars vanish; smooth scaling keeps them visible.
-            var shrinking = src is not null && (src.PixelWidth > ImageScroll.ActualWidth || src.PixelHeight > ImageScroll.ActualHeight);
-            System.Windows.Media.RenderOptions.SetBitmapScalingMode(LabelImage, shrinking ? System.Windows.Media.BitmapScalingMode.HighQuality : System.Windows.Media.BitmapScalingMode.NearestNeighbor);
+            // Room taken around the picture: the stage margin (24 each side), a caption (about 18 + 8) and the frame.
+            var availableWidth = ImageScroll.ActualWidth - 48 - 30;
+            var availableHeight = ImageScroll.ActualHeight - 48 - 30;
+            if (availableWidth <= 0 || availableHeight <= 0) return; // not laid out yet; SizeChanged calls again
+            scale = Math.Clamp(Math.Min(availableWidth / src.PixelWidth, availableHeight / src.PixelHeight), 0.02, 8);
         }
         else
         {
             ImageScroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
             ImageScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
-            if (src is null) return;
-            LabelImage.Stretch = System.Windows.Media.Stretch.Fill;
-            LabelImage.Width = src.PixelWidth * ZoomSlider.Value;
-            LabelImage.Height = src.PixelHeight * ZoomSlider.Value;
-            // Sharp pixels when enlarging, smooth when reducing.
-            System.Windows.Media.RenderOptions.SetBitmapScalingMode(LabelImage, ZoomSlider.Value >= 1 ? System.Windows.Media.BitmapScalingMode.NearestNeighbor : System.Windows.Media.BitmapScalingMode.HighQuality);
+            scale = _zoom;
         }
+
+        LabelImage.Width = src.PixelWidth * scale;
+        LabelImage.Height = src.PixelHeight * scale;
+        // Shrinking with nearest-neighbour makes thin barcode bars vanish; smooth scaling keeps them visible.
+        // Enlarging keeps sharp pixels so every dot can be counted.
+        System.Windows.Media.RenderOptions.SetBitmapScalingMode(LabelImage,
+            scale >= 1 ? System.Windows.Media.BitmapScalingMode.NearestNeighbor : System.Windows.Media.BitmapScalingMode.HighQuality);
+        UpdateZoomText();
     }
 
-    /// <summary>A view box was clicked (or set from settings): apply both options.</summary>
+    /// <summary>Shows "Fit NN%" in fit mode, otherwise "NN%".</summary>
+    private void UpdateZoomText()
+    {
+        if (FitButton is null) return;
+        var percent = (int)Math.Round(CurrentScale() * 100);
+        FitButton.Content = _fit ? UiText.Get("Ui_Fit", percent) : UiText.Get("Ui_Zoom", percent);
+    }
+
+    // ---- view options ------------------------------------------------------------------------------
+
+    /// <summary>A view option in the "…" menu was ticked (or set from settings): apply both options.</summary>
     private void OnViewOptionChanged(object sender, RoutedEventArgs e)
     {
-        if (!IsLoaded) return; // the boxes are set from settings.json in OnLoaded, which calls ApplyView itself
+        if (!IsLoaded) return; // the options are set from settings.json in OnLoaded, which calls ApplyView itself
         ApplyView();
     }
 
@@ -414,7 +532,7 @@ public partial class MainWindow : Window
     private void ApplyView()
     {
         // ApplyLayout rebuilds the columns or rows, which throws away a splitter drag between the picture and the
-        // ZPL. Ticking the grid box must not cost the user that, so the layout is only rebuilt when the stacked
+        // ZPL. Ticking the grid option must not cost the user that, so the layout is only rebuilt when the stacked
         // choice really changed.
         var stacked = StackedBox.IsChecked == true;
         if (_appliedStacked != stacked)
@@ -426,7 +544,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Arranges picture, splitter and ZPL pane side by side (default) or on top of each other. The same three
+    /// Arranges the canvas card, splitter and ZPL card side by side (default) or on top of each other. The same three
     /// elements are moved between a column layout and a row layout, so nothing is created twice and the selected
     /// label, zoom and scroll positions are kept.
     /// </summary>
@@ -437,33 +555,34 @@ public partial class MainWindow : Window
 
         if (stacked)
         {
-            PreviewGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = 120 });
-            PreviewGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(5) });
-            PreviewGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = 120 });
+            PreviewGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = 160 });
+            PreviewGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(16) });
+            PreviewGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = 160 });
             Place(PicturePane, row: 0, column: 0);
             Place(PreviewSplitter, row: 1, column: 0);
             Place(ZplPane, row: 2, column: 0);
             PreviewSplitter.Width = double.NaN;
-            PreviewSplitter.Height = 5;
+            PreviewSplitter.Height = 16;
             PreviewSplitter.HorizontalAlignment = HorizontalAlignment.Stretch;
             PreviewSplitter.VerticalAlignment = VerticalAlignment.Center;
             PreviewSplitter.ResizeDirection = GridResizeDirection.Rows;
         }
         else
         {
-            PreviewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 200 });
-            PreviewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(5) });
-            PreviewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 200 });
+            // The ZPL card keeps the mockup's fixed width; the canvas takes whatever is left.
+            PreviewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 240 });
+            PreviewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+            PreviewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(440), MinWidth = 280 });
             Place(PicturePane, row: 0, column: 0);
             Place(PreviewSplitter, row: 0, column: 1);
             Place(ZplPane, row: 0, column: 2);
             PreviewSplitter.Height = double.NaN;
-            PreviewSplitter.Width = 5;
+            PreviewSplitter.Width = 16;
             PreviewSplitter.HorizontalAlignment = HorizontalAlignment.Stretch;
             PreviewSplitter.VerticalAlignment = VerticalAlignment.Stretch;
             PreviewSplitter.ResizeDirection = GridResizeDirection.Columns;
         }
-        OnZoomChanged(this, new RoutedEventArgs()); // "fit to window" depends on the space the picture now has
+        OnZoomChanged(this, new RoutedEventArgs()); // "fit" depends on the space the picture now has
     }
 
     private static void Place(UIElement element, int row, int column)
@@ -515,30 +634,348 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// The ZPL text box has its own inner scroller that swallows the wheel; forward it to the outer
-    /// viewer that really scrolls the text together with the line numbers.
+    /// A warning in the Log tab was clicked: show the ZPL tab with the line that caused it highlighted.
     /// </summary>
-    private void OnZplMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
-    {
-        ZplScroll.ScrollToVerticalOffset(ZplScroll.VerticalOffset - e.Delta);
-        e.Handled = true;
-    }
-
-    /// <summary>Clicking a warning selects the offending line in the ZPL and scrolls to it.</summary>
     private void OnWarningSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (WarningList.SelectedItem is not RenderWarning warning) return;
-        var index = Math.Clamp(warning.Line - 1, 0, Math.Max(0, ZplBox.LineCount - 1));
-        var start = ZplBox.GetCharacterIndexFromLineIndex(index);
-        var length = ZplBox.GetLineLength(index);
-        // No Focus(): focus stays on the warning list. The inactive-selection highlight keeps the line visible.
-        ZplBox.Select(start, length);
-        ZplBox.ScrollToLine(index);
-        // The text box does not scroll itself (the outer ScrollViewer does), so scroll that one by line height.
-        var top = index * (ZplBox.ActualHeight / Math.Max(1, ZplBox.LineCount));
-        ZplScroll.ScrollToVerticalOffset(Math.Max(0, top - 40));
-        // Clear the selection (the handler returns on null) so clicking the same warning again scrolls again.
+        if (WarningList.SelectedItem is not WarningRow warning) return;
+        DetailTabs.SelectedItem = ZplTab;
+        ZplView.HighlightLine(warning.Line);
+        SelectedText.Text = UiText.Get("Ui_SelectedWarning", warning.Line, warning.Message.ReplaceLineEndings(" "));
+        // Clear the selection (the handler returns on null) so clicking the same warning again works again.
         WarningList.SelectedItem = null;
+    }
+
+    /// <summary>A line of the ZPL was clicked: highlight it and name it in the footer.</summary>
+    private void OnZplLineClicked(int line)
+    {
+        ZplView.HighlightLine(line);
+        SelectedText.Text = UiText.Get("Ui_SelectedLine", line);
+    }
+
+    // ---- window texts, language and status line ------------------------------------------------------
+
+    /// <summary>
+    /// Sets every fixed text of the window in the current language. Called once at start and again after a language
+    /// switch; texts that depend on the selected job are set by <see cref="ShowSelected"/>.
+    /// </summary>
+    private void ApplyTexts()
+    {
+        OpenFileButton.Content = UiText.Get("Ui_OpenFile");
+        OpenFileButton.ToolTip = UiText.Get("Ui_OpenFileTip");
+        PasteButton.Content = UiText.Get("Ui_PasteZpl");
+        PasteButton.ToolTip = UiText.Get("Ui_PasteZplTip");
+        CopyZplButton.Content = UiText.Get("Ui_CopyZpl");
+        CopyZplButton.ToolTip = UiText.Get("Ui_CopyZplTip");
+        SavePngButton.Content = UiText.Get("Ui_SavePng");
+        ClearJobsButton.Content = UiText.Get("Ui_ClearJobs");
+        ClearJobsButton.ToolTip = UiText.Get("Ui_ClearJobsTip");
+        ZoomOutButton.ToolTip = UiText.Get("Ui_ZoomOut");
+        ZoomInButton.ToolTip = UiText.Get("Ui_ZoomIn");
+        FitButton.ToolTip = UiText.Get("Ui_FitTip");
+        SizePicker.ToolTip = UiText.Get("Ui_SizePickerTip");
+        LanguagePicker.ToolTip = UiText.Get("Ui_LanguageTip");
+        PrinterSetupButton.Content = UiText.Get("Ui_PrinterSetup");
+        MoreButton.ToolTip = UiText.Get("Ui_More");
+
+        InstallButton.Header = InstallItem.Header = UiText.Get("Ui_InstallPrinter");
+        InstallButton.ToolTip = InstallItem.ToolTip = UiText.Get("Ui_InstallPrinterTip");
+        RemoveButton.Header = RemoveItem.Header = UiText.Get("Ui_RemovePrinter");
+        PrinterSettingsItem.Header = OpenSettingsItem.Header = UiText.Get("Ui_OpenSettings");
+        CopyImageItem.Header = UiText.Get("Ui_CopyImage");
+        CopyOriginalButton.Header = UiText.Get("Ui_CopyOriginal");
+        CopyOriginalButton.ToolTip = UiText.Get("Ui_CopyOriginalTip");
+        ClearMemoryButton.Header = UiText.Get("Ui_ClearMemory");
+        ClearMemoryButton.ToolTip = UiText.Get("Ui_ClearMemoryTip");
+        GridBox.Header = UiText.Get("Ui_LightGrid");
+        StackedBox.Header = UiText.Get("Ui_StackedLayout");
+        OpenLogItem.Header = UiText.Get("Ui_OpenLog");
+        CheckUpdateButton.Header = UiText.Get("Ui_CheckUpdates");
+        if (_update is { } update) UpdateButton.Content = UiText.Get("Ui_UpdateTo", update.Version.ToString(3));
+
+        JobsTitleText.Text = UiText.Get("Ui_PrintJobs");
+        ZplTab.Header = UiText.Get("Ui_TabZpl");
+        FieldsTab.Header = UiText.Get("Ui_TabFields");
+        LogTab.Header = UiText.Get("Ui_TabLog");
+        FieldsPlaceholderText.Text = UiText.Get("Ui_FieldsComingSoon");
+        EmptyCanvasText.Text = UiText.Get("Ui_EmptyCanvas", _settings.PrinterName);
+
+        UpdateStatusLine();
+        UpdateReceivedToday();
+        UpdateSizePicker();
+        UpdateZoomText();
+        UpdateMemoryText(); // the memory line comes from Core, which follows the same language
+        MeasureFullToolbar();
+    }
+
+    // ---- toolbar fit -------------------------------------------------------------------------------
+
+    // How many buttons of CompactOrder currently show only their icon (0 = every label shown).
+    private int _compactCount = -1;
+
+    /// <summary>
+    /// The flat buttons that drop their text when the toolbar runs out of room, in the order they do so: the least
+    /// used first, "Printer setup" last. "Open ZPL file" always keeps its text.
+    /// </summary>
+    private Button[] CompactOrder => [ClearJobsButton, SavePngButton, CopyZplButton, PasteButton, PrinterSetupButton];
+
+    /// <summary>Re-checks the toolbar after its texts changed (start, language switch).</summary>
+    private void MeasureFullToolbar()
+    {
+        _compactCount = -1; // forces the texts to be written again in the new language
+        UpdateToolbarFit();
+    }
+
+    private void OnToolbarSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (e.WidthChanged) UpdateToolbarFit();
+    }
+
+    /// <summary>
+    /// Drops button texts one at a time, in <see cref="CompactOrder"/>, until the toolbar fits the window, so a
+    /// narrow window keeps as many labels as it can. Each step is measured with unlimited room, because laid-out
+    /// sizes are clipped to the window and would always "fit".
+    /// </summary>
+    private void UpdateToolbarFit()
+    {
+        if (ToolbarBar is null) return;
+        var available = ToolbarBar.ActualWidth - ToolbarBar.Padding.Left - ToolbarBar.Padding.Right - 16; // 16: gap
+        var buttons = CompactOrder;
+        var count = 0;
+        if (available > 0)
+        {
+            var unlimited = new Size(double.PositiveInfinity, double.PositiveInfinity);
+            for (; count <= buttons.Length; count++)
+            {
+                SetCompactCount(count);
+                // A changed button text only reaches the panels' sizes after a layout pass; without it the
+                // measure below would return the size from before the change.
+                ToolbarBar.UpdateLayout();
+                ToolbarLeft.Measure(unlimited);
+                ToolbarRight.Measure(unlimited);
+                if (ToolbarLeft.DesiredSize.Width + ToolbarRight.DesiredSize.Width <= available) break;
+            }
+            count = Math.Min(count, buttons.Length);
+        }
+        SetCompactCount(count);
+    }
+
+    /// <summary>Shows the first <paramref name="count"/> buttons of <see cref="CompactOrder"/> as icons only.</summary>
+    private void SetCompactCount(int count)
+    {
+        if (count == _compactCount) return;
+        _compactCount = count;
+        var buttons = CompactOrder;
+        for (var i = 0; i < buttons.Length; i++)
+        {
+            var button = buttons[i];
+            var text = button == PasteButton ? UiText.Get("Ui_PasteZpl")
+                : button == CopyZplButton ? UiText.Get("Ui_CopyZpl")
+                : button == SavePngButton ? UiText.Get("Ui_SavePng")
+                : button == ClearJobsButton ? UiText.Get("Ui_ClearJobs")
+                : UiText.Get("Ui_PrinterSetup");
+            var compact = i < count;
+            button.Content = compact ? null : text;
+            // Without its text the button still needs a name on hover; buttons with their own tip keep it.
+            if (button == SavePngButton || button == PrinterSetupButton) button.ToolTip = compact ? text : null;
+        }
+    }
+
+    /// <summary>Selects the picker entry of the current language without running the switch itself.</summary>
+    private void SelectLanguageInPicker()
+    {
+        var code = Text.Culture.TwoLetterISOLanguageName == "es" ? "es" : "en";
+        _changingLanguagePicker = true;
+        try { LanguagePicker.SelectedItem = LanguagePicker.Items.OfType<ComboBoxItem>().First(i => (string)i.Tag == code); }
+        finally { _changingLanguagePicker = false; }
+    }
+
+    // True while code (not the user) sets the language picker, so no switch runs.
+    private bool _changingLanguagePicker;
+
+    /// <summary>
+    /// English / Español was chosen: switch the language of the window and of Core's messages, then redraw every text.
+    /// Warnings of jobs already in the list keep the language they were made in until those jobs are rendered again.
+    /// </summary>
+    private void OnLanguageChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_changingLanguagePicker || LanguagePicker.SelectedItem is not ComboBoxItem { Tag: string code }) return;
+        try
+        {
+            if (Text.Culture.TwoLetterISOLanguageName == code) return;
+            Text.Culture = new System.Globalization.CultureInfo(code);
+            ApplyTexts();
+            // The job cards compute their texts on each read; refreshing the list makes them read again.
+            HistoryList.Items.Refresh();
+            ShowSelected();
+            // The footer named a line in the old language; start fresh rather than leave mixed languages.
+            ZplView.HighlightLine(null);
+            SelectedText.Text = UiText.Get("Ui_SelectedNone");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not switch the language");
+            ShowMessage("The language could not be changed. Details are in the log file.");
+        }
+    }
+
+    /// <summary>
+    /// The line under "Print jobs": green "Ready" when labels can arrive and the Windows printer exists, otherwise
+    /// the problem in red, so the user sees at once why nothing arrives.
+    /// </summary>
+    private void UpdateStatusLine()
+    {
+        if (StatusLineText is null) return;
+        var address = $"{_settings.ListenAddress}:{_settings.ListenPort}";
+        string text;
+        var ok = false;
+        if (_listening is null) text = UiText.Get("Ui_StatusStarting");
+        else if (_listening == false) text = UiText.Get("Ui_StatusNotListening");
+        else if (_printerSettingsBroken) text = UiText.Get("Ui_StatusPrinterSettings", address);
+        else
+        {
+            switch (_printerStatus)
+            {
+                case PrinterStatus.Installed:
+                    text = UiText.Get("Ui_StatusReady", _settings.PrinterName);
+                    ok = true;
+                    break;
+                case PrinterStatus.NotInstalled:
+                    text = UiText.Get("Ui_StatusNoPrinter", _settings.PrinterName);
+                    break;
+                case PrinterStatus.NameTakenByOther:
+                    text = UiText.Get("Ui_StatusNameTaken", _settings.PrinterName);
+                    break;
+                case null:
+                    // Listening, printer check still running: nothing is wrong yet.
+                    text = UiText.Get("Ui_StatusStarting");
+                    ok = true;
+                    break;
+                default:
+                    text = UiText.Get("Ui_StatusPrinterUnknown", address);
+                    break;
+            }
+        }
+
+        StatusLineText.Text = text;
+        StatusLineText.ToolTip = address;
+        var brush = (System.Windows.Media.Brush)FindResource(ok ? "SuccessBrush" : "ErrorBrush");
+        StatusLineText.Foreground = brush;
+        StatusIcon.Foreground = brush;
+        StatusIcon.Text = (string)FindResource(ok ? "IconCheck" : "IconError");
+    }
+
+    /// <summary>"N received today" in the Print jobs header.</summary>
+    private void UpdateReceivedToday()
+    {
+        if (ReceivedTodayText is null) return;
+        var today = DateTime.Today;
+        // Counts jobs, not labels: the labels of one job share the very same received text.
+        var jobs = _history.Where(h => h.At.LocalDateTime.Date == today)
+                           .Select(h => h.OriginalZpl).Distinct(ReferenceEqualityComparer.Instance).Count();
+        ReceivedTodayText.Text = UiText.Get("Ui_ReceivedToday", jobs);
+    }
+
+    /// <summary>
+    /// The size picker shows the label loaded in the printer: 4 × 6 in (the default label) at the DefaultDpi setting.
+    /// Read-only for now; choosing another size comes with the label-size setting.
+    /// </summary>
+    private void UpdateSizePicker()
+    {
+        if (SizePicker is null) return;
+        var text = UiText.Get("Ui_SizePicker", 4, 6, _settings.DefaultDpi);
+        SizePicker.ItemsSource = new[] { text };
+        SizePicker.SelectedIndex = 0;
+    }
+
+    // ---- open and paste --------------------------------------------------------------------------------
+
+    /// <summary>Shows a ZPL file from disk exactly as if it had been printed to LabelScope.</summary>
+    private void OnOpenFile(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog { Filter = UiText.Get("Ui_OpenFileFilter") };
+        if (dialog.ShowDialog(this) != true) return;
+        string text;
+        try
+        {
+            // Checked before reading so a huge file is never loaded into memory.
+            if (new FileInfo(dialog.FileName).Length > MaxOpenFileBytes)
+            {
+                ShowMessage(UiText.Get("Ui_FileTooLarge"));
+                return;
+            }
+            text = File.ReadAllText(dialog.FileName);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Warning(ex, "Could not read {Path}", dialog.FileName);
+            ShowMessage(UiText.Get("Ui_FileReadFailed", ex.Message));
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            ShowMessage(UiText.Get("Ui_FileEmpty"));
+            return;
+        }
+        RenderLocalJob(text, LabelEntry.FileSource);
+    }
+
+    /// <summary>Shows the ZPL on the clipboard as a new job.</summary>
+    private void OnPasteZpl(object sender, RoutedEventArgs e)
+    {
+        string text;
+        try { text = Clipboard.ContainsText() ? Clipboard.GetText() : ""; }
+        catch (System.Runtime.InteropServices.COMException ex)
+        {
+            Log.Warning(ex, "Clipboard was busy while pasting");
+            ShowMessage(UiText.Get("Ui_PasteFailed"));
+            return;
+        }
+        if (text.IndexOf("^XA", StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            ShowMessage(UiText.Get("Ui_PasteEmpty"));
+            return;
+        }
+        RenderLocalJob(text, LabelEntry.PastedSource);
+    }
+
+    /// <summary>
+    /// Renders text that did not come over the network through the very same path as a printed job (render gate,
+    /// formatting, placeholder rules, history). That path waits for the gate, so it runs off the UI thread.
+    /// </summary>
+    private void RenderLocalJob(string zpl, string source)
+    {
+        // A text without ^XZ at its end is treated like a connection that stopped early, as for printed jobs.
+        var complete = zpl.LastIndexOf("^XZ", StringComparison.OrdinalIgnoreCase) >= 0;
+        var job = new ReceivedLabel(zpl, DateTimeOffset.Now, source, complete);
+        _ = Task.Run(() => OnLabelReceived(job));
+    }
+
+    // ---- toolbar menus -----------------------------------------------------------------------------
+
+    /// <summary>
+    /// "Printer setup": until the Printer setup dialog exists, this opens a small menu with the printer actions
+    /// (install, remove) and the settings file.
+    /// </summary>
+    private void OnPrinterSetup(object sender, RoutedEventArgs e) => OpenMenuBelow(PrinterSetupButton);
+
+    /// <summary>"…": the actions that have no room on the toolbar.</summary>
+    private void OnMore(object sender, RoutedEventArgs e) => OpenMenuBelow(MoreButton);
+
+    private static void OpenMenuBelow(Button button)
+    {
+        if (button.ContextMenu is not { } menu) return;
+        menu.PlacementTarget = button;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    /// <summary>The cross on the message strip: hide the notes shown so far.</summary>
+    private void OnDismissMessage(object sender, RoutedEventArgs e)
+    {
+        _startupNotes.Clear();
+        _actionMessage = "";
+        RefreshMessageText();
     }
 
     // ---- printer ------------------------------------------------------------------------------
@@ -553,7 +990,8 @@ public partial class MainWindow : Window
         {
             Log.Warning(ex, "Printer settings are not usable");
             UpdatePrinterButtons(); // _installer is null, so both stay off
-            PrinterText.Text = "Printer: settings need fixing";
+            _printerSettingsBroken = true;
+            UpdateStatusLine();
             AddStartupNote(ex.Message);
             MessageBox.Show(ex.Message, "LabelScope", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
@@ -566,8 +1004,9 @@ public partial class MainWindow : Window
     private void UpdatePrinterButtons()
     {
         var enabled = _installer is not null && !_printerBusy;
-        InstallButton.IsEnabled = enabled;
-        RemoveButton.IsEnabled = enabled;
+        // The same two actions sit in the Printer setup menu and in the "…" menu.
+        InstallButton.IsEnabled = InstallItem.IsEnabled = enabled;
+        RemoveButton.IsEnabled = RemoveItem.IsEnabled = enabled;
     }
 
     /// <summary>Re-checks the printer when the user comes back to the window, so a transient failure heals itself.</summary>
@@ -584,20 +1023,14 @@ public partial class MainWindow : Window
         _lastStatusCheck = DateTime.UtcNow; // set first so overlapping activations cannot start a second check
         try
         {
-            var status = await _installer.GetStatusAsync();
-            PrinterText.Text = status switch
-            {
-                PrinterStatus.Installed => $"Printer \"{_settings.PrinterName}\": installed",
-                PrinterStatus.NotInstalled => "Printer: not installed (press \"Install printer\")",
-                PrinterStatus.NameTakenByOther => $"Printer \"{_settings.PrinterName}\": name used by another printer",
-                _ => "Printer: status could not be checked",
-            };
+            _printerStatus = await _installer.GetStatusAsync();
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Printer status check failed");
-            PrinterText.Text = "Printer: status could not be checked";
+            _printerStatus = PrinterStatus.Unknown;
         }
+        UpdateStatusLine();
     }
 
     private async void OnInstallPrinter(object sender, RoutedEventArgs e)
@@ -842,8 +1275,12 @@ public partial class MainWindow : Window
         RefreshMessageText();
     }
 
-    private void RefreshMessageText() =>
+    /// <summary>Shows the start-up notes and the latest action result in the message strip; hides it when empty.</summary>
+    private void RefreshMessageText()
+    {
         MessageText.Text = string.Join(" ", _startupNotes.Append(_actionMessage).Where(s => s.Length > 0));
+        MessageBar.Visibility = MessageText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     // ---- Updates ---------------------------------------------------------------------------------------
 
@@ -873,7 +1310,7 @@ public partial class MainWindow : Window
             if (result.Update is { } update)
             {
                 _update = update;
-                UpdateButton.Content = $"Update to {update.Version.ToString(3)}";
+                UpdateButton.Content = UiText.Get("Ui_UpdateTo", update.Version.ToString(3));
                 UpdateButton.Visibility = Visibility.Visible;
                 ShowMessage($"A new version of LabelScope is available ({update.Version.ToString(3)}). Press \"Update to {update.Version.ToString(3)}\" in the toolbar to install it.");
                 Log.Information("Update available: {Version}", update.Version);
