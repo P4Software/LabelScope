@@ -566,12 +566,9 @@ internal sealed partial class LabelPainter : IDisposable
     private RenderedLabel ToResult(bool widthFromZpl, bool heightFromZpl, int dpi)
     {
         _canvas.Flush();
-        // Encode straight from the bitmap's pixels: SKImage.FromBitmap on a mutable bitmap would copy the
-        // whole pixel buffer a second time.
-        using var pixmap = _bitmap.PeekPixels();
-        using var data = pixmap.Encode(SKPngEncoderOptions.Default)
-            ?? throw new InvalidOperationException("PNG encoding failed.");
-        return new RenderedLabel(data.ToArray(), _bitmap.Width, _bitmap.Height, _copies, widthFromZpl, heightFromZpl, dpi)
+        // Encoded straight from the bitmap's pixels as a grey PNG (see LabelPng): the encoding used to be most of the
+        // time a label took to draw.
+        return new RenderedLabel(LabelPng.Encode(_bitmap), _bitmap.Width, _bitmap.Height, _copies, widthFromZpl, heightFromZpl, dpi)
         {
             Fields = FinishFields(),
         };

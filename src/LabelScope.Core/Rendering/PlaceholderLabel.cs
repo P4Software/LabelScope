@@ -48,9 +48,6 @@ public static class PlaceholderLabel
             canvas.DrawText(text, (width - textWidth) / 2, height / 2f + 7, font, ink);
         }
 
-        using var pixmap = bitmap.PeekPixels();
-        using var data = pixmap.Encode(SKPngEncoderOptions.Default)
-            ?? throw new InvalidOperationException("PNG encoding failed.");
-        return new RenderedLabel(data.ToArray(), width, height, 1);
+        return new RenderedLabel(LabelPng.Encode(bitmap), width, height, 1);
     }
 }
