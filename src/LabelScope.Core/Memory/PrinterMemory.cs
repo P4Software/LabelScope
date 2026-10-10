@@ -36,6 +36,9 @@ public sealed class PrinterMemory
         MaxObjects = maxObjects;
     }
 
+    /// <summary>Label setup (^PW, ^LL, ^LH, ^PO, ^LR) kept between jobs; cleared together with the memory.</summary>
+    public PrinterSetup Setup { get; } = new();
+
     /// <summary>Most bytes kept at once.</summary>
     public long MaxBytes { get; }
 
@@ -168,9 +171,10 @@ public sealed class PrinterMemory
         lock (_gate) return _fontIds.TryGetValue(char.ToUpperInvariant(id), out var file) ? file : null;
     }
 
-    /// <summary>Empties the memory and forgets every ^CW font letter (the window's "Clear printer memory" button).</summary>
+    /// <summary>Empties the memory and forgets every ^CW font letter and the label setup (the window's "Clear printer memory" button).</summary>
     public void Clear()
     {
+        Setup.Reset();
         bool any;
         lock (_gate)
         {

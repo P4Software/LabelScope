@@ -12,12 +12,6 @@ public sealed class AppSettings
     /// <summary>Print resolution used when ZPL does not say otherwise: 152, 203, 300 or 600.</summary>
     public int DefaultDpi { get; set; } = 203;
 
-    /// <summary>Label width in millimetres used when the ZPL has no ^PW (default 4 inch).</summary>
-    public double DefaultLabelWidthMm { get; set; } = 101.6;
-
-    /// <summary>Label height in millimetres used when the ZPL has no ^LL (default 6 inch).</summary>
-    public double DefaultLabelHeightMm { get; set; } = 152.4;
-
     /// <summary>How many labels are kept in the history list.</summary>
     public int HistoryLimit { get; set; } = 100;
 

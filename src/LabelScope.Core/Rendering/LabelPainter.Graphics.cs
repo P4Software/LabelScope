@@ -224,7 +224,9 @@ internal sealed partial class LabelPainter
         {
             // A printer prints nothing for an all-white graphic, and neither does LabelScope; but an empty field is
             // usually a mistake in the data (inverted bits, the wrong graphic), so it is said rather than left silent.
-            _warnings.Add(new(line, $"{command}: The graphic ({w} x {h} dots) is completely white, so nothing shows on the label. If a picture was expected, check the graphic data."));
+            // Not for ^IL: label programs routinely store an empty format with ^IS and load it as every label's
+            // background, so a blank background is normal and a warning on every label would only be noise.
+            if (command != "^IL") _warnings.Add(new(line, $"{command}: The graphic ({w} x {h} dots) is completely white, so nothing shows on the label. If a picture was expected, check the graphic data."));
             return;
         }
 

@@ -135,8 +135,6 @@ On first start LabelScope creates `settings.json` next to the program, with an e
 | `ListenAddress` | `127.0.0.1` | `127.0.0.1` accepts labels from this computer only; `0.0.0.0` also accepts them from the network. Only these two values are accepted; anything else falls back to `127.0.0.1`. |
 | `ListenPort` | `9100` | Port for incoming ZPL, 1 to 65535. Change it if another program already uses 9100. |
 | `DefaultDpi` | `203` | Print resolution: 152, 203, 300 or 600. |
-| `DefaultLabelWidthMm` | `101.6` | Label width in millimetres when the ZPL has no `^PW` (4 inch). |
-| `DefaultLabelHeightMm` | `152.4` | Label height in millimetres when the ZPL has no `^LL` (6 inch). |
 | `HistoryLimit` | `100` | How many labels to keep in the list, 1 to 1000. |
 | `ShowGrid` | `false` | `true` starts with the light 10 mm measuring grid shown over the label picture. |
 | `StackedLayout` | `false` | `true` starts with the label picture above the ZPL instead of beside it. |
@@ -176,7 +174,7 @@ Any command that is not drawn is listed in the warnings list with its line numbe
 - **The window is simple for now.** It does not show the dpi, and unsupported commands are not underlined in the ZPL text yet; they are listed in the warnings list instead.
 - **Very large labels can take seconds to draw.** A big label that places many full-size graphics (for example dozens of `^XG` recalls of a label-sized image) can take several seconds to appear. A text field longer than 65536 characters is cut to that length, with a warning.
 - **Rounded corners on `^GB` are drawn square**, with a warning.
-- **Label size is capped** at 8000 dots per side and 40 million dots in total (a warning names the command or the setting, `DefaultLabelWidthMm` or `DefaultLabelHeightMm`, when a label size was cut down).
+- **Label size comes from the ZPL.** Width is `^PW` and length is `^LL`, from the label itself or from an earlier job: label programs often send them once in a setup job, and LabelScope keeps them (with `^LH`, `^PO` and `^LR`) as a printer does, until it closes or you press **Clear printer memory**. A printer measures the label length from the labels loaded in it, which LabelScope cannot do, so when no `^LL` was ever sent the picture ends at the lowest thing drawn (and at the right-most thing when no `^PW` was sent). Label size is capped at 8000 dots per side and 40 million dots in total, with a warning naming the command.
 - **Text encoding.** Each label is read as UTF-8 first. If it is not valid UTF-8 (many label programs and the Windows text-only printer driver send Windows-1252 text, where "ñ" is a single byte), it is read as Windows-1252 instead. Other code pages, such as CP850, may show wrong characters for accented letters.
 - **A single label larger than 16 MB without `^XZ` is discarded**, and a message is shown.
 

@@ -24,10 +24,6 @@ public sealed class SettingsStore
           // Print resolution: 152, 203, 300 or 600 dots per inch.
           "DefaultDpi": 203,
 
-          // Label size used when the label itself does not say (101.6 x 152.4 mm = 4 x 6 inch).
-          "DefaultLabelWidthMm": 101.6,
-          "DefaultLabelHeightMm": 152.4,
-
           // How many received labels to keep in the list on the left.
           "HistoryLimit": 100,
 
@@ -144,16 +140,6 @@ public sealed class SettingsStore
         {
             messages.Add($"DefaultDpi {s.DefaultDpi} is not one of 152, 203, 300, 600; {d.DefaultDpi} is used instead.");
             s.DefaultDpi = d.DefaultDpi;
-        }
-        if (s.DefaultLabelWidthMm <= 0)
-        {
-            messages.Add($"DefaultLabelWidthMm must be above 0; {d.DefaultLabelWidthMm} is used instead.");
-            s.DefaultLabelWidthMm = d.DefaultLabelWidthMm;
-        }
-        if (s.DefaultLabelHeightMm <= 0)
-        {
-            messages.Add($"DefaultLabelHeightMm must be above 0; {d.DefaultLabelHeightMm} is used instead.");
-            s.DefaultLabelHeightMm = d.DefaultLabelHeightMm;
         }
         if (s.HistoryLimit is < 1 or > 1000)
         {

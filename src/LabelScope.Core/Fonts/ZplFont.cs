@@ -152,12 +152,17 @@ internal sealed class ScalableFont : ZplFont
     private readonly SKTypeface _face;
     private readonly SKFont _font;
 
-    /// <summary>Creates the font at <paramref name="height"/> dots; <paramref name="width"/> equal to the height keeps the face's own proportions.</summary>
-    public ScalableFont(SKTypeface face, int height, int width)
+    /// <summary>
+    /// Creates the font at <paramref name="height"/> dots; <paramref name="width"/> equal to the height keeps the face's
+    /// own proportions. <paramref name="faceWidth"/> narrows or widens the face itself, so a stand-in face can match the
+    /// letter widths of the printer font it replaces (1 = the face as designed).
+    /// </summary>
+    public ScalableFont(SKTypeface face, int height, int width, float faceWidth = 1f)
     {
         _face = face;
         _font = new SKFont(face, height);
-        if (width != height) _font.ScaleX = Math.Clamp(width / (float)height, 0.1f, 10f);
+        var scaleX = width / (float)height * faceWidth;
+        if (scaleX != 1f) _font.ScaleX = Math.Clamp(scaleX, 0.1f, 10f);
     }
 
     /// <inheritdoc />
@@ -209,14 +214,21 @@ internal static class ZplFontFactory
                 note = $"Font {id} can be enlarged up to 10 times ({spec.Height * 10} dots high, {spec.Width * 10} dots wide); 10 times was used.";
             return new CellFont(spec, magX, magY, BundledFonts.Mono);
         }
-        return FontMatrices.IsScalableBuiltIn(id) ? Scalable(BundledFonts.Scalable, height, width, out note) : null;
+        return FontMatrices.IsScalableBuiltIn(id) ? Scalable(BundledFonts.Scalable, height, width, out note, BundledScalableWidth) : null;
     }
+
+    /// <summary>
+    /// IBM Plex Sans Condensed Bold sets text about 11% wider than the printer's font 0 at the same size (measured on
+    /// a real customer label: "1000AAA" at 59 dots is 210 dots wide on the printer, 234 dots with the face as designed).
+    /// Narrowing the face keeps text lengths, and so ^FB wrapping and centring, close to what the printer prints.
+    /// </summary>
+    internal const float BundledScalableWidth = 0.9f;
 
     /// <summary>
     /// A scalable font; when only the height or only the width is given, the other follows it (the face's own
     /// proportion). <paramref name="note"/> explains a size above <see cref="MaxScalableDots"/> that had to be limited.
     /// </summary>
-    public static ScalableFont Scalable(SKTypeface face, int height, int width, out string? note)
+    public static ScalableFont Scalable(SKTypeface face, int height, int width, out string? note, float faceWidth = 1f)
     {
         if (height <= 0) height = width > 0 ? width : 9;   // 9 dots: Zebra's ^CF default height
         if (width <= 0) width = height;
@@ -224,7 +236,7 @@ internal static class ZplFontFactory
         note = (h, w) == (height, width)
             ? null
             : $"LabelScope draws fonts up to {MaxScalableDots} dots high and {MaxScalableDots} dots wide, so the font size {height} x {width} dots (height x width) was drawn as {h} x {w} dots.";
-        return new ScalableFont(face, h, w);
+        return new ScalableFont(face, h, w, faceWidth);
     }
 
     /// <summary>

@@ -175,7 +175,7 @@ public partial class MainWindow : Window
         try
         {
             if (_closing) return;
-            var options = new RenderOptions(_settings.DefaultDpi, _settings.DefaultLabelWidthMm, _settings.DefaultLabelHeightMm);
+            var options = new RenderOptions(_settings.DefaultDpi);
             // Format first and draw THE FORMATTED TEXT: warnings carry line numbers, and they must point at the
             // lines the user sees. Formatting does not change the picture (ZPL ignores line breaks).
             // Formatting copies the whole text, so it waits for the same gate as drawing: a flood of very large

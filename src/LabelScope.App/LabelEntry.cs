@@ -72,7 +72,7 @@ public sealed class LabelEntry
             string Part(string name, int dots, bool fromZpl, string command)
             {
                 var mm = Label.Dpi > 0 ? $" = {dots * 25.4 / Label.Dpi:0.#} mm" : "";
-                return $"{name} {dots} dots{mm} ({(fromZpl ? "sent by the program in " + command : "not in the ZPL, default from settings.json")})";
+                return $"{name} {dots} dots{mm} ({(fromZpl ? "sent by the program in " + command : "not in the ZPL, so the picture ends at the last thing drawn")})";
             }
             return Part("Width", Label.WidthDots, Label.WidthFromZpl, "^PW") + " · " +
                    Part("Height", Label.HeightDots, Label.HeightFromZpl, "^LL") +

@@ -1,18 +1,16 @@
 namespace LabelScope.Core.Rendering;
 
-/// <summary>Defaults used when the ZPL itself does not give a label size.</summary>
+/// <summary>How labels are drawn. The label size always comes from the ZPL (^PW, ^LL), never from a setting.</summary>
 /// <param name="Dpi">Dots per inch of the simulated printer.</param>
-/// <param name="LabelWidthMm">Default label width in millimetres.</param>
-/// <param name="LabelHeightMm">Default label height in millimetres.</param>
-public sealed record RenderOptions(int Dpi = 203, double LabelWidthMm = 101.6, double LabelHeightMm = 152.4);
+public sealed record RenderOptions(int Dpi = 203);
 
 /// <summary>One rendered label.</summary>
 /// <param name="PngBytes">The label image as PNG.</param>
 /// <param name="WidthDots">Width in printer dots.</param>
 /// <param name="HeightDots">Height in printer dots.</param>
 /// <param name="Copies">Number of copies requested with ^PQ (1 when absent).</param>
-/// <param name="WidthFromZpl">True when the width came from a ^PW in the ZPL; false when it fell back to settings.json.</param>
-/// <param name="HeightFromZpl">True when the height came from a ^LL in the ZPL; false when it fell back to settings.json.</param>
+/// <param name="WidthFromZpl">True when the width came from a ^PW (in this job or an earlier one); false when the picture ends at the right-most thing drawn.</param>
+/// <param name="HeightFromZpl">True when the height came from a ^LL (in this job or an earlier one); false when the picture ends at the lowest thing drawn.</param>
 /// <param name="Dpi">Dots per inch used to turn dots into millimetres (0 when unknown).</param>
 public sealed record RenderedLabel(byte[] PngBytes, int WidthDots, int HeightDots, int Copies,
                                    bool WidthFromZpl = false, bool HeightFromZpl = false, int Dpi = 0);
