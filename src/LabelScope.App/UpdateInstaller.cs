@@ -3,6 +3,7 @@ using System.IO;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
+using LabelScope.App.Localization;
 using LabelScope.Core.Updating;
 
 namespace LabelScope.App;
@@ -48,13 +49,13 @@ public static class UpdateInstaller
         catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
         {
             TryDelete(file);
-            throw new InvalidOperationException("The new version could not be downloaded. Check the internet connection and try again.");
+            throw new InvalidOperationException(UiText.Get("Ui_DownloadFailed"));
         }
 
         if (!IsSignedByPublisher(file))
         {
             TryDelete(file);
-            throw new InvalidOperationException("The downloaded installer is not signed by the LabelScope publisher, so it was deleted and not run. Download LabelScope again from the GitHub releases page.");
+            throw new InvalidOperationException(UiText.Get("Ui_InstallerNotSigned"));
         }
         return file;
     }

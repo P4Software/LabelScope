@@ -2,8 +2,9 @@
   The main window (0.4.0 layout, mockup "Main window"): toolbar, Print jobs card on the left, the label on a canvas in
   the centre, ZPL / Fields / Log tabs on the right, status bar at the bottom.
 
-  Every visible text is set from code (MainWindow.ApplyTexts) through UiText, so a language switch only has to call
-  that one method again. The texts written here are design-time placeholders only.
+  Every visible text is set from code (MainWindow.ApplyTexts) or read from the view models through UiText, so a
+  language switch only has to apply the texts again and refresh the lists. The texts written here are design-time
+  placeholders only.
 -->
 <Window x:Class="LabelScope.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -11,12 +12,56 @@
         xmlns:controls="clr-namespace:LabelScope.App.Controls"
         Style="{StaticResource AppWindow}"
         Title="LabelScope" Height="760" Width="1200" MinHeight="560" MinWidth="960"
-        Icon="labelscope.ico" Loaded="OnLoaded" Closing="OnClosing">
+        Icon="labelscope.ico" Loaded="OnLoaded" Closing="OnClosing" PreviewKeyDown="OnWindowKeyDown">
+  <Window.Resources>
+    <!-- "Line 7" in a Log row: looks like a link, works as a button (keyboard and screen readers included). -->
+    <Style x:Key="LinkButton" TargetType="Button">
+      <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <TextBlock x:Name="Text" Text="{TemplateBinding Content}" TextDecorations="Underline" Background="Transparent" />
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Text" Property="Foreground" Value="{StaticResource PrimaryHoverBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <!-- Rows of the Fields and Log lists: full width, light fill when selected. -->
+    <Style x:Key="DetailRow" TargetType="ListBoxItem">
+      <Setter Property="Padding" Value="22,8" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBoxItem">
+            <Border x:Name="Row" Background="Transparent" BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="0,0,0,1" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Row" Property="Background" Value="{StaticResource HoverFillBrush}" />
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="Row" Property="Background" Value="{StaticResource SelectedFillBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+
   <DockPanel>
 
     <!-- ================================================================ Toolbar -->
     <!-- When the window is too narrow for every label, the flat buttons drop their text and keep the icon
-         (MainWindow.UpdateToolbarFit); the text then shows as a tooltip. -->
+         (MainWindow.UpdateToolbarFit); the text then shows as a tooltip and stays the button's accessible name. -->
     <Border x:Name="ToolbarBar" DockPanel.Dock="Top" Background="{StaticResource CardBrush}"
             BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,0,0,1" Padding="16,8"
             SizeChanged="OnToolbarSizeChanged">
@@ -31,7 +76,7 @@
           <Button x:Name="SavePngButton" Style="{StaticResource ToolbarButton}" Tag="{StaticResource IconImage}"
                   Content="Save as PNG" Click="OnSavePng" Margin="0,0,4,0"/>
           <Button x:Name="ClearJobsButton" Style="{StaticResource ToolbarButton}" Tag="{StaticResource IconDelete}"
-                  Content="Clear jobs" Click="OnClearHistory"/>
+                  Content="Clear jobs" Click="OnClearJobs"/>
         </StackPanel>
 
         <StackPanel x:Name="ToolbarRight" DockPanel.Dock="Right" Orientation="Horizontal">
@@ -41,8 +86,10 @@
                   MinWidth="76" Padding="8,7"/>
           <Button x:Name="ZoomInButton" Style="{StaticResource ToolbarButton}" Tag="{StaticResource IconPlus}"
                   Click="OnZoomIn" Padding="10,7" Margin="0,0,12,0"/>
-          <!-- Read-only for now: shows the label loaded in the printer. Choosing a size arrives with the settings work. -->
-          <ComboBox x:Name="SizePicker" Style="{StaticResource DropDown}" Margin="0,0,10,0" MinWidth="170"/>
+          <!-- The label loaded in the printer: the sizes of Printer setup, the densities, and Custom…; choosing one
+               saves it and draws every job again (MainWindow.OnSizePicked). -->
+          <ComboBox x:Name="SizePicker" Style="{StaticResource DropDown}" Margin="0,0,10,0" MinWidth="170"
+                    MaxDropDownHeight="480" SelectionChanged="OnSizePicked"/>
           <ComboBox x:Name="LanguagePicker" Style="{StaticResource DropDown}" Margin="0,0,10,0" MinWidth="124"
                     SelectionChanged="OnLanguageChanged">
             <ComboBoxItem Content="English" Tag="en"/>
@@ -88,10 +135,15 @@
           <TextBlock x:Name="ReceivedText" Style="{StaticResource StatusText}" Margin="0"/>
         </StackPanel>
         <StackPanel Orientation="Horizontal">
+          <!-- Page control: shown with arrows only for a job with several labels. -->
+          <Button x:Name="PrevPageButton" Style="{StaticResource ToolbarButton}" Tag="{StaticResource IconChevronLeft}"
+                  Padding="6,2" FontSize="12" Click="OnPrevPage" Visibility="Collapsed" Margin="-6,0,2,0"/>
           <TextBlock x:Name="BarLabelText" Style="{StaticResource StatusText}"/>
+          <Button x:Name="NextPageButton" Style="{StaticResource ToolbarButton}" Tag="{StaticResource IconChevronRight}"
+                  Padding="6,2" FontSize="12" Click="OnNextPage" Visibility="Collapsed" Margin="-12,0,12,0"/>
           <TextBlock x:Name="BarSizeText" Style="{StaticResource StatusText}"/>
           <TextBlock x:Name="BarLinesText" Style="{StaticResource StatusText}"/>
-          <TextBlock x:Name="BarWarningsText" Style="{StaticResource StatusTextSuccess}"/>
+          <TextBlock x:Name="BarErrorsText" Style="{StaticResource StatusTextSuccess}"/>
         </StackPanel>
       </DockPanel>
     </Border>
@@ -137,7 +189,7 @@
             </DockPanel>
           </Border>
 
-          <!-- Newest job first. -->
+          <!-- One card per job, newest first. -->
           <ListBox x:Name="HistoryList" Style="{StaticResource JobList}" ItemContainerStyle="{StaticResource JobCard}"
                    SelectionChanged="OnSelectionChanged">
             <ListBox.ItemTemplate>
@@ -146,17 +198,23 @@
                   <DockPanel>
                     <TextBlock DockPanel.Dock="Right" Text="{Binding TimeText, Mode=OneWay}"
                                Style="{StaticResource MutedText}" Margin="8,0,0,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding JobName, Mode=OneWay}" FontSize="15" FontWeight="SemiBold"
+                    <TextBlock Text="{Binding Title, Mode=OneWay}" FontSize="15" FontWeight="SemiBold"
                                TextTrimming="CharacterEllipsis"/>
                   </DockPanel>
-                  <TextBlock Text="{Binding CardDetail, Mode=OneWay}" Style="{StaticResource MutedText}" Margin="0,4,0,0"
+                  <TextBlock Text="{Binding Subtitle, Mode=OneWay}" Style="{StaticResource MutedText}" Margin="0,4,0,0"
                              TextTrimming="CharacterEllipsis"/>
-                  <TextBlock x:Name="CardStatus" Text="{Binding CardStatus, Mode=OneWay}"
-                             Foreground="{StaticResource SuccessBrush}" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
+                  <DockPanel Margin="0,6,0,0">
+                    <TextBlock x:Name="CardIcon" DockPanel.Dock="Left" Text="!" FontWeight="Bold" Margin="2,0,10,0"
+                               Foreground="{StaticResource ErrorBrush}" Visibility="Collapsed"/>
+                    <TextBlock x:Name="CardStatus" Text="{Binding StatusText, Mode=OneWay}"
+                               Foreground="{StaticResource SuccessBrush}" TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding StatusText, Mode=OneWay}"/>
+                  </DockPanel>
                 </StackPanel>
                 <DataTemplate.Triggers>
                   <DataTrigger Binding="{Binding IsError, Mode=OneWay}" Value="True">
                     <Setter TargetName="CardStatus" Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                    <Setter TargetName="CardIcon" Property="Visibility" Value="Visible"/>
                   </DataTrigger>
                 </DataTemplate.Triggers>
               </DataTemplate>
@@ -206,10 +264,13 @@
                     </Border.Effect>
                   </Border>
                   <Border BorderBrush="#9AA5B4" BorderThickness="1" Background="White" SnapsToDevicePixels="True">
-                    <!-- The overlay has no size of its own, so it always covers exactly the picture. -->
+                    <!-- The overlays have no size of their own, so they always cover exactly the picture. Clicks go to
+                         the picture (MainWindow.OnLabelClicked); the outline layer only draws. -->
                     <Grid>
-                      <Image x:Name="LabelImage" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality"/>
+                      <Image x:Name="LabelImage" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality"
+                             MouseLeftButtonDown="OnLabelClicked" Cursor="Hand"/>
                       <Rectangle x:Name="GridOverlay" Visibility="Collapsed" IsHitTestVisible="False"/>
+                      <Canvas x:Name="OutlineLayer" IsHitTestVisible="False" ClipToBounds="True"/>
                     </Grid>
                   </Border>
                 </Grid>
@@ -228,7 +289,9 @@
           <DockPanel>
             <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0"
                     Padding="22,12">
-              <TextBlock x:Name="SelectedText" Style="{StaticResource MutedText}" TextTrimming="CharacterEllipsis"
+              <!-- Wraps to a second line rather than cutting off the field's line number in a narrow card. -->
+              <TextBlock x:Name="SelectedText" Style="{StaticResource MutedText}" TextWrapping="Wrap"
+                         MaxHeight="40" TextTrimming="CharacterEllipsis"
                          ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
             </Border>
             <!-- The selected tab header is SemiBold; the pages reset the weight so it does not pass on to their text. -->
@@ -237,28 +300,66 @@
                 <controls:ZplEditor x:Name="ZplView" FontWeight="Normal" Foreground="{StaticResource TextBrush}"/>
               </TabItem>
               <TabItem x:Name="FieldsTab" Style="{StaticResource UnderlineTabItem}" Header="Fields">
-                <TextBlock x:Name="FieldsPlaceholderText" FontWeight="Normal" Style="{StaticResource MutedText}" TextWrapping="Wrap"
-                           TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Margin="24" FontSize="14"/>
-              </TabItem>
-              <TabItem x:Name="LogTab" Style="{StaticResource UnderlineTabItem}" Header="Log">
                 <Grid TextElement.FontWeight="Normal" TextElement.Foreground="{StaticResource TextBrush}">
-                  <ListBox x:Name="WarningList" BorderThickness="0" Background="Transparent" Padding="0,6"
-                           ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="OnWarningSelected">
-                    <ListBox.ItemContainerStyle>
-                      <Style TargetType="ListBoxItem">
-                        <Setter Property="Padding" Value="22,8"/>
-                        <Setter Property="Cursor" Value="Hand"/>
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                      </Style>
-                    </ListBox.ItemContainerStyle>
+                  <!-- Virtualised (a label may list 5000 fields): no outer ScrollViewer, recycled rows. -->
+                  <ListBox x:Name="FieldsList" BorderThickness="0" Background="Transparent"
+                           ItemContainerStyle="{StaticResource DetailRow}"
+                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                           SelectionChanged="OnFieldRowSelected">
                     <ListBox.ItemTemplate>
                       <DataTemplate>
                         <StackPanel>
-                          <TextBlock Text="{Binding LineText, Mode=OneWay}" FontWeight="SemiBold"
-                                     Foreground="{StaticResource ErrorBrush}"/>
-                          <TextBlock Text="{Binding Message, Mode=OneWay}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                          <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding LineText, Mode=OneWay}"
+                                       Style="{StaticResource MutedText}" Margin="8,0,0,0"/>
+                            <TextBlock x:Name="Summary" Text="{Binding Summary, Mode=OneWay}" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis"/>
+                          </DockPanel>
+                          <TextBlock Text="{Binding Facts, Mode=OneWay}" Style="{StaticResource MutedText}"
+                                     Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                          <TextBlock x:Name="ProblemText" Text="{Binding Problem, Mode=OneWay}" TextWrapping="Wrap"
+                                     Foreground="{StaticResource ErrorBrush}" Margin="0,2,0,0" Visibility="Collapsed"/>
                         </StackPanel>
+                        <DataTemplate.Triggers>
+                          <DataTrigger Binding="{Binding HasProblem, Mode=OneWay}" Value="True">
+                            <Setter TargetName="ProblemText" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="Summary" Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                          </DataTrigger>
+                        </DataTemplate.Triggers>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                  <TextBlock x:Name="FieldsEmptyText" Style="{StaticResource MutedText}" TextWrapping="Wrap"
+                             TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center"
+                             Margin="24" FontSize="14"/>
+                </Grid>
+              </TabItem>
+              <TabItem x:Name="LogTab" Style="{StaticResource UnderlineTabItem}" Header="Log">
+                <Grid TextElement.FontWeight="Normal" TextElement.Foreground="{StaticResource TextBrush}">
+                  <!-- Arrow keys only move through the rows; Enter, a double-click or the "Line N" link jumps. -->
+                  <ListBox x:Name="LogList" BorderThickness="0" Background="Transparent"
+                           ItemContainerStyle="{StaticResource DetailRow}"
+                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                           KeyDown="OnLogKeyDown" MouseDoubleClick="OnLogDoubleClick">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <DockPanel>
+                          <TextBlock DockPanel.Dock="Left" Text="{Binding TimeText, Mode=OneWay}"
+                                     Style="{StaticResource MutedText}" Margin="0,0,12,0"/>
+                          <Button x:Name="LineLink" DockPanel.Dock="Right" Style="{StaticResource LinkButton}"
+                                  Content="{Binding LineText, Mode=OneWay}" Margin="12,0,0,0" VerticalAlignment="Top"
+                                  Click="OnLogLineLink" Visibility="Collapsed"/>
+                          <TextBlock x:Name="Message" Text="{Binding Message, Mode=OneWay}" TextWrapping="Wrap"/>
+                        </DockPanel>
+                        <DataTemplate.Triggers>
+                          <DataTrigger Binding="{Binding HasLine, Mode=OneWay}" Value="True">
+                            <Setter TargetName="LineLink" Property="Visibility" Value="Visible"/>
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding IsProblem, Mode=OneWay}" Value="True">
+                            <Setter TargetName="Message" Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                          </DataTrigger>
+                        </DataTemplate.Triggers>
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>

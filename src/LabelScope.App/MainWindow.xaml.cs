@@ -1,39 +1,53 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Net;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using System.Windows.Threading;
 using LabelScope.App.Localization;
+using LabelScope.App.ViewModels;
 using LabelScope.Core;
-using LabelScope.Core.Localization;
-using System.Reflection;
 using LabelScope.Core.Fonts;
+using LabelScope.Core.Jobs;
 using LabelScope.Core.Listening;
+using LabelScope.Core.Localization;
 using LabelScope.Core.Memory;
-using LabelScope.Core.Updating;
 using LabelScope.Core.Printing;
 using LabelScope.Core.Rendering;
 using LabelScope.Core.Settings;
+using LabelScope.Core.Updating;
 using Microsoft.Win32;
 using Serilog;
+using Media = System.Windows.Media;
 
 namespace LabelScope.App;
 
 /// <summary>The single window: print jobs on the left, the label in the centre, its ZPL, fields and log on the right.</summary>
 public partial class MainWindow : Window
 {
-    private readonly string _settingsPath = Path.Combine(AppContext.BaseDirectory, "settings.json");
-    private readonly ObservableCollection<LabelEntry> _history = new();
+    private readonly string _settingsPath = System.IO.Path.Combine(AppContext.BaseDirectory, "settings.json");
+
+    // One card per job (one send, one opened file, one paste), newest first.
+    private readonly ObservableCollection<JobViewModel> _jobs = new();
+
+    // Puts the labels of one TCP connection back together into one job.
+    private readonly JobAssembler _assembler = new();
+
     // One printer memory for the whole session: a graphic downloaded in one job is used by labels in later jobs,
     // as on a real printer. Nothing is saved when LabelScope closes.
     private readonly PrinterMemory _memory = new();
 
     // Rebuilt once in OnLoaded with the fonts from the FontsFolder setting, before the listener starts.
     private ZplRenderer _renderer;
+    private FontLibrary _fonts = FontLibrary.Empty;
 
     // Kept in a field so OnClosing can unsubscribe it; _memoryUpdateScheduled coalesces a burst of Changed events
     // (a download with hundreds of graphics) into one UI update.
@@ -43,8 +57,23 @@ public partial class MainWindow : Window
     private ZplListener? _listener;
     private PrinterInstaller? _installer;
 
-    // Only the picture of the selected entry is decoded; it is dropped as soon as the selection changes.
+    // The job list kept between runs ("Keep jobs"). One store for the whole session: after Load has seen a file from a
+    // newer LabelScope, the same instance refuses to overwrite it.
+    private readonly JobStore _store = new(JobStore.DefaultPath);
+    private bool _storeLoaded;
+    private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromSeconds(2) };
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
+    private string? _lastSaveProblem;
+
+    // What is on screen: the job, its page, the decoded picture of that page only, and the selected field.
+    private JobViewModel? _shownJob;
+    private LabelJob? _shownJobInstance;    // the job object whose ZPL is in the ZPL tab (replaced when a label is added)
+    private string _shownZpl = "";          // the formatted ZPL in the ZPL tab
+    private int _page;
+    private LabelPageViewModel? _shownPage;
     private BitmapImage? _currentImage;
+    private FieldRowViewModel? _selectedField;
+    private bool _settingFieldList;         // true while code (not the user) selects a row of the Fields tab
 
     // Set when the window starts closing so a late label from the socket thread is ignored.
     private volatile bool _closing;
@@ -64,6 +93,10 @@ public partial class MainWindow : Window
     private PrinterStatus? _printerStatus; // null until the first check
     private bool _printerSettingsBroken;   // the printer name or port in settings.json cannot be used
 
+    // "N received today": a counter of arrivals, not of cards, so clearing the list or a trim does not lower it.
+    private int _receivedToday;
+    private DateTime _receivedTodayDate = DateTime.Today;
+
     // Zoom: "fit" follows the window size; otherwise _zoom is the screen size of one label dot (1 = 100 %).
     private bool _fit = true;
     private double _zoom = 1;
@@ -72,8 +105,9 @@ public partial class MainWindow : Window
     // Largest file "Open ZPL file" accepts: the same limit as one job sent over the network.
     private const long MaxOpenFileBytes = 16L * 1024 * 1024;
 
-    /// <summary>One row of the Log tab: a warning with its line caption already in the window language.</summary>
-    private sealed record WarningRow(int Line, string LineText, string Message);
+    // Problem outlines drawn on one page at most; a label with thousands of fields off the label would otherwise
+    // create thousands of shapes on every zoom step. The Fields tab still lists every one.
+    private const int MaxProblemOutlines = 500;
 
     // Back-pressure design. Rendering is the expensive step and runs on the socket threads, so at most two
     // labels are rendered at the same time (a socket thread simply waits its turn; TCP slows the sender down).
@@ -85,8 +119,11 @@ public partial class MainWindow : Window
     private const int MaxPendingForUi = 20;
     private int _drainScheduled; // 1 while a drain is already queued on the dispatcher
 
-    /// <summary>Entries of one received job that are waiting to be shown, plus the status note to show with them (or null).</summary>
-    private sealed record PendingResult(List<LabelEntry> Entries, string? Note);
+    // Increased by every "draw all jobs again"; a pass that sees a newer number stops and leaves the work to it.
+    private int _renderGeneration;
+
+    /// <summary>A job (new, or an existing one with one more label) waiting to be shown, plus the note to show with it.</summary>
+    private sealed record PendingResult(LabelJob Job, long ConnectionId, string? Note);
 
     /// <summary>Creates the window; real startup work happens in <see cref="OnLoaded"/>.</summary>
     public MainWindow()
@@ -97,13 +134,16 @@ public partial class MainWindow : Window
         // BeginInvoke never blocks the renderer, and a failure here must not reach the render thread.
         _memoryChanged = OnMemoryChanged;
         _memory.Changed += _memoryChanged;
-        // The grid cell size depends on how large the picture is shown, which changes with zoom and window size.
-        LabelImage.SizeChanged += (_, _) => UpdateGrid();
-        HistoryList.ItemsSource = _history;
-        // The "received today" count follows every insert, trim and clear.
-        _history.CollectionChanged += (_, _) => UpdateReceivedToday();
+        // The grid cell size and the outlines depend on how large the picture is shown (zoom and window size).
+        LabelImage.SizeChanged += (_, _) =>
+        {
+            UpdateGrid();
+            DrawOutlines();
+        };
+        HistoryList.ItemsSource = _jobs;
         ZplView.LineClicked += OnZplLineClicked;
         Activated += OnActivated;
+        _saveTimer.Tick += OnSaveTimer;
         SelectLanguageInPicker();
         ApplyTexts();
     }
@@ -124,22 +164,25 @@ public partial class MainWindow : Window
             StackedBox.IsChecked = _settings.StackedLayout;
             ApplyView();
             ApplyTexts(); // again: some texts name the printer from settings.json
-            ShowSelected();
+            ShowJob();
             foreach (var message in load.Messages) Log.Information("Settings: {Message}", message);
             foreach (var message in load.Messages) AddStartupNote(message);
 
             // The font list is read once, here, and the same library and memory serve every job. The renderer is
             // replaced before the listener starts, so no job can ever see the old one.
             var fontMessages = new List<string>();
-            var fonts = FontLibrary.FromFolder(_settings.FontsFolder, AppContext.BaseDirectory, fontMessages);
+            _fonts = FontLibrary.FromFolder(_settings.FontsFolder, AppContext.BaseDirectory, fontMessages);
             foreach (var message in fontMessages) Log.Information("Fonts: {Message}", message);
             foreach (var message in fontMessages) AddStartupNote(message);
-            if (fonts.Count > 0) Log.Information("Fonts: {Count} font file(s) found in the FontsFolder", fonts.Count);
-            _renderer = new ZplRenderer(_memory, fonts);
+            if (_fonts.Count > 0) Log.Information("Fonts: {Count} font file(s) found in the FontsFolder", _fonts.Count);
+            _renderer = new ZplRenderer(_memory, _fonts);
             UpdateMemoryText();
             UpdateSizePicker();
 
             StartListener();
+            // Kept jobs come back while the listener already runs: they are older than anything that arrives now,
+            // so they are added below the new ones.
+            if (_settings.KeepJobs) await LoadKeptJobsAsync();
             CreateInstaller();
             await RefreshPrinterStatusAsync();
             if (_settings.CheckForUpdates) await CheckForUpdatesAsync(userAsked: false);
@@ -148,30 +191,30 @@ public partial class MainWindow : Window
         {
             // async void: an exception here would otherwise reach the global handler without context.
             Log.Error(ex, "Startup failed");
-            AddStartupNote("LabelScope could not finish starting. " + ex.Message);
+            AddStartupNote(UiText.Get("Ui_StartupFailed"));
         }
     }
 
     private void ConfigureLogging()
     {
+        var folder = ResolveLogFolder();
         try
         {
-            var folder = ResolveLogFolder();
             Directory.CreateDirectory(folder);
             Log.Logger = new LoggerConfiguration()
-                .WriteTo.File(Path.Combine(folder, "labelscope-.log"), rollingInterval: RollingInterval.Day, retainedFileCountLimit: 14)
+                .WriteTo.File(System.IO.Path.Combine(folder, "labelscope-.log"), rollingInterval: RollingInterval.Day, retainedFileCountLimit: 14)
                 .CreateLogger();
             Log.Information("LabelScope started");
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             // A log folder that cannot be created must not stop the program; it just runs without a log.
-            AddStartupNote($"LabelScope could not create its log folder ({ex.Message}). It keeps working without a log file.");
+            AddStartupNote(UiText.Get("Ui_LogFolderFailed", folder));
         }
     }
 
     private string ResolveLogFolder() =>
-        Path.IsPathRooted(_settings.LogFolder) ? _settings.LogFolder : Path.Combine(AppContext.BaseDirectory, _settings.LogFolder);
+        System.IO.Path.IsPathRooted(_settings.LogFolder) ? _settings.LogFolder : System.IO.Path.Combine(AppContext.BaseDirectory, _settings.LogFolder);
 
     private void StartListener()
     {
@@ -183,34 +226,44 @@ public partial class MainWindow : Window
             _listener.Start();
             _listening = true;
             UpdateStatusLine();
-            if (_settings.ListenAddress == "0.0.0.0")
-                AddStartupNote("LabelScope accepts labels from other computers on your network (ListenAddress 0.0.0.0). " +
-                               "Windows may ask you to allow LabelScope through the firewall; answering that needs an administrator.");
+            if (_settings.ListenAddress == "0.0.0.0") AddStartupNote(UiText.Get("Ui_ListenAllNote"));
         }
         catch (ListenerStartException ex)
         {
             _listening = false;
             UpdateStatusLine();
             Log.Warning(ex, "Listener could not start");
-            // Not a crash: the window stays open so the message can be read.
-            MessageBox.Show(ex.Message, "LabelScope", MessageBoxButton.OK, MessageBoxImage.Warning);
+            // Not a crash: the window stays open so the message can be read. The message comes from Core, localized.
+            MessageBox.Show(this, ex.Message, "LabelScope", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
+    // ---- receiving ----------------------------------------------------------------------------------
+
+    /// <summary>The render options for <paramref name="settings"/>: density and the label loaded in the printer.</summary>
+    private static RenderOptions OptionsFor(AppSettings settings) =>
+        new(settings.DefaultDpi, settings.LabelWidthMm, settings.LabelHeightMm);
+
+    /// <summary>Runs on a socket thread: one ^XA..^XZ label of a send arrived.</summary>
+    private void OnLabelReceived(ReceivedLabel received) => ProcessIncoming(received, JobOrigin.Printed, null);
+
     /// <summary>
-    /// Runs on a socket thread: render there, then hand the finished entries to the UI thread.
-    /// Core swallows exceptions from subscribers without a trace, so everything is caught and logged here.
+    /// Runs off the UI thread: draws a label (or a whole opened or pasted text), adds it to the job of its connection
+    /// or makes a new job, and hands the job to the UI thread. Core swallows exceptions from listener subscribers
+    /// without a trace, so everything is caught and logged here.
     /// </summary>
-    private void OnLabelReceived(ReceivedLabel received)
+    /// <param name="received">What arrived.</param>
+    /// <param name="origin">How it arrived.</param>
+    /// <param name="name">A name of its own (the file name of an opened file), or null to name the job from its ZPL.</param>
+    private void ProcessIncoming(ReceivedLabel received, JobOrigin origin, string? name)
     {
         try
         {
             if (_closing) return;
-            // One read of the field: Printer setup may replace the settings object while this socket thread runs.
-            var settings = _settings;
-            var options = new RenderOptions(settings.DefaultDpi, settings.LabelWidthMm, settings.LabelHeightMm);
-            // Format first and draw THE FORMATTED TEXT: warnings carry line numbers, and they must point at the
-            // lines the user sees. Formatting does not change the picture (ZPL ignores line breaks).
+            // One read of the field: Printer setup may replace the settings object while this thread runs.
+            var options = OptionsFor(_settings);
+            // Format first and draw THE FORMATTED TEXT: warnings and fields carry line numbers, and they must point
+            // at the lines the user sees. Formatting does not change the picture (ZPL ignores line breaks).
             // Formatting copies the whole text, so it waits for the same gate as drawing: a flood of very large
             // labels must not be able to hold many extra copies in memory at once.
             string formatted;
@@ -222,50 +275,78 @@ public partial class MainWindow : Window
                 result = _renderer.Render(formatted, options);
             }
             finally { _renderGate.Release(); }
-            Log.Information("Label received from {Source}: {Labels} image(s), {Warnings} warning(s), complete={Complete}",
-                received.Source, result.Labels.Count, result.Warnings.Count, received.Complete);
+            Log.Information("Label received from {Source}: {Labels} image(s), {Warnings} warning(s), complete={Complete}, connection {Connection}",
+                received.Source, result.Labels.Count, result.Warnings.Count, received.Complete, received.ConnectionId);
 
-            var entries = result.Labels
-                .Select(l => new LabelEntry(received.ReceivedAt, received.Source, formatted, received.Zpl, received.Complete, l, result.Warnings))
-                .ToList();
-            string? note = null;
-
-            if (entries.Count == 0)
+            var job = _assembler.TryAppend(received.ConnectionId, received.Zpl, formatted, result, received.Complete);
+            if (job is null)
             {
-                // Never drop a job silently: show the text and the warnings so the user can see what arrived.
-                // Without any ^XA the data holds no label; a download (~DG, ~DY) is then a "stored in memory" job,
-                // which is a success and not a mistake. With a ^XA the label exists but could not be drawn.
-                var hasStart = formatted.Contains("^XA", StringComparison.OrdinalIgnoreCase);
-                var storedOnly = !hasStart && result.MemoryNotes.Count > 0;
-                var (text, title) = storedOnly ? (PlaceholderLabel.StoredText, PlaceholderLabel.StoredTitle)
-                    : hasStart ? (PlaceholderLabel.NotDrawnText, PlaceholderLabel.NotDrawnTitle)
-                    : (PlaceholderLabel.Text, PlaceholderLabel.NotFoundTitle);
-                entries.Add(new LabelEntry(received.ReceivedAt, received.Source, formatted, received.Zpl, received.Complete,
-                    PlaceholderLabel.Create(text), result.Warnings, title));
-                note = storedOnly ? StatusText.ForMemoryNotes(result.MemoryNotes)
-                    : hasStart ? "Data arrived but no label picture could be drawn from it. The ZPL text and the reasons are shown on the right."
-                    : StatusText.ForNoLabel(result.Warnings.Count > 0);
-            }
-            else if (!received.Complete)
-            {
-                // Only claimed when a picture really was made.
-                note = "A label arrived incomplete (no ^XZ at the end). It is shown as far as it arrived."
-                    + (StatusText.ForMemoryNotes(result.MemoryNotes) is { } stored ? " " + stored : "");
-            }
-            else
-            {
-                // A label job that also stored or deleted objects (for example ^IS) says so.
-                note = StatusText.ForMemoryNotes(result.MemoryNotes);
+                job = new LabelJob
+                {
+                    Name = name ?? "",
+                    RemoteAddress = origin == JobOrigin.Printed ? received.Source : null,
+                    Origin = origin,
+                    ReceivedAt = received.ReceivedAt,
+                    Zpl = received.Zpl,
+                    Complete = received.Complete,
+                    Result = result,
+                };
+                _assembler.Remember(received.ConnectionId, job, formatted);
+                if (JobNamer.NeedsLookup(origin, job.RemoteAddress)) _ = ResolveHostAsync(job);
             }
 
-            // BeginInvoke, never Invoke: a closing window must not be able to block the socket thread.
             if (Dispatcher.HasShutdownStarted) return;
-            QueueForUi(new PendingResult(entries, note));
+            QueueForUi(new PendingResult(job, received.ConnectionId, NoteFor(received, result)));
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Could not process a received label");
-            ReportOnUi("A label arrived but LabelScope could not show it. Send it again; details are in the log file.");
+            ReportOnUi(UiText.Get("Ui_LabelFailed"));
+        }
+    }
+
+    /// <summary>
+    /// The message-strip note for one arrival, or null: what a text without a label did, a label cut off, or what a
+    /// label job stored in printer memory. The card says the rest.
+    /// </summary>
+    private static string? NoteFor(ReceivedLabel received, RenderResult result)
+    {
+        if (result.Labels.Count == 0)
+        {
+            // Never drop a job silently; the card and the placeholder picture show what arrived.
+            var hasStart = received.Zpl.Contains("^XA", StringComparison.OrdinalIgnoreCase);
+            if (!hasStart && result.MemoryNotes.Count > 0) return StatusText.ForMemoryNotes(result.MemoryNotes);
+            return hasStart ? UiText.Get("Ui_NotDrawnNote") : StatusText.ForNoLabel(result.Warnings.Count > 0);
+        }
+        if (!received.Complete)
+            return UiText.Get("Ui_IncompleteNote") + (StatusText.ForMemoryNotes(result.MemoryNotes) is { } stored ? " " + stored : "");
+        return StatusText.ForMemoryNotes(result.MemoryNotes);
+    }
+
+    /// <summary>Looks up the sender's host name off the UI thread, then redraws the card with it.</summary>
+    private async Task ResolveHostAsync(LabelJob job)
+    {
+        try
+        {
+            await job.ResolveHostAsync().ConfigureAwait(false);
+            if (_closing || Dispatcher.HasShutdownStarted) return;
+            _ = Dispatcher.BeginInvoke(async () =>
+            {
+                try
+                {
+                    if (_jobs.FirstOrDefault(j => j.Job.Id == job.Id) is not { } vm) return;
+                    // A later label of the same send may have replaced the job object before the answer came; the
+                    // resolver keeps the answer, so asking the newer object again returns at once.
+                    if (vm.Job.ResolvedHost is null) await vm.Job.ResolveHostAsync();
+                    vm.Refresh();
+                    if (vm == _shownJob) ShowPage();
+                }
+                catch (Exception ex) { Log.Warning(ex, "Could not show the sender's host name"); }
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Host name lookup failed");
         }
     }
 
@@ -278,12 +359,11 @@ public partial class MainWindow : Window
         _pendingForUi.Enqueue(result);
 
         var skipped = 0;
-        while (_pendingForUi.Count > MaxPendingForUi && _pendingForUi.TryDequeue(out var dropped))
-            skipped += Math.Max(1, dropped.Entries.Count);
+        while (_pendingForUi.Count > MaxPendingForUi && _pendingForUi.TryDequeue(out _)) skipped++;
         if (skipped > 0)
         {
             Log.Warning("Skipped showing {Skipped} label(s) because they arrived faster than they can be displayed", skipped);
-            ReportOnUi($"Skipped showing {skipped} labels because they arrived faster than they can be displayed. They are listed in the log file.");
+            ReportOnUi(UiText.Get("Ui_SkippedLabels", skipped));
         }
 
         // Only one drain is queued at a time, however many results arrive meanwhile.
@@ -297,41 +377,65 @@ public partial class MainWindow : Window
         // Reset first: a result that arrives while we work schedules the next drain.
         Interlocked.Exchange(ref _drainScheduled, 0);
         while (_pendingForUi.TryDequeue(out var pending))
-            AddEntries(pending.Entries, pending.Note);
+            AddOrUpdateJob(pending);
     }
 
-    /// <summary>Runs on the UI thread: adds the entries to the history and selects the newest.</summary>
-    private void AddEntries(List<LabelEntry> entries, string? note)
+    /// <summary>
+    /// Runs on the UI thread: a new job gets a card at the top; a job that got one more label (same send) updates
+    /// its card in place. A file the user opened or pasted is always shown, because they asked to see it; a printed
+    /// job is shown when "Show the newest job as it arrives" is on (or nothing is shown yet).
+    /// </summary>
+    private void AddOrUpdateJob(PendingResult pending)
     {
         try
         {
             if (_closing) return;
-            // Follow the newest label only when the user is already looking at the newest one (or at nothing);
-            // otherwise leave their selection alone. The ListBox keeps tracking the selected item through Insert(0).
-            // A file the user just opened or pasted is always shown: they asked to see it.
-            var followNewest = HistoryList.SelectedIndex <= 0
-                || entries.Any(x => x.IsLocal);
-            // Insert in reverse so label 1 of a multi-label job ends up above label 2.
-            for (var i = entries.Count - 1; i >= 0; i--) _history.Insert(0, entries[i]);
-            TrimHistory();
-            if (entries.Count > 0 && followNewest) HistoryList.SelectedIndex = 0;
-            if (note is not null) ShowMessage(note);
+            var existing = _jobs.FirstOrDefault(j => j.Job.Id == pending.Job.Id);
+            if (existing is not null)
+            {
+                existing.Replace(pending.Job);
+                if (existing == _shownJob) ShowJob(keepPage: true);
+            }
+            else
+            {
+                var vm = new JobViewModel(pending.Job, pending.ConnectionId);
+                var follow = _settings.ShowNewestJob || pending.Job.Origin != JobOrigin.Printed || HistoryList.SelectedItem is null;
+                // The ListBox keeps tracking the selected card through Insert(0), so "off" leaves the view alone.
+                _jobs.Insert(0, vm);
+                CountArrival(pending.Job.ReceivedAt);
+                TrimHistory();
+                if (follow) HistoryList.SelectedItem = vm;
+            }
+            if (pending.Note is not null) ShowMessage(pending.Note);
+            ScheduleSave();
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Could not add a label to the history");
-            ShowMessage("A label arrived but LabelScope could not show it. Details are in the log file.");
+            Log.Error(ex, "Could not add a job to the list");
+            ShowMessage(UiText.Get("Ui_LabelFailed"));
         }
     }
 
+    /// <summary>Counts one arrival for "N received today"; the count starts again at midnight.</summary>
+    private void CountArrival(DateTimeOffset at)
+    {
+        if (_receivedTodayDate != DateTime.Today)
+        {
+            _receivedTodayDate = DateTime.Today;
+            _receivedToday = 0;
+        }
+        if (at.LocalDateTime.Date == DateTime.Today) _receivedToday++;
+        UpdateReceivedToday();
+    }
+
     /// <summary>
-    /// Drops the oldest entries until both limits hold: HistoryLimit entries at most, and 256 MB of kept data
-    /// at most (see <see cref="HistoryBudget"/>). The history is newest first, so the oldest are at the end.
+    /// Drops the oldest jobs until both limits hold: HistoryLimit jobs at most, and 256 MB of kept data at most
+    /// (pictures, field records and ZPL; see <see cref="HistoryBudget"/>). The list is newest first.
     /// </summary>
     private void TrimHistory()
     {
-        var keep = HistoryBudget.EntriesToKeep(_history.Select(h => h.ApproximateBytes).ToList(), _settings.HistoryLimit);
-        while (_history.Count > keep) _history.RemoveAt(_history.Count - 1);
+        var keep = HistoryBudget.EntriesToKeep(_jobs.Select(j => j.ApproximateBytes).ToList(), _settings.HistoryLimit);
+        while (_jobs.Count > keep) _jobs.RemoveAt(_jobs.Count - 1);
     }
 
     /// <summary>Runs on a socket thread when the listener had to drop a connection.</summary>
@@ -348,7 +452,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Shows a status-bar note from any thread, without ever blocking or touching a closing window.</summary>
+    /// <summary>Shows a message-strip note from any thread, without ever blocking or touching a closing window.</summary>
     private void ReportOnUi(string message)
     {
         if (_closing || Dispatcher.HasShutdownStarted) return;
@@ -358,85 +462,521 @@ public partial class MainWindow : Window
         });
     }
 
-    // ---- showing the selected label ---------------------------------------------------------
-
-    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) => ShowSelected();
+    // ---- draw every job again (language, label size, density) --------------------------------------------
 
     /// <summary>
-    /// Shows the selected job everywhere: picture and captions, ZPL tab, Log tab, status bar and window title.
-    /// Also called after a language switch, because every one of those texts is in the window language.
+    /// Draws every job in the list again from its ZPL with the current label size, density and language, so its
+    /// picture, warnings, Log, field texts and card follow a change. Runs off the UI thread through the same render
+    /// gate as arriving labels; the window stays usable and the cards change when the pass is done.
     /// </summary>
-    private void ShowSelected()
+    /// <remarks>
+    /// The jobs are drawn oldest first into a fresh printer memory, not the live one: replaying their downloads and
+    /// deletes into the live memory would repeat them out of order (a replayed ^ID would delete a graphic that a later
+    /// job downloaded). A label whose graphic came with a job that is no longer in the list then warns about it.
+    /// </remarks>
+    private async Task RerenderAllJobsAsync()
     {
+        var generation = Interlocked.Increment(ref _renderGeneration);
+        var options = OptionsFor(_settings);
+        var fonts = _fonts;
+        var jobs = _jobs.Select(j => j.Job).Reverse().ToList(); // oldest first
+        if (jobs.Count == 0) return;
         try
         {
-            var entry = HistoryList.SelectedItem as LabelEntry;
-            // Only decode again when the job changed; a language switch keeps the picture already shown.
-            if (!ReferenceEquals(LabelImage.Tag, entry))
+            var finished = await Task.Run(() =>
             {
-                // Drop the previous picture first so at most one decoded bitmap is alive.
-                _currentImage = null;
-                LabelImage.Source = null;
-                LabelImage.Tag = entry;
-                ZplView.Text = entry?.Zpl ?? "";
-                if (entry is not null)
+                var renderer = new ZplRenderer(new PrinterMemory(), fonts);
+                foreach (var job in jobs)
                 {
-                    _currentImage = entry.CreateImage();
-                    LabelImage.Source = _currentImage;
+                    if (_closing || Volatile.Read(ref _renderGeneration) != generation) return false;
+                    RenderResult result;
+                    _renderGate.Wait();
+                    try { result = renderer.Render(ZplFormatter.Format(job.Zpl), options); }
+                    finally { _renderGate.Release(); }
+                    // A newer pass started meanwhile: its result wins, this one is dropped.
+                    if (Volatile.Read(ref _renderGeneration) != generation) return false;
+                    job.Result = result;
                 }
-                SelectedText.Text = UiText.Get("Ui_SelectedNone");
-            }
-
-            CopyZplButton.IsEnabled = entry is not null;
-            CopyOriginalButton.IsEnabled = entry is not null;
-            LabelFrame.Visibility = entry is null ? Visibility.Collapsed : Visibility.Visible;
-            EmptyCanvasText.Visibility = entry is null ? Visibility.Visible : Visibility.Collapsed;
-            Title = entry is null ? "LabelScope" : "LabelScope — " + entry.JobName;
-
-            if (entry is null)
-            {
-                TopCaption.Text = SideCaption.Text = "";
-                WarningList.ItemsSource = null;
-                LogEmptyText.Text = UiText.Get("Ui_LogNoLabel");
-                LogEmptyText.Visibility = Visibility.Visible;
-                SelectedText.Text = UiText.Get("Ui_SelectedNone");
-                BarLabelText.Text = BarSizeText.Text = BarLinesText.Text = BarWarningsText.Text = ReceivedText.Text = "";
-                UpdateGrid();
-                UpdateZoomText();
-                return;
-            }
-
-            TopCaption.Text = entry.WidthCaption;
-            SideCaption.Text = entry.HeightCaption;
-            // The longer explanation of where the size came from (^PW/^LL or not) stays one hover away.
-            TopCaption.ToolTip = SideCaption.ToolTip = entry.Info;
-
-            WarningList.ItemsSource = entry.Warnings
-                .Select(w => new WarningRow(w.Line, UiText.Get("Ui_LogLine", w.Line), w.Message)).ToList();
-            LogEmptyText.Text = UiText.Get("Ui_LogEmpty");
-            LogEmptyText.Visibility = entry.Warnings.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-
-            // A job with several labels gives several entries that share the very same received text.
-            var siblings = _history.Where(h => ReferenceEquals(h.OriginalZpl, entry.OriginalZpl)).ToList();
-            var page = siblings.IndexOf(entry) + 1;
-            BarLabelText.Text = UiText.Get("Ui_BarLabel", Math.Max(1, page), Math.Max(1, siblings.Count));
-            BarSizeText.Text = UiText.Get("Ui_BarSize", entry.WidthInches, entry.HeightInches, entry.DisplayDpi) + " · " +
-                               UiText.Get("Ui_BarDots", entry.Label.WidthDots, entry.Label.HeightDots);
-            BarLinesText.Text = UiText.Get("Ui_BarLines", entry.LineCount);
-            BarWarningsText.Text = entry.Warnings.Count == 1 ? UiText.Get("Ui_BarWarningOne")
-                : UiText.Get("Ui_BarWarningMany", entry.Warnings.Count);
-            BarWarningsText.Style = (Style)FindResource(entry.Warnings.Count == 0 ? "StatusTextSuccess" : "StatusTextError");
-            // "Received from This computer at …", but "Pasted at …" for a job that did not arrive over the network.
-            ReceivedText.Text = UiText.Get(entry.IsLocal ? "Ui_ReceivedLocal" : "Ui_ReceivedFrom", entry.SourceText, entry.TimeText);
-
-            OnZoomChanged(this, new RoutedEventArgs());
-            UpdateGrid();
+                return true;
+            });
+            if (!finished || _closing) return;
+            foreach (var vm in _jobs) vm.Refresh();
+            TrimHistory(); // pictures of another size take another amount of memory
+            // The selection as it is now, not as it was when the pass started: the person may have clicked meanwhile.
+            ShowJob(keepPage: true, keepField: FieldKey.Of(_selectedField, _page));
+            Log.Information("Drew {Count} job(s) again", jobs.Count);
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Could not show the selected label");
-            ShowMessage("This label could not be shown. Details are in the log file.");
+            Log.Error(ex, "Drawing the jobs again failed");
+            ShowMessage(UiText.Get("Ui_RerenderFailed"));
         }
+    }
+
+    // ---- keep jobs between runs --------------------------------------------------------------------
+
+    /// <summary>
+    /// Brings back the jobs kept by an earlier run (newest first, up to HistoryLimit), drawn again with today's
+    /// settings into a fresh printer memory, oldest first: nothing of the old printer memory comes back.
+    /// </summary>
+    private async Task LoadKeptJobsAsync()
+    {
+        try
+        {
+            _storeLoaded = true;
+            var (saved, message) = await Task.Run(_store.Load);
+            if (message is not null)
+            {
+                Log.Warning("Kept jobs: {Message}", message);
+                AddStartupNote(message);
+            }
+            if (saved.Count == 0) return;
+
+            var limit = Math.Max(1, _settings.HistoryLimit);
+            var keep = saved.OrderByDescending(s => s.ReceivedAt).Take(limit).Reverse().ToList();
+            var options = OptionsFor(_settings);
+            var fonts = _fonts;
+            var jobs = await Task.Run(() =>
+            {
+                var renderer = new ZplRenderer(new PrinterMemory(), fonts);
+                var list = new List<LabelJob>();
+                foreach (var s in keep)
+                {
+                    if (_closing) break;
+                    RenderResult result;
+                    _renderGate.Wait();
+                    try { result = renderer.Render(ZplFormatter.Format(s.Zpl), options); }
+                    finally { _renderGate.Release(); }
+                    list.Add(LabelJob.FromSaved(s, result));
+                }
+                return list;
+            });
+            if (_closing) return;
+
+            // Oldest first in 'jobs'; the list is newest first and anything that arrived meanwhile is newer.
+            for (var i = jobs.Count - 1; i >= 0; i--)
+            {
+                _jobs.Add(new JobViewModel(jobs[i]));
+                CountArrival(jobs[i].ReceivedAt);
+            }
+            TrimHistory();
+            if (HistoryList.SelectedItem is null && _jobs.Count > 0) HistoryList.SelectedIndex = 0;
+            Log.Information("Kept jobs: {Count} job(s) loaded", jobs.Count);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Loading the kept jobs failed");
+            AddStartupNote(UiText.Get("Ui_KeptJobsFailed"));
+        }
+    }
+
+    /// <summary>Saves the job list 2 seconds after the last change, when "Keep jobs" is on; a burst saves once.</summary>
+    private void ScheduleSave()
+    {
+        if (!_settings.KeepJobs || _closing) return;
+        _saveTimer.Stop();
+        _saveTimer.Start();
+    }
+
+    private async void OnSaveTimer(object? sender, EventArgs e)
+    {
+        _saveTimer.Stop();
+        try { await SaveJobsAsync(); }
+        catch (Exception ex) { Log.Error(ex, "Saving the job list failed"); }
+    }
+
+    /// <summary>
+    /// Writes the job list off the UI thread. Saves never overlap. A failure is shown once (not on every new job)
+    /// until a save works again.
+    /// </summary>
+    private async Task SaveJobsAsync()
+    {
+        if (!_settings.KeepJobs) return;
+        await EnsureStoreLoadedAsync();
+        var jobs = _jobs.Select(j => j.Job).ToList();
+        var limit = _settings.HistoryLimit;
+        await _saveLock.WaitAsync();
+        try
+        {
+            var result = await Task.Run(() => _store.Save(jobs, limit));
+            if (result.Success)
+            {
+                _lastSaveProblem = null;
+            }
+            else if (result.Message != _lastSaveProblem)
+            {
+                _lastSaveProblem = result.Message;
+                Log.Warning("Kept jobs: {Message}", result.Message);
+                ShowMessage(result.Message);
+            }
+        }
+        finally { _saveLock.Release(); }
+    }
+
+    /// <summary>
+    /// Reads the job file once before the first save of the session (when "Keep jobs" was turned on after start),
+    /// so a file written by a newer LabelScope is recognised and never overwritten. Its jobs are not shown: only a
+    /// start brings kept jobs back.
+    /// </summary>
+    private async Task EnsureStoreLoadedAsync()
+    {
+        if (_storeLoaded) return;
+        _storeLoaded = true;
+        var (_, message) = await Task.Run(_store.Load);
+        if (message is not null)
+        {
+            Log.Warning("Kept jobs: {Message}", message);
+            ShowMessage(message);
+        }
+    }
+
+    // ---- showing the selected job ---------------------------------------------------------------------
+
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) => ShowJob();
+
+    /// <summary>
+    /// Shows the selected job everywhere: picture and captions, ZPL, Fields and Log tabs, status bar and window title.
+    /// </summary>
+    /// <param name="keepPage">Stay on the same page (a label was added to the job, or it was drawn again).</param>
+    /// <param name="keepField">The field to select again after a re-render, or null to keep the selection when the
+    /// same page is still shown.</param>
+    private void ShowJob(bool keepPage = false, FieldKey? keepField = null)
+    {
+        try
+        {
+            var vm = HistoryList.SelectedItem as JobViewModel;
+            if (vm != _shownJob)
+            {
+                _shownJob = vm;
+                _page = 0;
+                _selectedField = null;
+            }
+            else if (!keepPage)
+            {
+                _page = 0;
+            }
+            ShowPage(keepField);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Could not show the selected job");
+            ShowMessage(UiText.Get("Ui_ShowFailed"));
+        }
+    }
+
+    /// <summary>
+    /// Shows page <see cref="_page"/> of the shown job. Only what changed is rebuilt: the ZPL text when the job's text
+    /// changed, the picture and the field rows when the page or its drawing changed. Texts are always rewritten, so
+    /// this is also what a language switch calls.
+    /// </summary>
+    private void ShowPage(FieldKey? keepField = null)
+    {
+        var vm = _shownJob;
+        CopyZplButton.IsEnabled = vm is not null;
+        CopyOriginalButton.IsEnabled = vm is not null;
+        LabelFrame.Visibility = vm is null ? Visibility.Collapsed : Visibility.Visible;
+        EmptyCanvasText.Visibility = vm is null ? Visibility.Visible : Visibility.Collapsed;
+        Title = vm is null ? "LabelScope" : "LabelScope — " + vm.Title;
+
+        if (vm is null)
+        {
+            _shownJobInstance = null;
+            _shownPage = null;
+            _shownZpl = "";
+            _selectedField = null;
+            _currentImage = null;
+            LabelImage.Source = null;
+            ZplView.Text = "";
+            TopCaption.Text = SideCaption.Text = "";
+            FieldsList.ItemsSource = null;
+            LogList.ItemsSource = null;
+            FieldsTab.Header = UiText.Get("Ui_TabFields");
+            FieldsEmptyText.Text = LogEmptyText.Text = UiText.Get("Ui_NoJobSelected");
+            FieldsEmptyText.Visibility = LogEmptyText.Visibility = Visibility.Visible;
+            SelectedText.Text = UiText.Get("Ui_SelectedNone");
+            BarLabelText.Text = BarSizeText.Text = BarLinesText.Text = BarErrorsText.Text = ReceivedText.Text = "";
+            PrevPageButton.Visibility = NextPageButton.Visibility = Visibility.Collapsed;
+            OutlineLayer.Children.Clear();
+            UpdateGrid();
+            UpdateZoomText();
+            return;
+        }
+
+        var job = vm.Job;
+        var pages = vm.Pages;
+        _page = Math.Clamp(_page, 0, pages.Count - 1);
+        var page = pages[_page];
+
+        // The ZPL tab holds the whole job; it is only replaced when the job's text changed (a new label arrived).
+        if (!ReferenceEquals(job, _shownJobInstance))
+        {
+            _shownJobInstance = job;
+            _shownZpl = ZplFormatter.Format(job.Zpl);
+            ZplView.Text = _shownZpl;
+        }
+
+        // A new page object means another page or a new drawing of it: decode its picture and rebuild the field rows.
+        var pageChanged = !ReferenceEquals(page, _shownPage);
+        if (pageChanged)
+        {
+            // A new drawing of the same page (re-render, language switch, a label added) keeps the selected field;
+            // another job or page has already cleared it.
+            var oldKey = keepField ?? FieldKey.Of(_selectedField, _page);
+            _shownPage = page;
+            // Drop the previous picture first so at most one decoded bitmap is alive.
+            _currentImage = null;
+            LabelImage.Source = null;
+            _currentImage = page.CreateImage();
+            LabelImage.Source = _currentImage;
+            FieldsList.ItemsSource = page.Fields;
+            _selectedField = oldKey is { } key && key.Page == _page ? key.Find(page.Fields) : null;
+        }
+
+        TopCaption.Text = page.WidthCaption;
+        SideCaption.Text = page.HeightCaption;
+        TopCaption.ToolTip = SideCaption.ToolTip = page.SizeTip.Length > 0 ? page.SizeTip : null;
+
+        FieldsTab.Header = UiText.Get("Ui_TabFieldsCount", page.Fields.Count);
+        FieldsEmptyText.Text = UiText.Get(page.IsPlaceholder ? "Ui_FieldsNoLabel" : "Ui_FieldsEmpty");
+        FieldsEmptyText.Visibility = page.Fields.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        LogList.ItemsSource = vm.LogRows;
+        LogEmptyText.Visibility = Visibility.Collapsed; // a job always logs at least its arrival
+
+        // Status bar: page, size, lines and fields, errors (green at 0), and where the job came from.
+        var many = pages.Count > 1;
+        PrevPageButton.Visibility = NextPageButton.Visibility = many ? Visibility.Visible : Visibility.Collapsed;
+        PrevPageButton.IsEnabled = _page > 0;
+        NextPageButton.IsEnabled = _page < pages.Count - 1;
+        BarLabelText.Text = UiText.Get("Ui_BarLabel", _page + 1, pages.Count);
+        BarSizeText.Text = UiText.Get("Ui_BarSize", page.WidthInches, page.HeightInches, page.DisplayDpi) + " · " +
+                           UiText.Get("Ui_BarDots", page.Label.WidthDots, page.Label.HeightDots);
+        BarLinesText.Text = UiText.Get("Ui_BarLinesFields", job.LineCount, page.Fields.Count);
+        var errors = vm.ErrorCount;
+        BarErrorsText.Text = errors == 1 ? UiText.Get("Ui_BarErrorOne") : UiText.Get("Ui_BarErrorMany", errors);
+        BarErrorsText.Style = (Style)FindResource(errors == 0 ? "StatusTextSuccess" : "StatusTextError");
+        ReceivedText.Text = ReceivedLine(job);
+
+        if (pageChanged) OnZoomChanged(this, new RoutedEventArgs());
+        UpdateGrid();
+        ApplyFieldSelection(scroll: pageChanged);
+    }
+
+    /// <summary>
+    /// "Received from WMS at 14:31:40", "Received from this computer at …", "Opened from file at …" or "Pasted at …":
+    /// a whole sentence per case, so a source never appears with a capital letter in the middle of one.
+    /// </summary>
+    private static string ReceivedLine(LabelJob job)
+    {
+        var time = job.ReceivedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+        return job.Origin switch
+        {
+            JobOrigin.OpenedFromFile => UiText.Get("Ui_ReceivedFile", time),
+            JobOrigin.Pasted => UiText.Get("Ui_ReceivedPasted", time),
+            _ when IsThisComputer(job.RemoteAddress) => UiText.Get("Ui_ReceivedThisComputer", time),
+            _ => UiText.Get("Ui_ReceivedFrom", job.DisplaySource, time),
+        };
+    }
+
+    /// <summary>True when the sender is this computer: no address, or a loopback address (IPv4 in IPv6 form too).</summary>
+    private static bool IsThisComputer(string? address)
+    {
+        if (string.IsNullOrWhiteSpace(address)) return true;
+        if (!IPAddress.TryParse(address.Trim(), out var ip)) return false;
+        if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
+        return IPAddress.IsLoopback(ip);
+    }
+
+    private void OnPrevPage(object sender, RoutedEventArgs e) => GoToPage(_page - 1);
+
+    private void OnNextPage(object sender, RoutedEventArgs e) => GoToPage(_page + 1);
+
+    /// <summary>Shows another label of the shown job; the field selection does not carry over to another label.</summary>
+    private void GoToPage(int page)
+    {
+        if (_shownJob is null || page < 0 || page >= _shownJob.Pages.Count || page == _page) return;
+        _page = page;
+        _selectedField = null;
+        ZplView.HighlightLine(null);
+        ShowPage();
+    }
+
+    // ---- selecting a field ---------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Names a field across a re-render: the page, its line, its kind, and which of the fields with that line and
+    /// kind it is. A re-render makes new field objects, so the old object cannot be looked up by reference.
+    /// </summary>
+    private sealed record FieldKey(int Page, int Line, FieldKind Kind, int Index)
+    {
+        /// <summary>The key of the selected row on <paramref name="page"/>, or null when nothing is selected.</summary>
+        public static FieldKey? Of(FieldRowViewModel? row, int page) =>
+            row is null ? null : new FieldKey(page, row.Field.Line, row.Field.Kind, row.Index);
+
+        /// <summary>The matching row in <paramref name="rows"/>, or null.</summary>
+        public FieldRowViewModel? Find(IReadOnlyList<FieldRowViewModel> rows)
+        {
+            // Same index first (the usual case: the same ZPL draws the same fields in the same order) ...
+            if (Index < rows.Count && rows[Index].Field.Line == Line && rows[Index].Field.Kind == Kind) return rows[Index];
+            // ... otherwise the first field drawn from the same line with the same kind.
+            return rows.FirstOrDefault(r => r.Field.Line == Line && r.Field.Kind == Kind);
+        }
+    }
+
+    /// <summary>
+    /// Selects <paramref name="row"/> (or nothing) everywhere at once: outline on the label, Fields row, highlighted
+    /// ZPL line and the footer.
+    /// </summary>
+    private void SelectField(FieldRowViewModel? row)
+    {
+        _selectedField = row;
+        ApplyFieldSelection(scroll: true);
+    }
+
+    /// <summary>Shows <see cref="_selectedField"/> in the Fields tab, the ZPL tab, the footer and the outline layer.</summary>
+    private void ApplyFieldSelection(bool scroll)
+    {
+        var row = _selectedField;
+        _settingFieldList = true;
+        try
+        {
+            FieldsList.SelectedItem = row;
+            if (row is not null && scroll) FieldsList.ScrollIntoView(row);
+        }
+        finally { _settingFieldList = false; }
+
+        if (row is not null)
+        {
+            ZplView.HighlightLine(row.Field.Line);
+            SelectedText.Text = row.FooterText;
+        }
+        else if (_selectedLine is { } line && _shownJob is not null)
+        {
+            ZplView.HighlightLine(line);
+            SelectedText.Text = UiText.Get("Ui_SelectedLine", line);
+        }
+        else
+        {
+            ZplView.HighlightLine(null);
+            SelectedText.Text = UiText.Get("Ui_SelectedNone");
+        }
+        DrawOutlines();
+    }
+
+    // A ZPL line chosen that drew no field (^XA, ^PW, a comment); shown highlighted until another selection.
+    private int? _selectedLine;
+
+    /// <summary>Esc: nothing selected any more.</summary>
+    private void ClearSelection()
+    {
+        _selectedLine = null;
+        SelectField(null);
+    }
+
+    /// <summary>
+    /// A ZPL line was chosen (clicked in the ZPL tab, or a Log entry): select the first field drawn from it, on this
+    /// label or on another label of the job; a line that drew nothing is only highlighted.
+    /// </summary>
+    private void SelectLine(int line)
+    {
+        if (_shownJob is null) return;
+        var pages = _shownJob.Pages;
+        // The page on screen first, then the others in order.
+        foreach (var index in Enumerable.Range(0, pages.Count).OrderBy(i => i == _page ? -1 : i))
+        {
+            var rows = pages[index].Fields;
+            if (FieldHitTest.FirstOnLine(pages[index].Label.Fields, line) is not { } field) continue;
+            if (index != _page)
+            {
+                _page = index;
+                _selectedField = null;
+                ShowPage();
+            }
+            _selectedLine = null;
+            SelectField(rows.First(r => ReferenceEquals(r.Field, field)));
+            return;
+        }
+        _selectedLine = line;
+        SelectField(null);
+    }
+
+    /// <summary>A click on the label: select the smallest field under the mouse, or nothing when it hit no field.</summary>
+    private void OnLabelClicked(object sender, MouseButtonEventArgs e)
+    {
+        if (_shownPage is not { IsPlaceholder: false } page || LabelImage.Source is not BitmapSource src
+            || src.PixelWidth == 0 || LabelImage.ActualWidth <= 0) return;
+        var scale = LabelImage.ActualWidth / src.PixelWidth; // screen pixels per label dot
+        var p = e.GetPosition(LabelImage);
+        var x = (int)Math.Floor(p.X / scale);
+        var y = (int)Math.Floor(p.Y / scale);
+        // About three screen pixels of slack, so a thin line shown small can still be hit.
+        var slop = (int)Math.Ceiling(3 / scale);
+        var field = FieldHitTest.Find(page.Label.Fields, x, y, slop);
+        _selectedLine = null;
+        SelectField(field is null ? null : page.Fields.First(r => ReferenceEquals(r.Field, field)));
+        e.Handled = true;
+    }
+
+    /// <summary>A row of the Fields tab was chosen (mouse or arrow keys): select that field everywhere.</summary>
+    private void OnFieldRowSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (_settingFieldList) return;
+        _selectedLine = null;
+        _selectedField = FieldsList.SelectedItem as FieldRowViewModel;
+        ApplyFieldSelection(scroll: false);
+    }
+
+    /// <summary>A line of the ZPL was clicked.</summary>
+    private void OnZplLineClicked(int line) => SelectLine(line);
+
+    /// <summary>Esc clears the selection, unless it is closing an open drop-down list.</summary>
+    private void OnWindowKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || SizePicker.IsDropDownOpen || LanguagePicker.IsDropDownOpen) return;
+        if (_selectedField is null && _selectedLine is null) return;
+        ClearSelection();
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Draws the outlines over the label: a thin red box around every field that is not completely on the label
+    /// (a barcode that will not scan is obvious at a glance), and the dashed blue box of the selected field.
+    /// </summary>
+    private void DrawOutlines()
+    {
+        OutlineLayer.Children.Clear();
+        if (_shownPage is not { } page || LabelImage.Source is not BitmapSource src || src.PixelWidth == 0
+            || LabelImage.ActualWidth <= 0) return;
+        var scale = LabelImage.ActualWidth / src.PixelWidth;
+
+        var drawn = 0;
+        foreach (var f in page.Label.Fields)
+        {
+            if (f.Problem is null) continue;
+            if (++drawn > MaxProblemOutlines) break;
+            AddOutline(f, scale, (Media.Brush)FindResource("ErrorBrush"), dashed: false);
+        }
+        if (_selectedField is { } row) AddOutline(row.Field, scale, (Media.Brush)FindResource("PrimaryBrush"), dashed: true);
+    }
+
+    private void AddOutline(LabelField f, double scale, Media.Brush brush, bool dashed)
+    {
+        if (f.Width <= 0 || f.Height <= 0) return; // not drawn: nothing on the label to outline
+        // Outside the field, so the outline never covers the ink it marks; the selection sits further out than a
+        // problem outline so both stay visible on a field that has both.
+        var gap = dashed ? 4.0 : 2.0;
+        var rect = new Rectangle
+        {
+            Width = f.Width * scale + 2 * gap,
+            Height = f.Height * scale + 2 * gap,
+            Stroke = brush,
+            StrokeThickness = dashed ? 1.5 : 1.25,
+            SnapsToDevicePixels = true,
+        };
+        if (dashed) rect.StrokeDashArray = [3, 2];
+        Canvas.SetLeft(rect, f.X * scale - gap);
+        Canvas.SetTop(rect, f.Y * scale - gap);
+        OutlineLayer.Children.Add(rect);
     }
 
     // ---- zoom --------------------------------------------------------------------------------------
@@ -509,8 +1049,8 @@ public partial class MainWindow : Window
         LabelImage.Height = src.PixelHeight * scale;
         // Shrinking with nearest-neighbour makes thin barcode bars vanish; smooth scaling keeps them visible.
         // Enlarging keeps sharp pixels so every dot can be counted.
-        System.Windows.Media.RenderOptions.SetBitmapScalingMode(LabelImage,
-            scale >= 1 ? System.Windows.Media.BitmapScalingMode.NearestNeighbor : System.Windows.Media.BitmapScalingMode.HighQuality);
+        Media.RenderOptions.SetBitmapScalingMode(LabelImage,
+            scale >= 1 ? Media.BitmapScalingMode.NearestNeighbor : Media.BitmapScalingMode.HighQuality);
         UpdateZoomText();
     }
 
@@ -598,9 +1138,8 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Shows or hides the 10 mm measuring grid over the picture. The grid is a tiled drawing whose tile is one
-    /// cell, sized from the print resolution and the current display scale (pixels shown per label dot).
-    /// It is a separate element above the picture, so Save PNG (the stored PNG bytes) and Copy image (a bitmap
-    /// decoded from those bytes) never contain it.
+    /// cell, sized from the print resolution of the shown label and the current display scale (pixels per label
+    /// dot). It is a separate element above the picture, so Save PNG and Copy image never contain it.
     /// </summary>
     private void UpdateGrid()
     {
@@ -612,7 +1151,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        var cell = LabelGrid.CellDots(_settings.DefaultDpi) * (LabelImage.ActualWidth / src.PixelWidth);
+        // The label's own resolution: a label drawn before a density change keeps the dots it was drawn with.
+        var dpi = _shownPage?.DisplayDpi ?? _settings.DefaultDpi;
+        var cell = LabelGrid.CellDots(dpi) * (LabelImage.ActualWidth / src.PixelWidth);
         if (cell < 6)
         {
             GridOverlay.Visibility = Visibility.Collapsed; // lines closer than this are just a grey wash
@@ -621,67 +1162,93 @@ public partial class MainWindow : Window
 
         // The tile is drawn in a 100 x 100 coordinate space and scaled to 'cell' pixels, so the pen thickness is
         // given in that space: 200 / cell gives about two pixels, of which half is clipped at the tile edge.
-        // Types are qualified because the Core namespace also has a RenderOptions class.
-        var pen = new System.Windows.Media.Pen(
-            new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(90, 0, 120, 255)), 200.0 / cell);
-        var lines = new System.Windows.Media.GeometryGroup();
-        lines.Children.Add(new System.Windows.Media.LineGeometry(new Point(0, 0), new Point(100, 0)));
-        lines.Children.Add(new System.Windows.Media.LineGeometry(new Point(0, 0), new Point(0, 100)));
-        GridOverlay.Fill = new System.Windows.Media.DrawingBrush(new System.Windows.Media.GeometryDrawing(null, pen, lines))
+        var pen = new Media.Pen(new Media.SolidColorBrush(Media.Color.FromArgb(90, 0, 120, 255)), 200.0 / cell);
+        var lines = new Media.GeometryGroup();
+        lines.Children.Add(new Media.LineGeometry(new Point(0, 0), new Point(100, 0)));
+        lines.Children.Add(new Media.LineGeometry(new Point(0, 0), new Point(0, 100)));
+        GridOverlay.Fill = new Media.DrawingBrush(new Media.GeometryDrawing(null, pen, lines))
         {
-            TileMode = System.Windows.Media.TileMode.Tile,
-            ViewboxUnits = System.Windows.Media.BrushMappingMode.Absolute,
+            TileMode = Media.TileMode.Tile,
+            ViewboxUnits = Media.BrushMappingMode.Absolute,
             Viewbox = new Rect(0, 0, 100, 100),
-            ViewportUnits = System.Windows.Media.BrushMappingMode.Absolute,
+            ViewportUnits = Media.BrushMappingMode.Absolute,
             Viewport = new Rect(0, 0, cell, cell),
         };
         GridOverlay.Visibility = Visibility.Visible;
     }
 
-    /// <summary>
-    /// A warning in the Log tab was clicked: show the ZPL tab with the line that caused it highlighted.
-    /// </summary>
-    private void OnWarningSelected(object sender, SelectionChangedEventArgs e)
+    // ---- Log tab --------------------------------------------------------------------------------------
+
+    /// <summary>The "Line N" link of a Log row: show that line and its field.</summary>
+    private void OnLogLineLink(object sender, RoutedEventArgs e)
     {
-        if (WarningList.SelectedItem is not WarningRow warning) return;
-        DetailTabs.SelectedItem = ZplTab;
-        ZplView.HighlightLine(warning.Line);
-        SelectedText.Text = UiText.Get("Ui_SelectedWarning", warning.Line, warning.Message.ReplaceLineEndings(" "));
-        // Clear the selection (the handler returns on null) so clicking the same warning again works again.
-        WarningList.SelectedItem = null;
+        if ((sender as FrameworkElement)?.DataContext is LogRow row) JumpToLogRow(row);
     }
 
-    /// <summary>A line of the ZPL was clicked: highlight it and name it in the footer.</summary>
-    private void OnZplLineClicked(int line)
+    /// <summary>Enter on a Log row jumps to its line; the arrow keys only move between rows.</summary>
+    private void OnLogKeyDown(object sender, KeyEventArgs e)
     {
-        ZplView.HighlightLine(line);
-        SelectedText.Text = UiText.Get("Ui_SelectedLine", line);
+        if (e.Key != Key.Enter || LogList.SelectedItem is not LogRow row) return;
+        JumpToLogRow(row);
+        e.Handled = true;
+    }
+
+    /// <summary>A double-click on a Log row jumps to its line.</summary>
+    private void OnLogDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (LogList.SelectedItem is LogRow row) JumpToLogRow(row);
+    }
+
+    /// <summary>Shows the ZPL tab with the row's line highlighted and its field selected on the label.</summary>
+    private void JumpToLogRow(LogRow row)
+    {
+        if (row.Line is not { } line) return;
+        DetailTabs.SelectedItem = ZplTab;
+        SelectLine(line);
     }
 
     // ---- window texts, language and status line ------------------------------------------------------
 
     /// <summary>
     /// Sets every fixed text of the window in the current language. Called once at start and again after a language
-    /// switch; texts that depend on the selected job are set by <see cref="ShowSelected"/>.
+    /// switch; texts that depend on the shown job are set by <see cref="ShowPage"/>.
     /// </summary>
     private void ApplyTexts()
     {
         OpenFileButton.Content = UiText.Get("Ui_OpenFile");
         OpenFileButton.ToolTip = UiText.Get("Ui_OpenFileTip");
-        PasteButton.Content = UiText.Get("Ui_PasteZpl");
         PasteButton.ToolTip = UiText.Get("Ui_PasteZplTip");
-        CopyZplButton.Content = UiText.Get("Ui_CopyZpl");
         CopyZplButton.ToolTip = UiText.Get("Ui_CopyZplTip");
-        SavePngButton.Content = UiText.Get("Ui_SavePng");
-        ClearJobsButton.Content = UiText.Get("Ui_ClearJobs");
         ClearJobsButton.ToolTip = UiText.Get("Ui_ClearJobsTip");
         ZoomOutButton.ToolTip = UiText.Get("Ui_ZoomOut");
         ZoomInButton.ToolTip = UiText.Get("Ui_ZoomIn");
         FitButton.ToolTip = UiText.Get("Ui_FitTip");
         SizePicker.ToolTip = UiText.Get("Ui_SizePickerTip");
         LanguagePicker.ToolTip = UiText.Get("Ui_LanguageTip");
-        PrinterSetupButton.Content = UiText.Get("Ui_PrinterSetup");
         MoreButton.ToolTip = UiText.Get("Ui_More");
+        PrevPageButton.ToolTip = UiText.Get("Ui_PrevLabel");
+        NextPageButton.ToolTip = UiText.Get("Ui_NextLabel");
+        DismissMessageButton.ToolTip = UiText.Get("Ui_DismissMessage");
+
+        // Buttons that show only an icon (always, or when the toolbar is narrow) still need a name for screen
+        // readers; the name is the text the button shows when there is room.
+        SetName(OpenFileButton, "Ui_OpenFile");
+        SetName(PasteButton, "Ui_PasteZpl");
+        SetName(CopyZplButton, "Ui_CopyZpl");
+        SetName(SavePngButton, "Ui_SavePng");
+        SetName(ClearJobsButton, "Ui_ClearJobs");
+        SetName(PrinterSetupButton, "Ui_PrinterSetup");
+        SetName(ZoomOutButton, "Ui_ZoomOut");
+        SetName(ZoomInButton, "Ui_ZoomIn");
+        SetName(MoreButton, "Ui_More");
+        SetName(PrevPageButton, "Ui_PrevLabel");
+        SetName(NextPageButton, "Ui_NextLabel");
+        SetName(DismissMessageButton, "Ui_DismissMessage");
+        System.Windows.Automation.AutomationProperties.SetName(SizePicker, UiText.Get("Ui_SizePickerName"));
+        System.Windows.Automation.AutomationProperties.SetName(LanguagePicker, UiText.Get("Ui_LanguageTip"));
+        System.Windows.Automation.AutomationProperties.SetName(FieldsList, UiText.Get("Ui_TabFields"));
+        System.Windows.Automation.AutomationProperties.SetName(LogList, UiText.Get("Ui_TabLog"));
+        System.Windows.Automation.AutomationProperties.SetName(HistoryList, UiText.Get("Ui_PrintJobs"));
 
         InstallItem.Header = UiText.Get("Ui_InstallPrinter");
         InstallItem.ToolTip = UiText.Get("Ui_InstallPrinterTip");
@@ -699,9 +1266,7 @@ public partial class MainWindow : Window
 
         JobsTitleText.Text = UiText.Get("Ui_PrintJobs");
         ZplTab.Header = UiText.Get("Ui_TabZpl");
-        FieldsTab.Header = UiText.Get("Ui_TabFields");
         LogTab.Header = UiText.Get("Ui_TabLog");
-        FieldsPlaceholderText.Text = UiText.Get("Ui_FieldsComingSoon");
         EmptyCanvasText.Text = UiText.Get("Ui_EmptyCanvas", _settings.PrinterName);
 
         UpdateStatusLine();
@@ -712,10 +1277,18 @@ public partial class MainWindow : Window
         MeasureFullToolbar();
     }
 
+    private static void SetName(DependencyObject element, string key) =>
+        System.Windows.Automation.AutomationProperties.SetName(element, UiText.Get(key));
+
     // ---- toolbar fit -------------------------------------------------------------------------------
 
-    // How many buttons of CompactOrder currently show only their icon (0 = every label shown).
+    // How many buttons of CompactOrder currently show only their icon (-1 = not set yet).
     private int _compactCount = -1;
+
+    // Measured once per set of texts (start, language switch): the width of both toolbar halves with every text, and
+    // what each button gives back when it drops its text. A resize then only does arithmetic, never a layout pass.
+    private double _fullToolbarWidth;
+    private double[] _textSavings = [];
 
     /// <summary>
     /// The flat buttons that drop their text when the toolbar runs out of room, in the order they do so: the least
@@ -723,10 +1296,42 @@ public partial class MainWindow : Window
     /// </summary>
     private Button[] CompactOrder => [ClearJobsButton, SavePngButton, CopyZplButton, PasteButton, PrinterSetupButton];
 
-    /// <summary>Re-checks the toolbar after its texts changed (start, language switch).</summary>
+    /// <summary>The text a button of <see cref="CompactOrder"/> shows when there is room.</summary>
+    private string FullText(Button button) =>
+        button == PasteButton ? UiText.Get("Ui_PasteZpl")
+        : button == CopyZplButton ? UiText.Get("Ui_CopyZpl")
+        : button == SavePngButton ? UiText.Get("Ui_SavePng")
+        : button == ClearJobsButton ? UiText.Get("Ui_ClearJobs")
+        : UiText.Get("Ui_PrinterSetup");
+
+    /// <summary>
+    /// Measures the toolbar after its texts changed (start, language switch): once with every text and once with
+    /// only icons. Two layout passes per language switch, none per resize.
+    /// </summary>
     private void MeasureFullToolbar()
     {
-        _compactCount = -1; // forces the texts to be written again in the new language
+        if (ToolbarBar is null) return;
+        var buttons = CompactOrder;
+        var unlimited = new Size(double.PositiveInfinity, double.PositiveInfinity);
+
+        _compactCount = -1;
+        SetCompactCount(0);
+        // A changed button text only reaches the panels' sizes after a layout pass.
+        ToolbarBar.UpdateLayout();
+        ToolbarLeft.Measure(unlimited);
+        ToolbarRight.Measure(unlimited);
+        _fullToolbarWidth = ToolbarLeft.DesiredSize.Width + ToolbarRight.DesiredSize.Width;
+        var full = buttons.Select(b => b.DesiredSize.Width).ToArray();
+
+        SetCompactCount(buttons.Length);
+        ToolbarBar.UpdateLayout();
+        _textSavings = buttons.Select((b, i) =>
+        {
+            b.Measure(unlimited);
+            return Math.Max(0, full[i] - b.DesiredSize.Width);
+        }).ToArray();
+
+        _compactCount = -1;
         UpdateToolbarFit();
     }
 
@@ -737,29 +1342,17 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Drops button texts one at a time, in <see cref="CompactOrder"/>, until the toolbar fits the window, so a
-    /// narrow window keeps as many labels as it can. Each step is measured with unlimited room, because laid-out
-    /// sizes are clipped to the window and would always "fit".
+    /// narrow window keeps as many labels as it can. Uses the widths measured by <see cref="MeasureFullToolbar"/>.
     /// </summary>
     private void UpdateToolbarFit()
     {
-        if (ToolbarBar is null) return;
+        if (ToolbarBar is null || _textSavings.Length == 0) return;
         var available = ToolbarBar.ActualWidth - ToolbarBar.Padding.Left - ToolbarBar.Padding.Right - 16; // 16: gap
-        var buttons = CompactOrder;
         var count = 0;
         if (available > 0)
         {
-            var unlimited = new Size(double.PositiveInfinity, double.PositiveInfinity);
-            for (; count <= buttons.Length; count++)
-            {
-                SetCompactCount(count);
-                // A changed button text only reaches the panels' sizes after a layout pass; without it the
-                // measure below would return the size from before the change.
-                ToolbarBar.UpdateLayout();
-                ToolbarLeft.Measure(unlimited);
-                ToolbarRight.Measure(unlimited);
-                if (ToolbarLeft.DesiredSize.Width + ToolbarRight.DesiredSize.Width <= available) break;
-            }
-            count = Math.Min(count, buttons.Length);
+            var width = _fullToolbarWidth;
+            while (count < _textSavings.Length && width > available) width -= _textSavings[count++];
         }
         SetCompactCount(count);
     }
@@ -773,17 +1366,15 @@ public partial class MainWindow : Window
         for (var i = 0; i < buttons.Length; i++)
         {
             var button = buttons[i];
-            var text = button == PasteButton ? UiText.Get("Ui_PasteZpl")
-                : button == CopyZplButton ? UiText.Get("Ui_CopyZpl")
-                : button == SavePngButton ? UiText.Get("Ui_SavePng")
-                : button == ClearJobsButton ? UiText.Get("Ui_ClearJobs")
-                : UiText.Get("Ui_PrinterSetup");
+            var text = FullText(button);
             var compact = i < count;
             button.Content = compact ? null : text;
             // Without its text the button still needs a name on hover; buttons with their own tip keep it.
             if (button == SavePngButton || button == PrinterSetupButton) button.ToolTip = compact ? text : null;
         }
     }
+
+    // ---- language -------------------------------------------------------------------------------------
 
     /// <summary>Selects the picker entry of the current language without running the switch itself.</summary>
     private void SelectLanguageInPicker()
@@ -798,46 +1389,49 @@ public partial class MainWindow : Window
     private bool _changingLanguagePicker;
 
     /// <summary>
-    /// English / Español was chosen: switch the language of the window and of Core's messages, then redraw every text.
-    /// Warnings of jobs already in the list keep the language they were made in until those jobs are rendered again.
+    /// English / Español was chosen: save it as the Language setting (so the next start uses it too), switch the
+    /// window and Core's messages, and draw every job again so its warnings and field texts change language.
     /// </summary>
     private void OnLanguageChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_changingLanguagePicker || LanguagePicker.SelectedItem is not ComboBoxItem { Tag: string code }) return;
-        if (Text.Culture.TwoLetterISOLanguageName == code) return;
-        SwitchLanguage(new System.Globalization.CultureInfo(code));
+        if (_changingLanguagePicker || !IsLoaded || LanguagePicker.SelectedItem is not ComboBoxItem { Tag: string code }) return;
+        if (Text.Culture.TwoLetterISOLanguageName == code && _settings.Language == code) return;
+        if (!SaveSettingsChange(s => s.Language = code))
+        {
+            // Not saved (the message says why), but the person asked for this language now.
+            SwitchLanguage(new CultureInfo(code));
+            _ = RerenderAllJobsAsync();
+        }
     }
 
     /// <summary>
     /// The culture for the Language setting: "en" or "es" as chosen, and for "" the same rule Core uses by default
     /// (Spanish when the Windows display language is Spanish, otherwise English).
     /// </summary>
-    private static System.Globalization.CultureInfo CultureForSetting(string? language) =>
+    private static CultureInfo CultureForSetting(string? language) =>
         new(language is "en" or "es"
             ? language
-            : System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "es" : "en");
+            : CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "es" : "en");
 
     /// <summary>
-    /// Changes the language of the window and of Core's messages, then redraws every text. Used by the toolbar
-    /// language picker and after Printer setup is saved.
+    /// Changes the language of the window and of Core's messages, then rewrites every text. The jobs' own warnings
+    /// and field texts change when they are drawn again (the caller starts that).
     /// </summary>
-    private void SwitchLanguage(System.Globalization.CultureInfo culture)
+    private void SwitchLanguage(CultureInfo culture)
     {
         try
         {
             Text.Culture = culture;
+            SelectLanguageInPicker();
             ApplyTexts();
-            // The job cards compute their texts on each read; refreshing the list makes them read again.
-            HistoryList.Items.Refresh();
-            ShowSelected();
-            // The footer named a line in the old language; start fresh rather than leave mixed languages.
-            ZplView.HighlightLine(null);
-            SelectedText.Text = UiText.Get("Ui_SelectedNone");
+            // The job cards build their texts on each read; asking them to read again redraws them.
+            foreach (var vm in _jobs) vm.Refresh();
+            ShowPage();
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Could not switch the language");
-            ShowMessage("The language could not be changed. Details are in the log file.");
+            ShowMessage(UiText.Get("Ui_LanguageFailed"));
         }
     }
 
@@ -881,7 +1475,7 @@ public partial class MainWindow : Window
 
         StatusLineText.Text = text;
         StatusLineText.ToolTip = address;
-        var brush = (System.Windows.Media.Brush)FindResource(ok ? "SuccessBrush" : "ErrorBrush");
+        var brush = (Media.Brush)FindResource(ok ? "SuccessBrush" : "ErrorBrush");
         StatusLineText.Foreground = brush;
         StatusIcon.Foreground = brush;
         StatusIcon.Text = (string)FindResource(ok ? "IconCheck" : "IconError");
@@ -891,57 +1485,183 @@ public partial class MainWindow : Window
     private void UpdateReceivedToday()
     {
         if (ReceivedTodayText is null) return;
-        var today = DateTime.Today;
-        // Counts jobs, not labels: the labels of one job share the very same received text.
-        var jobs = _history.Where(h => h.At.LocalDateTime.Date == today)
-                           .Select(h => h.OriginalZpl).Distinct(ReferenceEqualityComparer.Instance).Count();
-        ReceivedTodayText.Text = UiText.Get("Ui_ReceivedToday", jobs);
+        if (_receivedTodayDate != DateTime.Today)
+        {
+            _receivedTodayDate = DateTime.Today;
+            _receivedToday = 0;
+        }
+        ReceivedTodayText.Text = UiText.Get("Ui_ReceivedToday", _receivedToday);
     }
 
+    // ---- label size picker -----------------------------------------------------------------------------
+
+    /// <summary>What an entry of the size picker does.</summary>
+    private sealed record SizeChoice(LabelSize? Size, int? Dpi, bool Custom);
+
+    // True while code (not the user) fills or selects the size picker, so no change runs.
+    private bool _changingSizePicker;
+
+    /// <summary>The densities offered, as in Printer setup.</summary>
+    private static readonly int[] OfferedDpis = [203, 300, 600];
+
     /// <summary>
-    /// The size picker shows the label loaded in the printer (LabelWidthMm × LabelHeightMm, in inches) at the
-    /// DefaultDpi setting. Read-only: the size is chosen in Printer setup.
+    /// Fills the size picker: every preset size at the current density ("4 × 6 in · 203 dpi"), the other densities
+    /// for the current size, and "Custom…" (Printer setup). The entry of the current label is selected; a size that
+    /// is not a preset gets its own entry at the top.
     /// </summary>
     private void UpdateSizePicker()
     {
         if (SizePicker is null) return;
-        var text = UiText.Get("Ui_SizePicker",
-            LabelSizes.Format(_settings.LabelWidthMm / LabelSizes.MmPerInch),
-            LabelSizes.Format(_settings.LabelHeightMm / LabelSizes.MmPerInch), _settings.DefaultDpi);
-        SizePicker.ItemsSource = new[] { text };
-        SizePicker.SelectedIndex = 0;
+        _changingSizePicker = true;
+        try
+        {
+            var dpi = _settings.DefaultDpi;
+            var widthIn = _settings.LabelWidthMm / LabelSizes.MmPerInch;
+            var heightIn = _settings.LabelHeightMm / LabelSizes.MmPerInch;
+            var current = LabelSizes.Find(_settings.LabelWidthMm, _settings.LabelHeightMm);
+            var items = new List<ComboBoxItem>();
+            ComboBoxItem? selected = null;
+            if (current is null)
+            {
+                selected = Item(UiText.Get("Ui_SizePicker", LabelSizes.Format(widthIn), LabelSizes.Format(heightIn), dpi),
+                    new SizeChoice(null, null, false));
+                items.Add(selected);
+            }
+            foreach (var preset in LabelSizes.Presets)
+            {
+                var item = Item(UiText.Get("Ui_SizePicker", LabelSizes.Format(preset.WidthIn), LabelSizes.Format(preset.HeightIn), dpi),
+                    new SizeChoice(preset, null, false));
+                if (preset == current) selected = item;
+                items.Add(item);
+            }
+            foreach (var other in OfferedDpis.Where(d => d != dpi))
+            {
+                var item = Item(UiText.Get("Ui_SizePickerDpi", LabelSizes.Format(widthIn), LabelSizes.Format(heightIn), other),
+                    new SizeChoice(null, other, false));
+                item.BorderBrush = (Media.Brush)FindResource("CardBorderBrush");
+                items.Add(item);
+            }
+            items.Add(Item(UiText.Get("Ui_SizePickerCustom"), new SizeChoice(null, null, true)));
+            SizePicker.ItemsSource = items;
+            SizePicker.SelectedItem = selected;
+        }
+        finally { _changingSizePicker = false; }
+
+        static ComboBoxItem Item(string text, SizeChoice choice) => new() { Content = text, Tag = choice };
+    }
+
+    /// <summary>
+    /// An entry of the size picker was chosen: save the size or density (as Printer setup would) and draw every job
+    /// again; "Custom…" opens Printer setup.
+    /// </summary>
+    private void OnSizePicked(object sender, SelectionChangedEventArgs e)
+    {
+        if (_changingSizePicker || !IsLoaded || SizePicker.SelectedItem is not ComboBoxItem { Tag: SizeChoice choice }) return;
+        if (choice.Custom)
+        {
+            UpdateSizePicker(); // back to the current label while the screen is open
+            OnPrinterSetup(sender, e);
+            return;
+        }
+        if (choice.Size is { } size)
+        {
+            if (LabelSizes.Find(_settings.LabelWidthMm, _settings.LabelHeightMm) == size) return;
+            // Rounded as Printer setup does, so the file shows 57.15 rather than 57.150000000000006.
+            SaveSettingsChange(s =>
+            {
+                s.LabelWidthMm = Math.Round(size.WidthMm, 3);
+                s.LabelHeightMm = Math.Round(size.HeightMm, 3);
+            });
+        }
+        else if (choice.Dpi is { } dpi)
+        {
+            SaveSettingsChange(s => s.DefaultDpi = dpi);
+        }
+    }
+
+    /// <summary>
+    /// Saves one change made in the toolbar the same way Printer setup saves: settings.json is read again, only this
+    /// change is put on top (other keys keep what the file holds now), the file is written, and the result is taken
+    /// into use. On failure the message says why and nothing changes.
+    /// </summary>
+    /// <returns>True when the change was saved and applied.</returns>
+    private bool SaveSettingsChange(Action<AppSettings> change)
+    {
+        AppSettings settings;
+        try
+        {
+            var fresh = new SettingsStore().LoadOrCreate(_settingsPath);
+            foreach (var message in fresh.Messages) Log.Information("Toolbar: settings: {Message}", message);
+            settings = fresh.Settings;
+        }
+        catch (Exception ex)
+        {
+            // LoadOrCreate reports problems as messages; this only guards against the unexpected.
+            Log.Warning(ex, "Toolbar: settings.json could not be read again before saving");
+            settings = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(System.Text.Json.JsonSerializer.Serialize(_settings))!;
+        }
+        change(settings);
+        var result = new SettingsStore().Save(_settingsPath, settings);
+        Log.Information("Toolbar: save {Success} {Message}", result.Success, result.Message);
+        if (!result.Success)
+        {
+            ShowMessage(result.Message);
+            UpdateSizePicker();
+            SelectLanguageInPicker();
+            return false;
+        }
+        ApplySettings(settings);
+        return true;
     }
 
     // ---- open and paste --------------------------------------------------------------------------------
 
-    /// <summary>Shows a ZPL file from disk exactly as if it had been printed to LabelScope.</summary>
-    private void OnOpenFile(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Shows a ZPL file from disk exactly as if it had been printed to LabelScope, named after the file. The file is
+    /// read off the UI thread, so a slow network drive never freezes the window.
+    /// </summary>
+    private async void OnOpenFile(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog { Filter = UiText.Get("Ui_OpenFileFilter") };
-        if (dialog.ShowDialog(this) != true) return;
-        string text;
         try
         {
-            // Checked before reading so a huge file is never loaded into memory.
-            if (new FileInfo(dialog.FileName).Length > MaxOpenFileBytes)
+            var dialog = new OpenFileDialog { Filter = UiText.Get("Ui_OpenFileFilter") };
+            if (dialog.ShowDialog(this) != true) return;
+            var path = dialog.FileName;
+            string? text;
+            try
+            {
+                text = await Task.Run(() =>
+                {
+                    // Checked before reading so a huge file is never loaded into memory.
+                    if (new FileInfo(path).Length > MaxOpenFileBytes) return null;
+                    return DecodeLikePrinter(File.ReadAllBytes(path));
+                });
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+                Log.Warning(ex, "Could not read {Path}", path);
+                ShowMessage(UiText.Get("Ui_FileReadFailed"));
+                return;
+            }
+            if (text is null)
             {
                 ShowMessage(UiText.Get("Ui_FileTooLarge"));
                 return;
             }
-            text = DecodeLikePrinter(File.ReadAllBytes(dialog.FileName));
+            // The same rule as Paste: without ^XA the text holds no label (a download alone is printed, not opened).
+            if (text.IndexOf("^XA", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                ShowMessage(UiText.Get("Ui_FileEmpty"));
+                return;
+            }
+            RenderLocalJob(text, JobOrigin.OpenedFromFile, System.IO.Path.GetFileName(path));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
-            Log.Warning(ex, "Could not read {Path}", dialog.FileName);
-            ShowMessage(UiText.Get("Ui_FileReadFailed", ex.Message));
-            return;
+            // async void: nothing may escape.
+            Log.Error(ex, "Open ZPL file failed");
+            ShowMessage(UiText.Get("Ui_FileReadFailed"));
         }
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            ShowMessage(UiText.Get("Ui_FileEmpty"));
-            return;
-        }
-        RenderLocalJob(text, LabelEntry.FileSource);
     }
 
     /// <summary>
@@ -980,22 +1700,22 @@ public partial class MainWindow : Window
             ShowMessage(UiText.Get("Ui_PasteEmpty"));
             return;
         }
-        RenderLocalJob(text, LabelEntry.PastedSource);
+        RenderLocalJob(text, JobOrigin.Pasted, null);
     }
 
     /// <summary>
     /// Renders text that did not come over the network through the very same path as a printed job (render gate,
-    /// formatting, placeholder rules, history). That path waits for the gate, so it runs off the UI thread.
+    /// formatting, placeholder rules, list). That path waits for the gate, so it runs off the UI thread.
     /// </summary>
-    private void RenderLocalJob(string zpl, string source)
+    private void RenderLocalJob(string zpl, JobOrigin origin, string? name)
     {
         // A text without ^XZ at its end is treated like a connection that stopped early, as for printed jobs.
         var complete = zpl.LastIndexOf("^XZ", StringComparison.OrdinalIgnoreCase) >= 0;
-        var job = new ReceivedLabel(zpl, DateTimeOffset.Now, source, complete);
-        _ = Task.Run(() => OnLabelReceived(job));
+        var job = new ReceivedLabel(zpl, DateTimeOffset.Now, "", complete);
+        _ = Task.Run(() => ProcessIncoming(job, origin, name));
     }
 
-    // ---- toolbar menus -----------------------------------------------------------------------------
+    // ---- Printer setup and settings ---------------------------------------------------------------------
 
     /// <summary>
     /// "Printer setup": opens the Printer setup screen. Whatever it saved (on Save, or already on Reinstall printer
@@ -1026,42 +1746,44 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Takes the settings saved by Printer setup into use: language, printer (name and status), and the label size
-    /// and density for every label that arrives from now on. Labels already in the list keep how they were drawn
-    /// until they are drawn again.
+    /// Takes saved settings into use (from Printer setup or a toolbar picker): language, printer (name and status),
+    /// "Keep jobs", and the label size and density. When the language, size or density changed, every job in the list
+    /// is drawn again so it shows what the printer would now print.
     /// </summary>
     private async void ApplySettings(AppSettings saved)
     {
         try
         {
-            var printerChanged = !string.Equals(saved.PrinterName, _settings.PrinterName, StringComparison.Ordinal);
-            // The toolbar picker changes the language without saving it. Only a Language setting that was changed
-            // in Printer setup switches the window, so saving a new label size never undoes the picker's choice.
-            var languageChanged = !string.Equals(saved.Language, _settings.Language, StringComparison.OrdinalIgnoreCase);
+            var old = _settings;
+            var printerChanged = !string.Equals(saved.PrinterName, old.PrinterName, StringComparison.Ordinal);
+            var languageChanged = !string.Equals(saved.Language, old.Language, StringComparison.OrdinalIgnoreCase);
+            var labelChanged = saved.DefaultDpi != old.DefaultDpi
+                || Math.Abs(saved.LabelWidthMm - old.LabelWidthMm) > 0.0005
+                || Math.Abs(saved.LabelHeightMm - old.LabelHeightMm) > 0.0005;
+            var keepJobsTurnedOn = saved.KeepJobs && !old.KeepJobs;
             // The dialog saves on top of a fresh read of settings.json, so a hand edit of a key that is only read at
             // start can arrive here. Those keep their running values until the next start: the listener still
             // listens on the old address and port (the printer must keep pointing at it), the log still goes to the
             // old folder, and the fonts were loaded from the old folder.
-            saved.ListenAddress = _settings.ListenAddress;
-            saved.ListenPort = _settings.ListenPort;
-            saved.LogFolder = _settings.LogFolder;
-            saved.FontsFolder = _settings.FontsFolder;
-            // A single reference swap: the socket thread reads the field once per job (see OnLabelReceived).
+            saved.ListenAddress = old.ListenAddress;
+            saved.ListenPort = old.ListenPort;
+            saved.LogFolder = old.LogFolder;
+            saved.FontsFolder = old.FontsFolder;
+            // A single reference swap: the socket thread reads the field once per job (see ProcessIncoming).
             _settings = saved;
-            Log.Information("Printer setup saved: printer {Printer}, label {Width} x {Height} mm, {Dpi} dpi, language '{Language}'",
-                saved.PrinterName, saved.LabelWidthMm, saved.LabelHeightMm, saved.DefaultDpi, saved.Language);
+            Log.Information("Settings saved: printer {Printer}, label {Width} x {Height} mm, {Dpi} dpi, language '{Language}', keep jobs {Keep}",
+                saved.PrinterName, saved.LabelWidthMm, saved.LabelHeightMm, saved.DefaultDpi, saved.Language, saved.KeepJobs);
 
             var culture = CultureForSetting(saved.Language);
-            if (languageChanged && culture.Name != Text.Culture.Name)
-            {
-                SwitchLanguage(culture);
-                SelectLanguageInPicker();
-            }
-            else
-            {
-                ApplyTexts(); // printer name, size picker and status line name values that may have changed
-            }
-            UpdateGrid(); // the grid cell size follows the density
+            var switchLanguage = languageChanged && culture.Name != Text.Culture.Name;
+            if (switchLanguage) SwitchLanguage(culture);
+            else ApplyTexts(); // printer name, size picker and status line name values that may have changed
+            UpdateGrid();
+            if (switchLanguage || labelChanged) _ = RerenderAllJobsAsync();
+
+            // Turning "Keep jobs" off leaves jobs.json as it is (it is simply no longer written); turning it on saves
+            // the list now, after reading the file once so a newer version's file is never overwritten.
+            if (keepJobsTurnedOn) ScheduleSave();
 
             // The installer is built for one name, so a new name needs a new one. The dialog checked the name
             // with the installer's own rules, so this cannot fail on the name; the flag is cleared because
@@ -1079,7 +1801,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             // async void: nothing may escape.
-            Log.Error(ex, "Applying the Printer setup settings failed");
+            Log.Error(ex, "Applying the saved settings failed");
             ShowMessage(SetupText.Get("Setup_ApplyFailed"));
         }
     }
@@ -1118,7 +1840,7 @@ public partial class MainWindow : Window
             _printerSettingsBroken = true;
             UpdateStatusLine();
             AddStartupNote(ex.Message);
-            MessageBox.Show(ex.Message, "LabelScope", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, ex.Message, "LabelScope", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -1162,10 +1884,8 @@ public partial class MainWindow : Window
         if (_installer is null || _printerBusy) return;
         try
         {
-            var ask = MessageBox.Show(
-                $"LabelScope will add a Windows printer named \"{_settings.PrinterName}\" that sends labels to this program.\n\n" +
-                "Windows will ask for permission once. Continue?",
-                "Install printer", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            var ask = MessageBox.Show(this, UiText.Get("Ui_InstallAsk", _settings.PrinterName), UiText.Get("Ui_InstallPrinter"),
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (ask != MessageBoxResult.Yes) return;
             await RunPrinterJobAsync(_installer.InstallAsync, "Install printer");
         }
@@ -1173,7 +1893,7 @@ public partial class MainWindow : Window
         {
             // async void: nothing may escape.
             Log.Error(ex, "Install printer handler failed");
-            ShowMessage("The printer action did not finish. Details are in the log file.");
+            ShowMessage(UiText.Get("Ui_PrinterActionFailed"));
         }
     }
 
@@ -1182,7 +1902,7 @@ public partial class MainWindow : Window
         if (_installer is null || _printerBusy) return;
         try
         {
-            var ask = MessageBox.Show($"Remove the Windows printer \"{_settings.PrinterName}\"?", "Remove printer",
+            var ask = MessageBox.Show(this, UiText.Get("Ui_RemoveAsk", _settings.PrinterName), UiText.Get("Ui_RemovePrinter"),
                 MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (ask != MessageBoxResult.Yes) return;
             await RunPrinterJobAsync(_installer.RemoveAsync, "Remove printer");
@@ -1190,7 +1910,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Log.Error(ex, "Remove printer handler failed");
-            ShowMessage("The printer action did not finish. Details are in the log file.");
+            ShowMessage(UiText.Get("Ui_PrinterActionFailed"));
         }
     }
 
@@ -1203,14 +1923,14 @@ public partial class MainWindow : Window
         {
             var result = await job(CancellationToken.None);
             Log.Information("{What}: {Success} {Message}", what, result.Success, result.Message);
-            MessageBox.Show(result.Message, "LabelScope", MessageBoxButton.OK,
+            MessageBox.Show(this, result.Message, "LabelScope", MessageBoxButton.OK,
                 result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
         catch (Exception ex)
         {
             // The installer is documented not to throw; this only protects against an unexpected bug.
             Log.Error(ex, "{What} failed unexpectedly", what);
-            ShowMessage("The printer action did not finish. Details are in the log file.");
+            ShowMessage(UiText.Get("Ui_PrinterActionFailed"));
         }
         finally
         {
@@ -1222,24 +1942,30 @@ public partial class MainWindow : Window
 
     // ---- toolbar actions ---------------------------------------------------------------------
 
+    /// <summary>Saves the label on screen (the page shown of the selected job) as the PNG LabelScope drew.</summary>
     private void OnSavePng(object sender, RoutedEventArgs e)
     {
-        if (HistoryList.SelectedItem is not LabelEntry entry)
+        if (_shownJob is null || _shownPage is not { } page)
         {
-            ShowMessage("There is no label to save yet. Send one to LabelScope first.");
+            ShowMessage(UiText.Get("Ui_NothingToSave"));
             return;
         }
-        var dialog = new SaveFileDialog { Filter = "PNG image|*.png", FileName = $"label-{entry.At:yyyyMMdd-HHmmss}.png" };
+        var suffix = _shownJob.Pages.Count > 1 ? $"-{page.Index + 1}" : "";
+        var dialog = new SaveFileDialog
+        {
+            Filter = UiText.Get("Ui_PngFilter"),
+            FileName = $"label-{_shownJob.Job.ReceivedAt.ToLocalTime():yyyyMMdd-HHmmss}{suffix}.png",
+        };
         if (dialog.ShowDialog(this) != true) return;
         try
         {
-            File.WriteAllBytes(dialog.FileName, entry.Label.PngBytes);
-            ShowMessage($"Saved {dialog.FileName}");
+            File.WriteAllBytes(dialog.FileName, page.Label.PngBytes);
+            ShowMessage(UiText.Get("Ui_PngSaved", dialog.FileName));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
             Log.Warning(ex, "Could not save {Path}", dialog.FileName);
-            ShowMessage($"The image could not be saved to {dialog.FileName}. Choose another folder and try again.");
+            ShowMessage(UiText.Get("Ui_PngSaveFailed", dialog.FileName));
         }
     }
 
@@ -1247,19 +1973,19 @@ public partial class MainWindow : Window
     {
         if (_currentImage is null)
         {
-            ShowMessage("There is no label to copy yet. Send one to LabelScope first.");
+            ShowMessage(UiText.Get("Ui_NothingToCopyImage"));
             return;
         }
         try
         {
             Clipboard.SetImage(_currentImage);
-            ShowMessage("The label image was copied. Paste it into any program.");
+            ShowMessage(UiText.Get("Ui_ImageCopied"));
         }
         catch (Exception ex)
         {
             // The clipboard can be locked by another program for a moment.
             Log.Warning(ex, "Could not copy the image");
-            ShowMessage("The image could not be copied because Windows or another program is using the clipboard. Try again.");
+            ShowMessage(UiText.Get("Ui_ClipboardBusy"));
         }
     }
 
@@ -1268,22 +1994,22 @@ public partial class MainWindow : Window
     private void OnCopyOriginalZpl(object sender, RoutedEventArgs e) => CopyZpl(original: true);
 
     /// <summary>
-    /// Copies the formatted ZPL (or the text exactly as received) to the clipboard. The clipboard is shared with
-    /// every other program and can be busy, so a failure is retried once and then explained; nothing escapes.
+    /// Copies the selected job's ZPL as shown in the ZPL tab (or exactly as received) to the clipboard. The clipboard
+    /// is shared with every other program and can be busy, so a failure is retried once and then explained.
     /// </summary>
     private void CopyZpl(bool original)
     {
         try
         {
-            if (HistoryList.SelectedItem is not LabelEntry entry)
+            if (_shownJob is null)
             {
-                ShowMessage("There is no ZPL to copy yet. Send a label to LabelScope first.");
+                ShowMessage(UiText.Get("Ui_NothingToCopyZpl"));
                 return;
             }
-            var text = original ? entry.OriginalZpl : entry.Zpl;
+            var text = original ? _shownJob.Job.Zpl : _shownZpl;
             if (text.Length == 0)
             {
-                ShowMessage("This label contains no ZPL text to copy.");
+                ShowMessage(UiText.Get("Ui_NoZplText"));
                 return;
             }
 
@@ -1293,15 +2019,15 @@ public partial class MainWindow : Window
 
             if (!TrySetClipboardText(clipboardText))
             {
-                ShowMessage("LabelScope could not use the clipboard because another program is using it. Try again.");
+                ShowMessage(UiText.Get("Ui_ClipboardBusy"));
                 return;
             }
-            ShowMessage(original ? "Original ZPL copied." : $"ZPL copied ({text.Count(c => c == '\n') + 1} lines).");
+            ShowMessage(original ? UiText.Get("Ui_OriginalCopied") : UiText.Get("Ui_ZplCopied", text.Count(c => c == '\n') + 1));
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Could not copy the ZPL");
-            ShowMessage("The ZPL could not be copied. Details are in the log file.");
+            ShowMessage(UiText.Get("Ui_CopyFailed"));
         }
     }
 
@@ -1326,7 +2052,21 @@ public partial class MainWindow : Window
         return false;
     }
 
-    private void OnClearHistory(object sender, RoutedEventArgs e) => _history.Clear();
+    /// <summary>
+    /// "Clear jobs": asks, then empties the list. Printer memory is not touched (Clear printer memory does that), and
+    /// labels still arriving on an open connection start a new job.
+    /// </summary>
+    private void OnClearJobs(object sender, RoutedEventArgs e)
+    {
+        if (_jobs.Count == 0) return;
+        var answer = MessageBox.Show(this, UiText.Get("Ui_ClearJobsAsk", _jobs.Count), UiText.Get("Ui_ClearJobs"),
+            MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+        if (answer != MessageBoxResult.Yes) return;
+        _assembler.Clear();
+        _jobs.Clear();
+        Log.Information("Job list cleared by the user");
+        ScheduleSave();
+    }
 
     /// <summary>Runs on any thread: schedules one UI update of the memory text, never throws, never blocks.</summary>
     private void OnMemoryChanged(object? sender, EventArgs e)
@@ -1350,15 +2090,13 @@ public partial class MainWindow : Window
     {
         // Always asks, even when memory looks empty: a download or ^CW can arrive at any moment, so an "already
         // empty" answer could be stale by the time it is read, and clearing an empty memory does no harm.
-        var answer = MessageBox.Show(this,
-            // No numbers in the question: a download can arrive while the dialog is open, so any count could be stale.
-            "Delete everything LabelScope keeps in its printer memory (downloaded graphics and fonts, and font letters set with ^CW)?\n\n" +
-            "Labels that use these graphics, fonts or font letters will show a warning until the download or ^CW is sent again.",
-            "Clear printer memory", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+        // No numbers in the question for the same reason.
+        var answer = MessageBox.Show(this, UiText.Get("Ui_ClearMemoryAsk"), UiText.Get("Ui_ClearMemory"),
+            MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
         if (answer != MessageBoxResult.Yes) return;
         _memory.Clear();
         Log.Information("Printer memory cleared by the user");
-        ShowMessage("LabelScope's printer memory was cleared.");
+        ShowMessage(UiText.Get("Ui_MemoryCleared"));
     }
 
     /// <summary>Shows what printer memory holds; runs on the UI thread.</summary>
@@ -1366,12 +2104,8 @@ public partial class MainWindow : Window
     {
         var summary = _memory.Summary;
         MemoryText.Text = StatusText.ForMemoryLine(summary);
-        MemoryText.ToolTip = "Printer memory: " + summary.Describe() +
-            ". Graphics and fonts sent to LabelScope with ~DG, ~DY or ^IS, and font letters set with ^CW, are kept here " +
-            "until LabelScope closes or you press \"Clear printer memory\".";
+        MemoryText.ToolTip = UiText.Get("Ui_MemoryTip", summary.Describe());
     }
-
-    private void OnOpenSettings(object sender, RoutedEventArgs e) => Open(_settingsPath);
 
     private void OnOpenLog(object sender, RoutedEventArgs e) => Open(ResolveLogFolder());
 
@@ -1381,7 +2115,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Log.Warning(ex, "Could not open {Path}", path);
-            ShowMessage($"Windows could not open {path}. Open it yourself in File Explorer.");
+            ShowMessage(UiText.Get("Ui_OpenPathFailed", path));
         }
     }
 
@@ -1414,8 +2148,8 @@ public partial class MainWindow : Window
     /// <summary>The version of this running program (the part before any "+commit" suffix).</summary>
     private static Version InstalledVersion()
     {
-        var text = System.Reflection.Assembly.GetExecutingAssembly()
-            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
+        var text = Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
         return UpdateChecker.TryParseVersion(text.Split('+')[0], out var v) ? v : new Version(0, 0);
     }
 
@@ -1443,8 +2177,9 @@ public partial class MainWindow : Window
                 _update = update;
                 UpdateButton.Content = UiText.Get("Ui_UpdateTo", update.Version.ToString(3));
                 UpdateButton.Visibility = Visibility.Visible;
-                Say($"A new version of LabelScope is available ({update.Version.ToString(3)}). Press \"Update to {update.Version.ToString(3)}\" in the toolbar to install it.");
+                Say(UiText.Get("Ui_UpdateAvailable", update.Version.ToString(3)));
                 Log.Information("Update available: {Version}", update.Version);
+                MeasureFullToolbar(); // a new button in the toolbar
             }
             else if (result.Problem is not null)
             {
@@ -1453,13 +2188,13 @@ public partial class MainWindow : Window
             }
             else if (userAsked)
             {
-                Say($"You have the newest version ({InstalledVersion().ToString(3)}).");
+                Say(UiText.Get("Ui_UpToDate", InstalledVersion().ToString(3)));
             }
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Update check failed");
-            if (userAsked) Say("LabelScope could not check for updates: " + ex.Message);
+            if (userAsked) Say(UiText.Get("Ui_UpdateCheckFailed"));
         }
         finally
         {
@@ -1471,24 +2206,23 @@ public partial class MainWindow : Window
     private async void OnUpdateNow(object sender, RoutedEventArgs e)
     {
         if (_update is not { } update) return;
-        var answer = MessageBox.Show(this,
-            $"Install LabelScope {update.Version.ToString(3)} now?\n\nLabelScope will close, update itself and open again. Your settings are kept. " +
-            "Labels in the list on the left will be cleared.",
-            "Update LabelScope", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var answer = MessageBox.Show(this, UiText.Get("Ui_UpdateAsk", update.Version.ToString(3)), UiText.Get("Ui_UpdateTitle"),
+            MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (answer != MessageBoxResult.Yes) return;
 
         UpdateButton.IsEnabled = false;
         try
         {
-            var progress = new Progress<int>(p => ShowMessage($"Downloading the new version... {p}%"));
+            var progress = new Progress<int>(p => ShowMessage(UiText.Get("Ui_Downloading", p)));
             var file = await UpdateInstaller.DownloadAsync(update, progress, CancellationToken.None);
-            ShowMessage("Installing the new version. LabelScope will open again in a moment.");
+            ShowMessage(UiText.Get("Ui_Installing"));
             Log.Information("Starting update installer for {Version}", update.Version);
             UpdateInstaller.Launch(file);
             Close(); // the installer waits for LabelScope to end, then replaces the files
         }
         catch (InvalidOperationException ex)
         {
+            // UpdateInstaller's messages are written for the user in the window language.
             Log.Warning("Update failed: {Message}", ex.Message);
             ShowMessage(ex.Message);
             UpdateButton.IsEnabled = true;
@@ -1497,14 +2231,14 @@ public partial class MainWindow : Window
         {
             // Raised when Windows (or antivirus) refuses to start the downloaded installer.
             Log.Warning(ex, "Installer could not be started");
-            ShowMessage("Windows did not allow the installer to start (" + ex.Message + "). Download LabelScope-Setup.exe from the GitHub releases page and run it yourself.");
+            ShowMessage(UiText.Get("Ui_InstallerBlocked"));
             UpdateButton.IsEnabled = true;
         }
     }
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        // Order matters: stop new events reaching us first, then stop the listener, then close the log.
+        // Order matters: stop new events reaching us first, then stop the listener, then save, then close the log.
         // finally: the log must be flushed even if disposing the listener fails.
         _closing = true;
         if (_memoryChanged is not null) _memory.Changed -= _memoryChanged;
@@ -1516,11 +2250,38 @@ public partial class MainWindow : Window
                 _listener.ProblemReported -= OnProblemReported;
                 _listener.Dispose();
             }
+            SaveJobsOnClose();
             Log.Information("LabelScope stopped");
         }
         finally
         {
             Log.CloseAndFlush();
         }
+    }
+
+    /// <summary>
+    /// Writes the job list one last time when "Keep jobs" is on, waiting briefly for a save that is still running so
+    /// the two never write at once. A failure is only logged: the window is closing.
+    /// </summary>
+    private void SaveJobsOnClose()
+    {
+        _saveTimer.Stop();
+        if (!_settings.KeepJobs) return;
+        if (!_saveLock.Wait(TimeSpan.FromSeconds(5))) return;
+        try
+        {
+            if (!_storeLoaded)
+            {
+                _storeLoaded = true;
+                _store.Load(); // so a newer version's file is recognised and left alone
+            }
+            var result = _store.Save(_jobs.Select(j => j.Job).ToList(), _settings.HistoryLimit);
+            Log.Information("Kept jobs on close: {Success} {Message}", result.Success, result.Message);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Saving the job list on close failed");
+        }
+        finally { _saveLock.Release(); }
     }
 }
