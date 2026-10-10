@@ -593,7 +593,9 @@ public partial class MainWindow : Window
             if (saved.Count == 0)
             {
                 _keptJobs = KeptJobsState.Ready;
-                ScheduleSave(); // jobs that arrived during the read are written now
+                // Jobs that arrived during the read are written now. Not when the file could not be opened: the store
+                // refuses every save this session (its jobs were never read), and the start-up note already says so.
+                if (!_store.LoadFailed) ScheduleSave();
                 return;
             }
 
@@ -657,7 +659,9 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Writes the job list off the UI thread. Saves never overlap. A failure is shown once (not on every new job)
-    /// until a save works again.
+    /// until a save works again. That includes the store refusing to save because jobs.json could not be opened at
+    /// start: the refusal carries the same message every time, so it is shown once, and the next start reads the
+    /// file again.
     /// </summary>
     private async Task SaveJobsAsync()
     {
@@ -690,7 +694,9 @@ public partial class MainWindow : Window
     /// so a file written by a newer LabelScope is recognised and never overwritten. Its jobs are not shown: only a
     /// start brings kept jobs back.
     /// </summary>
-    /// <returns>True when saving may go ahead; false while the file is still being read (or a load failed).</returns>
+    /// <returns>True when saving may go ahead; false while the file is still being read. When the read could not open
+    /// the file, this still returns true and the store itself refuses the save (see <see cref="JobStore.LoadFailed"/>).
+    /// </returns>
     private async Task<bool> EnsureStoreLoadedAsync()
     {
         if (_keptJobs == KeptJobsState.Ready) return true;
@@ -2377,7 +2383,7 @@ public partial class MainWindow : Window
         {
             if (_keptJobs == KeptJobsState.NotRead)
             {
-                _store.Load(); // so a newer version's file is recognised and left alone
+                _store.Load(); // so a newer version's file, or one that cannot be opened, is left alone
                 _keptJobs = KeptJobsState.Ready;
             }
             var result = _store.Save(_jobs.Select(j => j.Job).ToList(), _settings.HistoryLimit);
