@@ -122,6 +122,10 @@ internal sealed partial class LabelPainter : IDisposable
 
     private void Handle(ZplCommand cmd)
     {
+        // Commands that carry bulk data are handled before the generic comma split: their data may be megabytes
+        // of compressed hex in which ',' is a fill character, not a separator.
+        if (cmd.Name == "^GF") { DrawGraphicField(cmd); return; }
+
         var a = Split(cmd.Args);
         switch (cmd.Name)
         {
