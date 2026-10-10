@@ -244,13 +244,13 @@
   <data name="Settings_BadDefaultDpi" xml:space="preserve"><value>DefaultDpi {0} is not one of 152, 203, 300, 600; {1} is used instead.</value></data>
   <data name="Settings_BadHistoryLimit" xml:space="preserve"><value>HistoryLimit {0} is not between 1 and 1000; {1} is used instead.</value></data>
   <data name="Settings_EmptyPrinterName" xml:space="preserve"><value>PrinterName is empty; "{0}" is used instead.</value></data>
-  <data name="Installer_NameEmpty" xml:space="preserve"><value>PrinterName in settings.json is empty. Type a name for the printer and start LabelScope again.</value></data>
-  <data name="Installer_NameTooLong" xml:space="preserve"><value>PrinterName in settings.json is too long ({0} characters at most). Shorten it and start LabelScope again.</value></data>
-  <data name="Installer_NameControlChars" xml:space="preserve"><value>PrinterName in settings.json must be a single line of normal text, without line breaks or hidden characters. Edit it and start LabelScope again.</value></data>
-  <data name="Installer_NameForbiddenChars" xml:space="preserve"><value>PrinterName in settings.json must not contain a backslash, a slash, an exclamation mark, an asterisk, a question mark or a square bracket. Remove them and start LabelScope again.</value></data>
+  <data name="Installer_NameEmpty" xml:space="preserve"><value>The printer name is empty. Open Printer setup, type a name for the printer and click Save.</value></data>
+  <data name="Installer_NameTooLong" xml:space="preserve"><value>The printer name is too long ({0} characters at most). Open Printer setup, shorten the name and click Save.</value></data>
+  <data name="Installer_NameControlChars" xml:space="preserve"><value>The printer name must be a single line of normal text, without line breaks or hidden characters. Open Printer setup, correct the name and click Save.</value></data>
+  <data name="Installer_NameForbiddenChars" xml:space="preserve"><value>The printer name must not contain a backslash, a slash, an exclamation mark, an asterisk, a question mark or a square bracket. Open Printer setup, remove them from the name and click Save.</value></data>
   <data name="Installer_BadPort" xml:space="preserve"><value>The port in settings.json must be a number between 1 and 65535. Edit it and start LabelScope again.</value></data>
   <data name="Installer_AlreadyInstalled" xml:space="preserve"><value>The printer "{0}" is already installed. You can print to it from any program.</value></data>
-  <data name="Installer_NameTakenInstall" xml:space="preserve"><value>A printer named "{0}" already exists and was not created by LabelScope, so it was left alone. Choose a different PrinterName in settings.json and try again.</value></data>
+  <data name="Installer_NameTakenInstall" xml:space="preserve"><value>A printer named "{0}" already exists and was not created by LabelScope, so it was left alone. Open Printer setup, choose a different printer name and try again.</value></data>
   <data name="Installer_Installed" xml:space="preserve"><value>The printer "{0}" is installed. Print to it from any program and the label appears in LabelScope.</value></data>
   <data name="Installer_InstallFailed" xml:space="preserve"><value>The printer could not be installed</value></data>
   <data name="Installer_NotInstalled" xml:space="preserve"><value>The printer "{0}" is not installed, so there is nothing to remove.</value></data>
@@ -268,7 +268,7 @@
   <data name="Installer_ScriptNotOurs" xml:space="preserve"><value>This printer was not created by LabelScope.</value></data>
   <data name="Runner_PowerShellMissing" xml:space="preserve"><value>Windows PowerShell was not found on this computer, so the printer cannot be managed. Repair Windows and try again.</value></data>
   <data name="Runner_NotStarted" xml:space="preserve"><value>Windows PowerShell could not be started.</value></data>
-  <data name="Runner_NameTooLong" xml:space="preserve"><value>The printer name is too long for Windows to install. Use a shorter PrinterName in settings.json.</value></data>
+  <data name="Runner_NameTooLong" xml:space="preserve"><value>The printer name is too long for Windows to install. Open Printer setup and choose a shorter name.</value></data>
   <data name="Runner_StartFailed" xml:space="preserve"><value>Windows PowerShell could not be started ({0}).</value></data>
   <data name="Runner_AnswerUnreadable" xml:space="preserve"><value>The answer from Windows PowerShell could not be read ({0}).</value></data>
   <data name="Runner_UnsafeScript" xml:space="preserve"><value>The printer script contains a character that cannot be passed to Windows PowerShell safely.</value></data>

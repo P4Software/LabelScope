@@ -244,13 +244,13 @@
   <data name="Settings_BadDefaultDpi" xml:space="preserve"><value>DefaultDpi {0} no es uno de 152, 203, 300, 600; se usa {1} en su lugar.</value></data>
   <data name="Settings_BadHistoryLimit" xml:space="preserve"><value>HistoryLimit {0} no está entre 1 y 1000; se usa {1} en su lugar.</value></data>
   <data name="Settings_EmptyPrinterName" xml:space="preserve"><value>PrinterName está vacío; se usa "{0}" en su lugar.</value></data>
-  <data name="Installer_NameEmpty" xml:space="preserve"><value>PrinterName en settings.json está vacío. Escriba un nombre para la impresora y vuelva a iniciar LabelScope.</value></data>
-  <data name="Installer_NameTooLong" xml:space="preserve"><value>PrinterName en settings.json es demasiado largo ({0} caracteres como máximo). Acórtelo y vuelva a iniciar LabelScope.</value></data>
-  <data name="Installer_NameControlChars" xml:space="preserve"><value>PrinterName en settings.json debe ser una sola línea de texto normal, sin saltos de línea ni caracteres ocultos. Corríjalo y vuelva a iniciar LabelScope.</value></data>
-  <data name="Installer_NameForbiddenChars" xml:space="preserve"><value>PrinterName en settings.json no debe contener barra invertida, barra, signo de exclamación, asterisco, signo de interrogación ni corchetes. Quítelos y vuelva a iniciar LabelScope.</value></data>
+  <data name="Installer_NameEmpty" xml:space="preserve"><value>El nombre de la impresora está vacío. Abra Configurar impresora, escriba un nombre para la impresora y haga clic en Guardar.</value></data>
+  <data name="Installer_NameTooLong" xml:space="preserve"><value>El nombre de la impresora es demasiado largo ({0} caracteres como máximo). Abra Configurar impresora, acorte el nombre y haga clic en Guardar.</value></data>
+  <data name="Installer_NameControlChars" xml:space="preserve"><value>El nombre de la impresora debe ser una sola línea de texto normal, sin saltos de línea ni caracteres ocultos. Abra Configurar impresora, corrija el nombre y haga clic en Guardar.</value></data>
+  <data name="Installer_NameForbiddenChars" xml:space="preserve"><value>El nombre de la impresora no debe contener barra invertida, barra, signo de exclamación, asterisco, signo de interrogación ni corchetes. Abra Configurar impresora, quítelos del nombre y haga clic en Guardar.</value></data>
   <data name="Installer_BadPort" xml:space="preserve"><value>El puerto en settings.json debe ser un número entre 1 y 65535. Corríjalo y vuelva a iniciar LabelScope.</value></data>
   <data name="Installer_AlreadyInstalled" xml:space="preserve"><value>La impresora "{0}" ya está instalada. Puede imprimir en ella desde cualquier programa.</value></data>
-  <data name="Installer_NameTakenInstall" xml:space="preserve"><value>Ya existe una impresora llamada "{0}" que no fue creada por LabelScope, así que no se modificó. Elija otro PrinterName en settings.json e inténtelo de nuevo.</value></data>
+  <data name="Installer_NameTakenInstall" xml:space="preserve"><value>Ya existe una impresora llamada "{0}" que no fue creada por LabelScope, así que no se modificó. Abra Configurar impresora, elija otro nombre para la impresora e inténtelo de nuevo.</value></data>
   <data name="Installer_Installed" xml:space="preserve"><value>La impresora "{0}" está instalada. Imprima en ella desde cualquier programa y la etiqueta aparecerá en LabelScope.</value></data>
   <data name="Installer_InstallFailed" xml:space="preserve"><value>No se pudo instalar la impresora</value></data>
   <data name="Installer_NotInstalled" xml:space="preserve"><value>La impresora "{0}" no está instalada, así que no hay nada que quitar.</value></data>
@@ -268,7 +268,7 @@
   <data name="Installer_ScriptNotOurs" xml:space="preserve"><value>Esta impresora no fue creada por LabelScope.</value></data>
   <data name="Runner_PowerShellMissing" xml:space="preserve"><value>No se encontró Windows PowerShell en este equipo, así que no se puede administrar la impresora. Repare Windows e inténtelo de nuevo.</value></data>
   <data name="Runner_NotStarted" xml:space="preserve"><value>No se pudo iniciar Windows PowerShell.</value></data>
-  <data name="Runner_NameTooLong" xml:space="preserve"><value>El nombre de la impresora es demasiado largo para que Windows la instale. Use un PrinterName más corto en settings.json.</value></data>
+  <data name="Runner_NameTooLong" xml:space="preserve"><value>El nombre de la impresora es demasiado largo para que Windows la instale. Abra Configurar impresora y elija un nombre más corto.</value></data>
   <data name="Runner_StartFailed" xml:space="preserve"><value>No se pudo iniciar Windows PowerShell ({0}).</value></data>
   <data name="Runner_AnswerUnreadable" xml:space="preserve"><value>No se pudo leer la respuesta de Windows PowerShell ({0}).</value></data>
   <data name="Runner_UnsafeScript" xml:space="preserve"><value>El script de la impresora contiene un carácter que no se puede pasar a Windows PowerShell de forma segura.</value></data>

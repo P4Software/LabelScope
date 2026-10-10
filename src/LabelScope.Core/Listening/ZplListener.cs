@@ -8,7 +8,12 @@ namespace LabelScope.Core.Listening;
 /// <param name="ReceivedAt">When the label finished arriving.</param>
 /// <param name="Source">Address of the sender, for the history list.</param>
 /// <param name="Complete">False when the sender disconnected before sending <c>^XZ</c>.</param>
-public sealed record ReceivedLabel(string Zpl, DateTimeOffset ReceivedAt, string Source, bool Complete);
+/// <param name="ConnectionId">
+/// The connection the label came over, the same number for every label of one send (one print job can hold several
+/// ^XA..^XZ labels), so the window can show them as one job. Numbers start at 1 and are never reused while the
+/// listener runs; 0 means the label did not arrive over the network (a file or a paste).
+/// </param>
+public sealed record ReceivedLabel(string Zpl, DateTimeOffset ReceivedAt, string Source, bool Complete, long ConnectionId = 0);
 
 /// <summary>Raised when the listener cannot start; the message is written for the end user.</summary>
 public sealed class ListenerStartException : Exception
@@ -30,6 +35,9 @@ public sealed class ZplListener : IDisposable
 
     // Environment.TickCount64 of the last "too many connections" message, 0 when none was sent yet.
     private long _lastBusyReport;
+
+    // Last connection number handed out (see ReceivedLabel.ConnectionId); only through Interlocked.
+    private long _lastConnectionId;
 
     /// <summary>Creates a listener; nothing is bound until <see cref="Start"/>.</summary>
     public ZplListener(IPAddress address, int port)
@@ -178,6 +186,7 @@ public sealed class ZplListener : IDisposable
         using (client)
         {
             var source = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString() ?? "unknown";
+            var connectionId = Interlocked.Increment(ref _lastConnectionId);
             var splitter = new ZplStreamSplitter();
             var buffer = new byte[8192];
             // One timer for the whole connection: CancelAfter is called again before every read, which restarts it.
@@ -196,7 +205,7 @@ public sealed class ZplListener : IDisposable
                     // sender being idle (it would cut off an active sender and flush its label as incomplete).
                     idle.CancelAfter(Timeout.InfiniteTimeSpan);
                     foreach (var zpl in splitter.Feed(buffer, read))
-                        Raise(LabelReceived, new ReceivedLabel(zpl, DateTimeOffset.Now, source, true));
+                        Raise(LabelReceived, new ReceivedLabel(zpl, DateTimeOffset.Now, source, true, connectionId));
                 }
             }
             catch (ZplTooLargeException ex)
@@ -214,7 +223,7 @@ public sealed class ZplListener : IDisposable
             // The spooler can cut a job off; show what we got instead of silently losing it.
             var rest = splitter.Flush();
             if (rest is not null)
-                Raise(LabelReceived, new ReceivedLabel(rest, DateTimeOffset.Now, source, false));
+                Raise(LabelReceived, new ReceivedLabel(rest, DateTimeOffset.Now, source, false, connectionId));
         }
     }
 
