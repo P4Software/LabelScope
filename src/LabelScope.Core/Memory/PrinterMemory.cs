@@ -70,17 +70,21 @@ public sealed class PrinterMemory
             // Refused rather than evicting older objects: a label that silently lost its logo would be worse
             // than a clear message now (plan Decision 1). The old object's size is freed first, so replacing
             // an object in a nearly full memory works.
+            // An object bigger than the whole memory can never fit, so "clear memory" would be a false hint.
+            if (item.SizeInBytes > MaxBytes)
+                return $"This {item.Kind} is {FormatBytes(item.SizeInBytes)}, larger than the {FormatBytes(MaxBytes)} LabelScope keeps; " +
+                       $"it was not stored. Make the {item.Kind} smaller.";
             if (_bytes - oldBytes + item.SizeInBytes > MaxBytes)
                 return $"LabelScope's printer memory is full ({FormatBytes(MaxBytes)}), so {target.Display} was not stored. " +
                        "Delete stored objects with ^ID, or press \"Clear printer memory\" in the window, then send the download again.";
             if (!exists && _items.Count >= MaxObjects)
-                return $"LabelScope's printer memory already holds {MaxObjects} objects, so {target.Display} was not stored. " +
+                return $"LabelScope's printer memory already holds {MaxObjects} {(MaxObjects == 1 ? "object" : "objects")}, so {target.Display} was not stored. " +
                        "Delete stored objects with ^ID, or press \"Clear printer memory\" in the window, then send the download again.";
             _items[target.Key] = (target, item);
             _bytes += item.SizeInBytes - oldBytes;
         }
         // Raised after the lock is released so a handler can read Summary without risk of a deadlock.
-        Changed?.Invoke(this, EventArgs.Empty);
+        RaiseChanged();
         return null;
     }
 
@@ -97,16 +101,32 @@ public sealed class PrinterMemory
             if (name.Drive is not null)
             {
                 if (_items.TryGetValue(name.Key, out var hit)) return hit.Item;
-                foreach (var (other, _) in _items.Values)
-                    if (other.Name == name.Name && other.Extension == name.Extension) { elsewhere = other; break; }
+                elsewhere = FirstOnAnyDrive(name)?.Name;
                 return null;
             }
             foreach (var drive in ObjectName.SearchOrder)
                 if (_items.TryGetValue(name.OnDrive(drive).Key, out var hit)) return hit.Item;
-            foreach (var (other, item) in _items.Values)
-                if (other.Name == name.Name && other.Extension == name.Extension) return item;
-            return null;
+            return FirstOnAnyDrive(name)?.Item;
         }
+    }
+
+    /// <summary>
+    /// The object with this name and extension on any drive, preferring R, E, B, A and then other letters
+    /// alphabetically, so the result never depends on dictionary order. Caller holds the lock.
+    /// </summary>
+    private (ObjectName Name, StoredObject Item)? FirstOnAnyDrive(ObjectName name)
+    {
+        (ObjectName Name, StoredObject Item)? best = null;
+        var bestRank = int.MaxValue;
+        foreach (var entry in _items.Values)
+        {
+            if (entry.Name.Name != name.Name || entry.Name.Extension != name.Extension) continue;
+            var drive = entry.Name.Drive ?? 'R';
+            var index = Array.IndexOf(ObjectName.SearchOrder, drive);
+            var rank = index >= 0 ? index : 100 + drive;
+            if (rank < bestRank) { best = entry; bestRank = rank; }
+        }
+        return best;
     }
 
     /// <summary>Deletes every object matching <paramref name="pattern"/> (^ID rules, R: when no drive); returns how many.</summary>
@@ -123,7 +143,7 @@ public sealed class PrinterMemory
             }
             count = doomed.Count;
         }
-        if (count > 0) Changed?.Invoke(this, EventArgs.Empty);
+        if (count > 0) RaiseChanged();
         return count;
     }
 
@@ -137,7 +157,22 @@ public sealed class PrinterMemory
             _items.Clear();
             _bytes = 0;
         }
-        if (any) Changed?.Invoke(this, EventArgs.Empty);
+        if (any) RaiseChanged();
+    }
+
+    /// <summary>
+    /// Calls every <see cref="Changed"/> handler on its own, so one broken handler (for example a UI handler that
+    /// throws) can neither fail a store, delete or clear that already succeeded nor stop the handlers after it.
+    /// </summary>
+    private void RaiseChanged()
+    {
+        var handler = Changed;
+        if (handler is null) return;
+        foreach (var h in handler.GetInvocationList())
+        {
+            try { ((EventHandler)h)(this, EventArgs.Empty); }
+            catch { /* The change is done; a failing listener must not turn it into an error. */ }
+        }
     }
 
     /// <summary>"420 KB" or "5 MB": sizes as the window and messages show them.</summary>

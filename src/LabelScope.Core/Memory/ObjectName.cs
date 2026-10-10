@@ -32,12 +32,25 @@ internal readonly record struct ObjectName(char? Drive, string Name, string Exte
         var dot = t.LastIndexOf('.');
         var name = (dot >= 0 ? t[..dot] : t).Trim().ToUpperInvariant();
         var ext = (dot >= 0 ? t[(dot + 1)..] : "").Trim().ToUpperInvariant();
+        // Names arrive from the network: control characters (CR, LF, tab...) would mangle warnings and log lines.
+        name = NoControlCharacters(name);
+        ext = NoControlCharacters(ext);
         if (name.Length == 0) name = "UNKNOWN";
         if (ext.Length == 0) ext = defaultExtension.ToUpperInvariant();
         if (name.Length > MaxNameLength) name = name[..MaxNameLength];
         if (ext.Length > 8) ext = ext[..8];
         return new ObjectName(drive, name, ext);
     }
+
+    /// <summary>Replaces every control character with '?'.</summary>
+    private static string NoControlCharacters(string s) =>
+        s.Any(char.IsControl) ? string.Concat(s.Select(c => char.IsControl(c) ? '?' : c)) : s;
+
+    /// <summary>
+    /// True when the name is longer than the 8 characters a printer accepts. LabelScope still stores it (the length
+    /// rules are lenient) but callers can warn that a real printer would not.
+    /// </summary>
+    public bool IsLongerThanZebraAllows => Name.Length > 8;
 
     /// <summary>The name as messages show it, with its drive when it has one: R:LOGO.GRF.</summary>
     public string Display => Drive is { } d ? $"{d}:{Name}.{Extension}" : $"{Name}.{Extension}";
