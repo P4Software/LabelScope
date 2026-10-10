@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ZPL syntax colouring for the read-only ZPL panel (Controls/ZplEditor). Embedded in LabelScope.exe.
+
+  Colours follow the main-window mockup: commands in the primary blue, everything after a command (its parameters
+  and the field data) in brown, ^FX comments muted. ZPL commands are not case sensitive, hence ignoreCase.
+
+  A command's data ends where the next command starts: in ZPL a caret or tilde always begins a new command
+  (^FS ends a field, but so does any other command), so every span ends just before the next ^ or ~.
+-->
+<SyntaxDefinition name="ZPL" extensions=".zpl;.prn" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+
+  <Color name="Command" foreground="#1E4E8C" />
+  <Color name="Data" foreground="#8A4B08" />
+  <Color name="Comment" foreground="#5B6675" fontStyle="italic" />
+
+  <RuleSet ignoreCase="true">
+
+    <!-- ^FX comment: the command and its text are both muted, up to the next command (normally ^FS). -->
+    <Span color="Comment" multiline="false">
+      <Begin>\^FX</Begin>
+      <End>(?=[\^~])</End>
+    </Span>
+
+    <!-- ^FD / ^FV field data: the command in blue, the data in brown. -->
+    <Span color="Data" multiline="false">
+      <Begin color="Command">\^F[DV]</Begin>
+      <End>(?=[\^~])</End>
+    </Span>
+
+    <!--
+      Font and barcode commands carry their orientation letter right after the name (^A0N, ^ADN, ^BCN, ^BQN).
+      The mockup shows that letter as part of the command, so it is coloured with it. The look-ahead keeps
+      ^BY4 (module width 4) and similar from swallowing a parameter digit.
+    -->
+    <Rule color="Command">\^[AB][A-Z0-9@][NRIB]?(?=[,\^~]|$)</Rule>
+
+    <!-- Every other command: caret or tilde plus two characters (^FO, ^GB, ^XA, ~JA, ^CI ...). -->
+    <Rule color="Command">[\^~][A-Z0-9@]{2}</Rule>
+
+    <!-- Parameters after a command, e.g. "40,200" after ^FO. -->
+    <Rule color="Data">[^\^~]+</Rule>
+
+  </RuleSet>
+</SyntaxDefinition>

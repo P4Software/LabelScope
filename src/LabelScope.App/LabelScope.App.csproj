@@ -24,6 +24,13 @@
   <ItemGroup>
     <PackageReference Include="Serilog" Version="4.0.2" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <!-- Code editor for the read-only ZPL panel (line numbers, syntax colouring). MIT licence. -->
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ZPL syntax colouring for the ZPL panel, loaded by Controls/ZplEditor from the assembly. -->
+    <EmbeddedResource Include="Resources\Zpl.xshd" LogicalName="LabelScope.App.Resources.Zpl.xshd" />
   </ItemGroup>
 
   <ItemGroup>
