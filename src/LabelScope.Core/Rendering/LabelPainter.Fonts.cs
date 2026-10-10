@@ -15,6 +15,11 @@ internal sealed partial class LabelPainter
     // for one label only, so the set starts empty for every label.
     private readonly HashSet<char> _warnedFonts = [];
 
+    // Size notes (for example "enlarged up to 10 times") already given in this label. Several oversized fields
+    // usually share one cause, so the same note is shown once per label, like the unknown-font warning. Kept apart
+    // from _warnedFonts so that set stays keyed by font letter.
+    private readonly HashSet<string> _warnedFontNotes = [];
+
     /// <summary>
     /// The font for the field being drawn. When ^A gives any size, a missing height or width follows the font (0);
     /// when ^A gives none, ^CF's height and width apply, as the guide describes for both commands.
@@ -51,7 +56,7 @@ internal sealed partial class LabelPainter
             font = ZplFontFactory.TryBuiltIn('A', height, width, _dpi, out note)!;
         }
         // The font model says what it limited; the painter adds what the user can do about it.
-        if (note is not null)
+        if (note is not null && _warnedFontNotes.Add(note))
             _warnings.Add(new(line, $"{note} Use a smaller height or width in ^A or ^CF to print this text as the label intends."));
         return font;
     }

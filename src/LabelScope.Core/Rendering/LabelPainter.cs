@@ -253,10 +253,12 @@ internal sealed partial class LabelPainter : IDisposable
             foreach (var line in Wrap(text, font, b.Width, b.MaxLines))
             {
                 var lineWidth = font.Measure(line);
+                // Whole dots only: a printer cannot start a line between two dots, and a half-dot offset would
+                // make aliased cell glyphs land on a different dot column than the same text placed with ^FO.
                 lines.Add((line, b.Justify switch
                 {
-                    'C' => (b.Width - lineWidth) / 2,
-                    'R' => b.Width - lineWidth,
+                    'C' => MathF.Round((b.Width - lineWidth) / 2, MidpointRounding.AwayFromZero),
+                    'R' => MathF.Round(b.Width - lineWidth, MidpointRounding.AwayFromZero),
                     _ => 0,
                 }));
             }

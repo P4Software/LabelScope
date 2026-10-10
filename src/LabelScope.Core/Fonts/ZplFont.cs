@@ -99,9 +99,21 @@ internal sealed class CellFont : ZplFont
     /// <inheritdoc />
     public override void Draw(SKCanvas canvas, string text, float x, float baselineY, SKPaint paint)
     {
+        // Each glyph is clipped to its own cell. The letter shapes come from a scalable face sized so a capital
+        // fills the cell's baseline height, so accents, rings and brackets reach above the cell; a printer's bitmap
+        // font never prints outside its cell. Clipping keeps the capital height (shrinking the face to fit its
+        // ascent would make every ordinary letter smaller than on the printer).
+        var top = baselineY - Baseline;
+        var cellWidth = _spec.Width * _magX;
         var i = 0;
         foreach (var rune in text.EnumerateRunes())
-            canvas.DrawText(rune.ToString(), x + i++ * Advance, baselineY, _font, paint);
+        {
+            var left = x + i++ * Advance;
+            canvas.Save();
+            canvas.ClipRect(new SKRect(left, top, left + cellWidth, top + LineHeight), SKClipOperation.Intersect, antialias: false);
+            canvas.DrawText(rune.ToString(), left, baselineY, _font, paint);
+            canvas.Restore();
+        }
     }
 
     /// <inheritdoc />

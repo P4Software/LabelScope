@@ -1,3 +1,4 @@
+using LabelScope.Core.Fonts;
 using SkiaSharp;
 
 namespace LabelScope.Core.Rendering;
@@ -28,9 +29,9 @@ public static class PlaceholderLabel
             using var border = new SKPaint { Color = new SKColor(0xB0, 0xB0, 0xB0), Style = SKPaintStyle.Stroke, StrokeWidth = 2 };
             canvas.DrawRect(1, 1, width - 2, height - 2, border);
 
-            // Arial when installed, otherwise Skia substitutes the Windows default font.
-            using var typeface = SKTypeface.FromFamilyName("Arial");
-            using var font = new SKFont(typeface, 20);
+            // The bundled scalable font, so the picture never depends on Arial being installed. The typeface is
+            // shared for the life of the process and must not be disposed here; the SKFont is ours.
+            using var font = new SKFont(BundledFonts.Scalable, 20);
             using var ink = new SKPaint { Color = new SKColor(0x60, 0x60, 0x60), IsAntialias = true };
             using var measure = new SKPaint(font);
             var textWidth = measure.MeasureText(text);
