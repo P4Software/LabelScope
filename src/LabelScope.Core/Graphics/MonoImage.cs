@@ -26,9 +26,15 @@ internal sealed class MonoImage
         BytesPerRow = bytesPerRow;
         Height = rows;
         _bits = copy ? (byte[])bits.Clone() : bits;
+        _inkBounds = new Lazy<SKRectI?>(ScanInkBounds);
     }
 
     private readonly byte[] _bits;
+
+    // Computed on first use and then reused: a stored graphic may be recalled by many fields and many labels, and
+    // scanning 5 MB of bits for every one of them is wasted work. The image never changes, so the answer cannot either;
+    // Lazy makes the first computation safe when two labels draw the same graphic at once.
+    private readonly Lazy<SKRectI?> _inkBounds;
 
     /// <summary>Bytes in one row.</summary>
     public int BytesPerRow { get; }
@@ -60,7 +66,10 @@ internal sealed class MonoImage
     /// Smallest rectangle holding every black dot, or null for an all-white image. Used for the "does not fit"
     /// warning: the white padding that rounds a row up to whole bytes must not count as overhang.
     /// </summary>
-    public SKRectI? InkBounds()
+    public SKRectI? InkBounds() => _inkBounds.Value;
+
+    /// <summary>The scan behind <see cref="InkBounds"/>, run once per image.</summary>
+    private SKRectI? ScanInkBounds()
     {
         int left = int.MaxValue, top = int.MaxValue, right = -1, bottom = -1;
         for (var y = 0; y < Height; y++)
@@ -83,31 +92,35 @@ internal sealed class MonoImage
     }
 
     /// <summary>
-    /// An Alpha8 bitmap: 255 where the dot is black, 0 elsewhere. Skia draws an Alpha8 bitmap as a mask in the
-    /// paint's colour, so white dots leave the label untouched and ^FR (white with Difference) still inverts.
-    /// The caller disposes the result.
+    /// An Alpha8 bitmap of the whole image: 255 where the dot is black, 0 elsewhere. Skia draws an Alpha8 bitmap as a
+    /// mask in the paint's colour, so white dots leave the label untouched and ^FR (white with Difference) still
+    /// inverts. The caller disposes the result.
     /// </summary>
-    public SKBitmap ToMask()
+    public SKBitmap ToMask() => ToMask(new SKRectI(0, 0, Width, Height));
+
+    /// <summary>
+    /// As <see cref="ToMask()"/>, for the dots inside <paramref name="part"/> only (in image dots; it must lie inside the
+    /// image and not be empty). Pixel (0, 0) of the mask is dot (part.Left, part.Top) of the image.
+    /// </summary>
+    public SKBitmap ToMask(SKRectI part)
     {
-        var bitmap = new SKBitmap(new SKImageInfo(Width, Height, SKColorType.Alpha8, SKAlphaType.Premul));
+        if (part.Left < 0 || part.Top < 0 || part.Right > Width || part.Bottom > Height || part.Width <= 0 || part.Height <= 0)
+            throw new ArgumentOutOfRangeException(nameof(part), part, $"The part must lie inside the {Width} x {Height} dot image and not be empty.");
+        var bitmap = new SKBitmap(new SKImageInfo(part.Width, part.Height, SKColorType.Alpha8, SKAlphaType.Premul));
         var dst = bitmap.GetPixels();
         if (dst == IntPtr.Zero)
         {
             bitmap.Dispose();
             throw new GraphicDataException($"The graphic ({Width} x {Height} dots) was not drawn because there is not enough memory to draw it. Close other programs or use a smaller graphic.");
         }
-        var row = new byte[Width];
-        for (var y = 0; y < Height; y++)
+        var row = new byte[part.Width];
+        for (var y = part.Top; y < part.Bottom; y++)
         {
-            // Expand each packed byte into eight mask bytes instead of testing every dot on its own.
             var src = y * BytesPerRow;
-            for (var b = 0; b < BytesPerRow; b++)
-            {
-                int v = _bits[src + b], o = b * 8;
-                for (var k = 0; k < 8; k++) row[o + k] = (v & (0x80 >> k)) != 0 ? (byte)255 : (byte)0;
-            }
-            // RowBytes may be padded beyond Width, so each row is copied to its own start.
-            Marshal.Copy(row, 0, dst + y * bitmap.RowBytes, Width);
+            for (var x = part.Left; x < part.Right; x++)
+                row[x - part.Left] = (_bits[src + (x >> 3)] & (0x80 >> (x & 7))) != 0 ? (byte)255 : (byte)0;
+            // RowBytes may be padded beyond the width, so each row is copied to its own start.
+            Marshal.Copy(row, 0, dst + (y - part.Top) * bitmap.RowBytes, part.Width);
         }
         return bitmap;
     }

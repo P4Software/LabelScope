@@ -132,8 +132,22 @@ internal static class HexGraphicDecoder
     /// <summary>Copies <paramref name="count"/> nibbles from the row above, starting at <paramref name="pos"/>.</summary>
     private static void CopyFromRowAbove(byte[] bits, long pos, long count, long nibblesPerRow)
     {
-        for (var k = 0L; k < count; k++)
-            SetNibble(bits, pos + k, GetNibble(bits, pos + k - nibblesPerRow));
+        // A row is a whole number of bytes, so the nibble above sits in the same half of its byte. After an odd start
+        // the rest goes byte by byte in one copy: a 5000-row graphic of ':' rows stays fast (the hostile-input sweep
+        // repeats one 1000-byte row 4999 times). The source is a row above, so the two ranges never overlap.
+        var end = pos + count;
+        if (pos < end && (pos & 1) == 1)
+        {
+            SetNibble(bits, pos, GetNibble(bits, pos - nibblesPerRow));
+            pos++;
+        }
+        var fullBytes = (end - pos) / 2;
+        if (fullBytes > 0)
+        {
+            Array.Copy(bits, (pos - nibblesPerRow) / 2, bits, pos / 2, fullBytes);
+            pos += fullBytes * 2;
+        }
+        if (pos < end) SetNibble(bits, pos, GetNibble(bits, pos - nibblesPerRow));
     }
 
     // Even positions are the high (left) half of a byte, odd positions the low half.

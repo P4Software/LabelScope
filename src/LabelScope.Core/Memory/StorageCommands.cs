@@ -45,7 +45,7 @@ internal static class StorageCommands
         var name = ObjectName.Parse(a[0], "GRF", 'R') with { Extension = "GRF" };
         var label = $"~DG {name.Display}";
 
-        if (a.Length < 4 || !ZplArgs.TryLong(a, 1, out var total) || !ZplArgs.TryLong(a, 2, out var perRow))
+        if (!ZplArgs.TryLong(a, 1, out var total) || !ZplArgs.TryLong(a, 2, out var perRow))
         {
             warnings.Add(new(cmd.Line, $"{label}: The download needs the total byte count and the bytes per row before the data; nothing was stored."));
             return;
@@ -53,6 +53,13 @@ internal static class StorageCommands
         if (!GraphicLimits.TryRows(total, perRow, out var rows, out var problem, out var sizeNote))
         {
             warnings.Add(new(cmd.Line, $"{label}: The graphic was not stored because {problem}."));
+            return;
+        }
+        // Without data a printer stores nothing useful; storing a blank graphic would hide the mistake until a label
+        // recalled it and printed nothing.
+        if (a.Length < 4 || a[3].Trim().Length == 0)
+        {
+            warnings.Add(new(cmd.Line, $"{label}: The download has no graphic data after its size, so nothing was stored. Put the graphic data after the bytes-per-row value."));
             return;
         }
 
