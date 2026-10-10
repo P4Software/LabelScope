@@ -19,6 +19,10 @@ internal sealed partial class LabelPainter
     private BarcodeRequest? _barcode;
 
     /// <summary>A barcode command waiting for its data.</summary>
+    /// <param name="Command">The ^B command, for example ^BC.</param>
+    /// <param name="Args">Its parameters, split at the commas.</param>
+    /// <param name="Line">ZPL line of the command.</param>
+    /// <param name="Skip">True for a symbology planned for a later release: the data is neither drawn nor shown as text.</param>
     /// <param name="SkipReason">The warning given for a symbology planned for a later release, reused as the field's problem.</param>
     private sealed record BarcodeRequest(string Command, string[] Args, int Line, bool Skip, string? SkipReason = null);
 
@@ -105,7 +109,10 @@ internal sealed partial class LabelPainter
                 // The measured layout includes the interpretation line, so the recorded box covers it too.
                 var detail = record ? Text.Get("Field_BarcodeLinearDetail", name, linear.Narrow, linear.Look.BarHeight) : null;
                 PlaceAndDraw(req, linear.Orientation, lay.Width, lay.Height, lay.BaseY, data, name, detail, ink =>
-                    LinearDrawer.Draw(_canvas, linear.Symbol, linear.Look, linear.Narrow, ink, BundledFonts.Mono));
+                {
+                    var (left, right) = LinearDrawer.Draw(_canvas, linear.Symbol, linear.Look, linear.Narrow, ink, BundledFonts.Mono);
+                    return new SKRect(left, 0, right, lay.Height);
+                });
                 break;
             }
             case MatrixField matrix:
@@ -118,34 +125,39 @@ internal sealed partial class LabelPainter
                     ? Text.Get("Field_BarcodeMatrixDetail", name, matrix.ModuleWidth, matrix.ModuleHeight, matrix.Modules.Width, matrix.Modules.Height)
                     : null;
                 PlaceAndDraw(req, matrix.Orientation, w, h, h, data, name, detail, ink =>
-                    MatrixDrawer.Draw(_canvas, matrix.Modules, matrix.ModuleWidth, matrix.ModuleHeight, ink));
+                {
+                    MatrixDrawer.Draw(_canvas, matrix.Modules, matrix.ModuleWidth, matrix.ModuleHeight, ink);
+                    return new SKRect(0, 0, w, h);
+                });
                 break;
             }
         }
     }
 
     /// <summary>
-    /// Applies the rotation transform for a w x h field, warns when it leaves the label, records the field (when
-    /// <paramref name="detail"/> is given, that is, while there is room in the Fields list) and runs <paramref name="draw"/>.
+    /// Applies the rotation transform for a w x h field, runs <paramref name="draw"/> (which returns the local box of
+    /// everything it drew), warns when that box leaves the label, and records the field (when <paramref name="detail"/>
+    /// is given, that is, while there is room in the Fields list).
     /// </summary>
     private void PlaceAndDraw(BarcodeRequest req, char orientation, int w, int h, int baseY, string data, string name,
-                              string? detail, Action<SKPaint> draw)
+                              string? detail, Func<SKPaint, SKRect> draw)
     {
         _canvas.Save();
         try
         {
             FieldPlacement.Apply(_canvas, orientation, _x, _y, w, h, _baseline, baseY);
 
-            // Where the box really lands (after rotation) tells whether it fits; Skia clips the rest silently.
-            var box = _canvas.TotalMatrix.MapRect(new SKRect(0, 0, w, h));
-            if (box.Left < 0 || box.Top < 0 || box.Right > _bitmap.Width || box.Bottom > _bitmap.Height)
+            // Drawn first: the drawer reports how far the symbol really reaches, interpretation line included.
+            SKRect drawn;
+            using (var ink = InkPaint()) drawn = draw(ink);
+
+            // Where the whole symbol really lands (after rotation) tells whether it fits; Skia clips the rest silently.
+            var box = _canvas.TotalMatrix.MapRect(drawn);
+            if (box.Left < -EdgeSlack || box.Top < -EdgeSlack || box.Right > _bitmap.Width + EdgeSlack || box.Bottom > _bitmap.Height + EdgeSlack)
                 _warnings.Add(new(req.Line,
                     Text.Get("Painter_BarcodeOffLabel", req.Command, w, h)));
             if (detail is not null)
-                RecordField(FieldKind.Barcode, Text.Get("Field_BarcodeSummary", name), data, new SKRect(0, 0, w, h), req.Line, detail);
-
-            using var ink = InkPaint();
-            draw(ink);
+                RecordField(FieldKind.Barcode, Text.Get("Field_BarcodeSummary", name), data, drawn, req.Line, detail);
         }
         finally
         {

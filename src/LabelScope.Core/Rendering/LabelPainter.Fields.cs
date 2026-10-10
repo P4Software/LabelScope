@@ -41,8 +41,14 @@ internal sealed partial class LabelPainter
     private int _originLine;
 
     /// <summary>A field as drawn, before its problem is judged against the final label size.</summary>
+    /// <param name="Kind">What was drawn.</param>
+    /// <param name="Summary">Short name in the current language.</param>
+    /// <param name="Data">Field data, already cut to <see cref="MaxRecordedData"/>.</param>
     /// <param name="Box">Device-space box in dots (^PO I is already part of the canvas matrix).</param>
     /// <param name="Judge">The part that must be on the label (the ink of a graphic, else the box); empty for a field not drawn.</param>
+    /// <param name="Line">ZPL line the field is reported at.</param>
+    /// <param name="Detail">How it was drawn, in the current language.</param>
+    /// <param name="Problem">Why it was not drawn; null when it was (the off-label check comes later).</param>
     private readonly record struct PendingField(FieldKind Kind, string Summary, string Data, SKRect Box, SKRect Judge,
                                                 int Line, string Detail, string? Problem);
 
@@ -65,6 +71,12 @@ internal sealed partial class LabelPainter
     /// Records a field whose <paramref name="local"/> box is in the current canvas coordinates; the canvas matrix
     /// (field rotation and ^PO I) turns it into label dots. Call <see cref="RoomForField"/> first.
     /// </summary>
+    /// <param name="kind">What was drawn.</param>
+    /// <param name="summary">Short name in the current language.</param>
+    /// <param name="data">Field data (cut to <see cref="MaxRecordedData"/> here).</param>
+    /// <param name="local">The field box in current canvas coordinates.</param>
+    /// <param name="drawLine">Line of the drawing command, used when the field has no ^FO or ^FT.</param>
+    /// <param name="detail">How it was drawn, in the current language.</param>
     /// <param name="judgeLocal">Part that must land on the label, when it differs from the box (the ink of a graphic).</param>
     /// <param name="problem">Why the field was not drawn; it wins over the off-label check.</param>
     private void RecordField(FieldKind kind, string summary, string data, SKRect local, int drawLine, string detail,
@@ -115,7 +127,7 @@ internal sealed partial class LabelPainter
         var result = new List<LabelField>(_fields.Count + 1);
         foreach (var f in _fields)
         {
-            var problem = f.Problem ?? OffLabelProblem(f.Judge, width, height);
+            var problem = f.Problem ?? OffLabelProblem(f.Kind, f.Judge, width, height);
             // Whole dots that cover the box: a field from x 10.4 to 20.2 occupies dots 10 to 20.
             int x = (int)Math.Floor(f.Box.Left), y = (int)Math.Floor(f.Box.Top);
             int w = (int)Math.Ceiling(f.Box.Right) - x, h = (int)Math.Ceiling(f.Box.Bottom) - y;
@@ -127,13 +139,16 @@ internal sealed partial class LabelPainter
         return result;
     }
 
-    /// <summary>Null when <paramref name="judge"/> lies on the label; otherwise whether part or all of it is outside.</summary>
-    private static string? OffLabelProblem(SKRect judge, int width, int height)
+    /// <summary>
+    /// Null when <paramref name="judge"/> lies on the label; otherwise whether part or all of it is outside. A barcode
+    /// that is only partly on the label gets its own message: the visible part looks fine, but it will not scan.
+    /// </summary>
+    private static string? OffLabelProblem(FieldKind kind, SKRect judge, int width, int height)
     {
         if (judge.Right <= EdgeSlack || judge.Bottom <= EdgeSlack || judge.Left >= width - EdgeSlack || judge.Top >= height - EdgeSlack)
             return Text.Get("Field_OffLabel");
         if (judge.Left < -EdgeSlack || judge.Top < -EdgeSlack || judge.Right > width + EdgeSlack || judge.Bottom > height + EdgeSlack)
-            return Text.Get("Field_PartlyOffLabel");
+            return kind == FieldKind.Barcode ? Text.Get("Field_BarcodePartlyOffLabel") : Text.Get("Field_PartlyOffLabel");
         return null;
     }
 }

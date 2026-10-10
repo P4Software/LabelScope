@@ -52,7 +52,7 @@ internal static class StorageCommands
         }
         if (!GraphicLimits.TryRows(total, perRow, out var rows, out var problem, out var sizeNote))
         {
-            warnings.Add(new(cmd.Line, Text.Get("Storage_GraphicSizeProblem", label, problem)));
+            warnings.Add(new(cmd.Line, Text.Get("Storage_GraphicSizeProblem", label, problem ?? "")));
             return;
         }
         // Without data a printer stores nothing useful; storing a blank graphic would hide the mistake until a label

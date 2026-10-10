@@ -33,7 +33,7 @@ internal sealed partial class LabelPainter
         }
         if (!GraphicLimits.TryRows(total, perRow, out var rows, out var problem, out var sizeNote))
         {
-            Warn(cmd, Text.Get("Painter_GfSizeProblem", problem));
+            Warn(cmd, Text.Get("Painter_GfSizeProblem", problem ?? ""));
             return;
         }
         // A size with nothing after it is a different mistake from a missing size, and saying "needs the size" for it
@@ -131,7 +131,7 @@ internal sealed partial class LabelPainter
     {
         if (found is not null)
             return Text.Get("Painter_RecallWrongKind_" + found.Kind, command, name.Display);
-        var where = elsewhere is { } other ? Text.Get("Painter_OtherDrive", other.Display, name.Drive) : "";
+        var where = elsewhere is { } other ? Text.Get("Painter_OtherDrive", other.Display, name.Drive?.ToString() ?? "") : "";
         return Text.Get("Painter_GraphicMissing", command, name.Display, where);
     }
 
@@ -163,7 +163,7 @@ internal sealed partial class LabelPainter
             Warn(cmd, Text.Get("Painter_IlWrongKind_" + found.Kind, name.Display));
             return;
         }
-        var where = elsewhere is { } other ? Text.Get("Painter_OtherDrive", other.Display, name.Drive) : "";
+        var where = elsewhere is { } other ? Text.Get("Painter_OtherDrive", other.Display, name.Drive?.ToString() ?? "") : "";
         Warn(cmd, Text.Get("Painter_IlMissing", name.Display, where));
     }
 
@@ -207,7 +207,16 @@ internal sealed partial class LabelPainter
     /// dots, as a field at (<paramref name="x"/>, <paramref name="y"/>). White dots are transparent, so a graphic never
     /// erases what is under it; the ink follows ^FR and ^LR like every other field.
     /// </summary>
+    /// <param name="command">The command drawing it (^GF, ^XG, ^IM or ^IL), for messages and the Fields list.</param>
+    /// <param name="line">ZPL line of that command.</param>
     /// <param name="name">The stored graphic's name for the Fields list; empty for ^GF, whose data is the bitmap itself.</param>
+    /// <param name="image">The black and white dots.</param>
+    /// <param name="magX">Horizontal magnification (1 to 10).</param>
+    /// <param name="magY">Vertical magnification (1 to 10).</param>
+    /// <param name="x">Field origin x in dots.</param>
+    /// <param name="y">Field origin y in dots.</param>
+    /// <param name="orientation">N, R, I or B; graphics are always drawn N today, as ^FW does not turn them.</param>
+    /// <param name="fromBase">True for ^FT, whose origin is the bottom-left corner of the graphic.</param>
     private void DrawImage(string command, int line, string name, MonoImage image, int magX, int magY, int x, int y, char orientation, bool fromBase)
     {
         // At most 8000 dots x 10 magnification per side, far inside int.

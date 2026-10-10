@@ -41,7 +41,12 @@ internal static class LinearDrawer
     }
 
     /// <summary>Draws bars and interpretation line with <paramref name="ink"/> (which carries the ^FR blend mode).</summary>
-    public static void Draw(SKCanvas canvas, LinearSymbol symbol, BarcodeLook look, int narrow, SKPaint ink, SKTypeface typeface)
+    /// <returns>
+    /// The left and right ends of everything drawn, in local dots. The interpretation line can reach past the bars (an
+    /// EAN-13 leading digit hangs to the left, a long Code 128 text is wider than its bars), and the field box must
+    /// cover it; the text widths are the ones measured for drawing anyway, so this costs nothing extra.
+    /// </returns>
+    public static (float Left, float Right) Draw(SKCanvas canvas, LinearSymbol symbol, BarcodeLook look, int narrow, SKPaint ink, SKTypeface typeface)
     {
         var lay = Measure(symbol, look, narrow);
 
@@ -61,7 +66,8 @@ internal static class LinearDrawer
         }
         ink.IsAntialias = wasAa;
 
-        if (!HasText(symbol, look)) return;
+        float left = 0, right = lay.Width;
+        if (!HasText(symbol, look)) return (left, right);
 
         using var font = new SKFont(typeface, FontDots(narrow));
         var textTop = look.TextAbove ? 0 : look.BarHeight + TextGap;
@@ -70,9 +76,12 @@ internal static class LinearDrawer
         foreach (var span in spans)
         {
             var width = MeasureText(font, span.Text);
-            var left = (span.X0 + span.X1) / 2f - width / 2f; // centred in its range
-            canvas.DrawText(span.Text, left, baseline, font, ink);
+            var start = (span.X0 + span.X1) / 2f - width / 2f; // centred in its range
+            canvas.DrawText(span.Text, start, baseline, font, ink);
+            left = MathF.Min(left, start);
+            right = MathF.Max(right, start + width);
         }
+        return (left, right);
     }
 
     /// <summary>SkiaSharp 2.88 has no string overload on SKFont.MeasureText, so a short-lived SKPaint measures.</summary>

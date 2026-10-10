@@ -332,27 +332,36 @@ internal sealed partial class LabelPainter : IDisposable
         // Lay the lines out in an upright local box first: (text, x offset inside the box).
         var lines = new List<(string Text, float X)>();
         float boxWidth, lineStep = 0;
+        // Left and right ends of the text actually written, from the widths measured for the layout anyway: a ^FB
+        // block may reach past the label edge while its shorter lines do not, and only the text can be cut.
+        float inkLeft, inkRight;
         if (_fieldBlock is null)
         {
             lines.Add((text, 0));
             boxWidth = font.Measure(text);
+            (inkLeft, inkRight) = (0, boxWidth);
         }
         else
         {
             var b = _fieldBlock;
             lineStep = lineHeight + b.LineSpacing;
+            (inkLeft, inkRight) = (float.MaxValue, float.MinValue);
             foreach (var line in Wrap(text, font, b.Width, b.MaxLines))
             {
                 var lineWidth = font.Measure(line);
                 // Whole dots only: a printer cannot start a line between two dots, and a half-dot offset would
                 // make aliased cell glyphs land on a different dot column than the same text placed with ^FO.
-                lines.Add((line, b.Justify switch
+                var start = b.Justify switch
                 {
                     'C' => MathF.Round((b.Width - lineWidth) / 2, MidpointRounding.AwayFromZero),
                     'R' => MathF.Round(b.Width - lineWidth, MidpointRounding.AwayFromZero),
                     _ => 0,
-                }));
+                };
+                lines.Add((line, start));
+                inkLeft = MathF.Min(inkLeft, start);
+                inkRight = MathF.Max(inkRight, start + lineWidth);
             }
+            if (inkLeft > inkRight) (inkLeft, inkRight) = (0, 0); // no lines at all
             boxWidth = b.Width;
         }
 
@@ -369,9 +378,15 @@ internal sealed partial class LabelPainter : IDisposable
                 font.Draw(_canvas, lines[i].Text, lines[i].X, baseline + i * lineStep, paint);
 
             // The box the layout already gave the placement: no extra measuring, and the same box rotation used.
+            // Whether it fits is judged on the written lines from the top of the box down to the LAST BASELINE, not
+            // to the bottom of the descent: the descent is room for letters such as g and p, and a label whose ^LL
+            // ends just under a line of capitals loses nothing. Finding the real lowest dot of the drawn glyphs would
+            // mean measuring every glyph again, which the recording must not cost. The price: a descender cut off by
+            // the bottom edge is not reported.
             if (RoomForField(_dataLine))
                 RecordField(FieldKind.Text, Text.Get("Field_TextSummary", Quote(data)), data,
-                    new SKRect(0, 0, (int)Math.Ceiling(boxWidth), boxHeight), _dataLine, TextDetail(font));
+                    new SKRect(0, 0, (int)Math.Ceiling(boxWidth), boxHeight), _dataLine, TextDetail(font),
+                    judgeLocal: new SKRect(inkLeft, 0, inkRight, baseline + Math.Max(0, (lines.Count - 1) * lineStep)));
         }
         finally
         {
