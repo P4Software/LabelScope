@@ -171,6 +171,12 @@ public sealed class FontLibrary
                     {
                         font = Load(path);
                     }
+                    catch (OutOfMemoryException)
+                    {
+                        // Like an IO failure, this may pass (other labels free their memory), so it is not remembered:
+                        // the font is tried again on its next use. Load has already given back the bytes it reserved.
+                        font = new LoadedFont(null, null, FontProblem.Unopenable);
+                    }
                     catch (Exception)
                     {
                         // Load turns every failure it knows into a FontProblem. Anything else (a bug in a font parser,

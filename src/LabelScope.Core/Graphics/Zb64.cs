@@ -83,7 +83,7 @@ internal static class Zb64
             // check by chance, so when the zlib reading fails it is tried once more as raw deflate. A damaged zlib
             // stream practically never survives that second reading: its header bytes, read as deflate, open a
             // stored block whose length must equal the complement of the next two bytes. A stream that unpacked
-            // completely but whose checksum is wrong is damaged zlib for certain, and is not tried again.
+            // completely but whose checksum is wrong is practically certain to be damaged zlib, and is not tried again.
             result = null;
             more = false;
             if (LooksLikeZlib(raw, written))
