@@ -309,6 +309,6 @@ Bug reports and feature requests are welcome in [Issues](https://github.com/P4So
 
 LabelScope is free software by [P4 Software](https://github.com/P4Software) under the [MIT licence](LICENSE): you may use, copy, change and share it, including in commercial work, as long as the copyright notice and licence text stay with it.
 
-It uses SkiaSharp, Serilog, ZXing.Net and the .NET runtime, and credits the Project Nayuki QR Code generator library. The built-in Zebra fonts are drawn with the bundled Noto Sans ExtraCondensed Bold and IBM Plex Mono fonts (SIL Open Font License 1.1). All licences and copyright notices are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which is also installed next to `LabelScope.exe`.
+It uses SkiaSharp, Serilog, ZXing.Net, AvalonEdit and the .NET runtime, and credits the Project Nayuki QR Code generator library. The built-in Zebra fonts are drawn with the bundled Noto Sans ExtraCondensed Bold and IBM Plex Mono fonts (SIL Open Font License 1.1). All licences and copyright notices are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which is also installed next to `LabelScope.exe`.
 
 Zebra® and ZPL® are trademarks of Zebra Technologies Corporation. LabelScope is an independent product and is not affiliated with or endorsed by Zebra Technologies.
