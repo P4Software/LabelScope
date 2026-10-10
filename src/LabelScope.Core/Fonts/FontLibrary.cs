@@ -27,12 +27,13 @@ public sealed class FontLibrary
     /// </summary>
     public const long MaxLoadedBytes = 256L * 1024 * 1024;
 
-    // Windows device names: a file such as CON.TTF opens a device, not a file, on older Windows. Never listed or looked up.
+    // Windows device names: a file such as CON.TTF opens a device, not a file, on older Windows. Never listed or looked
+    // up. Windows also reserves COM and LPT with 0 and with the superscript digits 1, 2 and 3, and the console names.
     private static readonly HashSet<string> DeviceNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "CON", "PRN", "AUX", "NUL",
-        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$",
+        "COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "COM\u00B9", "COM\u00B2", "COM\u00B3",
+        "LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "LPT\u00B9", "LPT\u00B2", "LPT\u00B3",
     };
 
     // Separators, the drive or stream colon, and NUL, for Windows and Unix alike.
@@ -75,6 +76,12 @@ public sealed class FontLibrary
     internal long LoadedBytes => Interlocked.Read(ref _loadedBytes);
 
     /// <summary>
+    /// Turns font bytes into a typeface: Skia's parser. Tests replace it to simulate a failure no one expected (a bug in
+    /// a parser), which must still come back as a plain warning.
+    /// </summary>
+    internal Func<SKData, SKTypeface?> TypefaceFactory { get; set; } = data => SKTypeface.FromData(data);
+
+    /// <summary>
     /// Lists the fonts in <paramref name="folder"/> (relative to <paramref name="programFolder"/> when not rooted).
     /// Problems are added to <paramref name="messages"/> in plain language; the result is never null and this method
     /// never throws for a bad setting or an unreadable folder. The setting is only read, never written back.
@@ -110,7 +117,7 @@ public sealed class FontLibrary
                 // Links (symbolic links, junction-like reparse points) could point anywhere on the disk; only real
                 // files that sit in the folder itself are offered to labels. Device names never name a real file.
                 if ((file.Attributes & (FileAttributes.ReparsePoint | FileAttributes.Device)) != 0) continue;
-                if (DeviceNames.Contains(Path.GetFileNameWithoutExtension(file.Name))) continue;
+                if (IsDeviceName(file.Name)) continue;
                 if (++seen > MaxFiles)
                 {
                     messages.Add($"The FontsFolder holds more than {MaxFiles} font files; only the first {MaxFiles} are used. Move the fonts you do not need to another folder, then restart LabelScope.");
@@ -160,7 +167,18 @@ public sealed class FontLibrary
             {
                 if (!_loaded.TryGetValue(path, out font))
                 {
-                    font = Load(path);
+                    try
+                    {
+                        font = Load(path);
+                    }
+                    catch (Exception)
+                    {
+                        // Load turns every failure it knows into a FontProblem. Anything else (a bug in a font parser,
+                        // for example) must not reach the renderer either: a label names this font from the network,
+                        // and the text still has to be drawn with the stand-in font. Load has already given back the
+                        // bytes it reserved. Remembered as unreadable, so the same file does not fail again and again.
+                        font = new LoadedFont(null, null, FontProblem.Unreadable);
+                    }
                     if (font.Problem is FontProblem.None or FontProblem.Unreadable) _loaded[path] = font;
                 }
             }
@@ -174,12 +192,24 @@ public sealed class FontLibrary
     /// characters, "..", a trailing dot or space (Windows drops them, so "A.TTF." opens A.TTF) and device names here
     /// keeps that true even if the listing ever changes.
     /// </summary>
-    private static bool IsPlainFileName(string name) =>
+    internal static bool IsPlainFileName(string name) =>
         name.Length > 0 &&
         name.IndexOfAny(PathCharacters) < 0 &&
         !name.Contains("..", StringComparison.Ordinal) &&
         !name.EndsWith('.') && !name.EndsWith(' ') &&
-        !DeviceNames.Contains(Path.GetFileNameWithoutExtension(name));
+        !IsDeviceName(name);
+
+    /// <summary>
+    /// True when any dot-separated part of <paramref name="name"/> is a Windows device name. Windows reads the part
+    /// before the first dot as the device (COM1.X.TTF is the COM1 port) and drops spaces before a dot ("CON .TTF"
+    /// is CON); checking every part, not only the first, also refuses names a future Windows might read differently.
+    /// </summary>
+    private static bool IsDeviceName(string name)
+    {
+        foreach (var part in name.Split('.'))
+            if (DeviceNames.Contains(part.TrimEnd(' '))) return true;
+        return false;
+    }
 
     /// <summary>
     /// Reads the file straight into Skia's memory (one copy, and the file is closed again, so the user can replace or
@@ -188,6 +218,7 @@ public sealed class FontLibrary
     private LoadedFont Load(string path)
     {
         long reserved = 0;
+        var loaded = false;
         try
         {
             // The listing may have been changed since start-up: a file swapped for a link could point anywhere.
@@ -204,13 +235,23 @@ public sealed class FontLibrary
 
             var data = ReadInto(stream, length);
             if (data is null) { Release(ref reserved); return new LoadedFont(null, null, FontProblem.Unopenable); }
-            var face = SKTypeface.FromData(data);
+            SKTypeface? face;
+            try
+            {
+                face = TypefaceFactory(data);
+            }
+            catch
+            {
+                data.Dispose();
+                throw;
+            }
             if (face is null)
             {
                 data.Dispose();
                 Release(ref reserved);
                 return new LoadedFont(null, null, FontProblem.Unreadable);
             }
+            loaded = true;
             return new LoadedFont(face, data, FontProblem.None);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException)
@@ -224,6 +265,12 @@ public sealed class FontLibrary
             // The same filter as StoredFont: a parser failure becomes "could not be read", never an exception.
             Release(ref reserved);
             return new LoadedFont(null, null, FontProblem.Unreadable);
+        }
+        finally
+        {
+            // Whatever left this method without a loaded font, an exception no catch above names included, gives the
+            // reserved bytes back: otherwise the budget would shrink for good and later fonts would be refused.
+            if (!loaded) Release(ref reserved);
         }
     }
 
