@@ -118,7 +118,7 @@
   <data name="Painter_IsNoPrint" xml:space="preserve"><value>^IS {0},N: una impresora guarda esta etiqueta como imagen sin imprimirla; LabelScope la muestra de todos modos.</value></data>
   <data name="Painter_GraphicAllWhite" xml:space="preserve"><value>{0}: El gráfico ({1} x {2} puntos) es completamente blanco, así que no se ve nada en la etiqueta. Si se esperaba una imagen, revise los datos gráficos.</value></data>
   <data name="Painter_GraphicOffLabel" xml:space="preserve"><value>{0}: El gráfico ({1} x {2} puntos) no cabe en la etiqueta; la parte que queda fuera se recorta.</value></data>
-  <data name="Painter_LabelTooLarge" xml:space="preserve"><value>La etiqueta es demasiado grande para dibujarla ({0} x {1} puntos); se recortó a {0} x {2} puntos. Revise ^PW y ^LL.</value></data>
+  <data name="Painter_LabelTooLarge" xml:space="preserve"><value>La etiqueta es demasiado grande para dibujarla ({0} x {1} puntos); se recortó a {0} x {2} puntos. Revise ^PW y ^LL, o el tamaño de etiqueta en Configuración de impresora.</value></data>
   <data name="Painter_SizeClamped" xml:space="preserve"><value>{0}{1} está fuera del tamaño de etiqueta admitido (de 1 a {2} puntos); se usó {3} en su lugar.</value></data>
   <data name="Painter_NotSupported" xml:space="preserve"><value>{0} todavía no es compatible y se ignoró.</value></data>
   <data name="Painter_FontSizeNotDots_height" xml:space="preserve"><value>{0}: La altura de fuente "{1}" no es un tamaño en puntos, así que se ignoró. Indique la altura como un número entero de puntos.</value></data>
@@ -237,8 +237,8 @@
   <data name="Settings_OpenFailed" xml:space="preserve"><value>No se pudo abrir el archivo de configuración ({0}). Por ahora se usa la configuración estándar. Cierre otros programas que puedan estar usando {1} y reinicie LabelScope.</value></data>
   <data name="Settings_ReadFailed" xml:space="preserve"><value>No se pudo leer el archivo de configuración ({0}). Por ahora se usa la configuración estándar. Corrija el archivo, o bórrelo para obtener uno nuevo, y reinicie LabelScope: {1}</value></data>
   <data name="Settings_And" xml:space="preserve"><value> y </value></data>
-  <data name="Settings_RetiredKey_One" xml:space="preserve"><value>{0} de settings.json ya no se usa: el tamaño de etiqueta ahora viene del ZPL (^PW y ^LL). Puede borrar esa línea.</value></data>
-  <data name="Settings_RetiredKey_Many" xml:space="preserve"><value>{0} de settings.json ya no se usan: el tamaño de etiqueta ahora viene del ZPL (^PW y ^LL). Puede borrar esas líneas.</value></data>
+  <data name="Settings_RetiredKey_One" xml:space="preserve"><value>{0} de settings.json ya no se usa. El tamaño de etiqueta viene del ZPL (^PW y ^LL); cuando el ZPL no lo indica, se usan LabelWidthMm y LabelHeightMm. Puede borrar esa línea.</value></data>
+  <data name="Settings_RetiredKey_Many" xml:space="preserve"><value>{0} de settings.json ya no se usan. El tamaño de etiqueta viene del ZPL (^PW y ^LL); cuando el ZPL no lo indica, se usan LabelWidthMm y LabelHeightMm. Puede borrar esas líneas.</value></data>
   <data name="Settings_BadListenAddress" xml:space="preserve"><value>ListenAddress "{0}" no está permitido. Use "127.0.0.1" (solo este equipo) o "0.0.0.0" (también otros equipos de su red); se usa "{1}" en su lugar.</value></data>
   <data name="Settings_BadListenPort" xml:space="preserve"><value>ListenPort {0} no está entre 1 y 65535; se usa {1} en su lugar.</value></data>
   <data name="Settings_BadDefaultDpi" xml:space="preserve"><value>DefaultDpi {0} no es uno de 152, 203, 300, 600; se usa {1} en su lugar.</value></data>
@@ -306,4 +306,10 @@
   <data name="Field_OffLabel" xml:space="preserve"><value>Este campo queda fuera de la etiqueta, así que no se imprime nada de él. Revise su posición (^FO o ^FT) y el tamaño de la etiqueta (^PW, ^LL).</value></data>
   <data name="Field_PartlyOffLabel" xml:space="preserve"><value>Parte de este campo queda fuera de la etiqueta y se recorta. Mueva el campo o hágalo más pequeño.</value></data>
   <data name="Fields_TooMany" xml:space="preserve"><value>Esta etiqueta tiene {0} campos; solo se listan los primeros 5000.</value></data>
+  <data name="Painter_LabelTooWide" xml:space="preserve"><value>La etiqueta es demasiado grande para dibujarla ({0} x {1} puntos); el ancho de la etiqueta cargada se recortó a {2} puntos. Elija un tamaño de etiqueta más angosto en Configuración de impresora, o envíe ^PW.</value></data>
+  <data name="Settings_BadLabelSize" xml:space="preserve"><value>{0} {1} no está entre 5 y 2000 mm; se usa {2} en su lugar.</value></data>
+  <data name="Settings_BadLanguage" xml:space="preserve"><value>El idioma "{0}" no se reconoce. Use "en" (inglés), "es" (español) o "" (el idioma de Windows); se usa el idioma de Windows en su lugar.</value></data>
+  <data name="Settings_Saved" xml:space="preserve"><value>La configuración se guardó en {0}.</value></data>
+  <data name="Settings_SaveFailed" xml:space="preserve"><value>No se pudo guardar la configuración en {0} ({1}). El archivo no se modificó. Compruebe que se pueda escribir en la carpeta y que ningún otro programa tenga abierto el archivo, y vuelva a intentarlo.</value></data>
+  <data name="Settings_FileReadOnly" xml:space="preserve"><value>el archivo es de solo lectura</value></data>
 </root>

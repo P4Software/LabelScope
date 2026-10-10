@@ -118,7 +118,7 @@
   <data name="Painter_IsNoPrint" xml:space="preserve"><value>^IS {0},N: a printer stores this label as an image without printing it; LabelScope shows it anyway.</value></data>
   <data name="Painter_GraphicAllWhite" xml:space="preserve"><value>{0}: The graphic ({1} x {2} dots) is completely white, so nothing shows on the label. If a picture was expected, check the graphic data.</value></data>
   <data name="Painter_GraphicOffLabel" xml:space="preserve"><value>{0}: The graphic ({1} x {2} dots) does not fit on the label; the part outside is cut off.</value></data>
-  <data name="Painter_LabelTooLarge" xml:space="preserve"><value>The label size is too large to draw ({0} x {1} dots); it was cut to {0} x {2} dots. Check ^PW and ^LL.</value></data>
+  <data name="Painter_LabelTooLarge" xml:space="preserve"><value>The label size is too large to draw ({0} x {1} dots); it was cut to {0} x {2} dots. Check ^PW and ^LL, or the label size in Printer setup.</value></data>
   <data name="Painter_SizeClamped" xml:space="preserve"><value>{0}{1} is outside the supported label size (1 to {2} dots); {3} was used instead.</value></data>
   <data name="Painter_NotSupported" xml:space="preserve"><value>{0} is not supported yet and was ignored.</value></data>
   <data name="Painter_FontSizeNotDots_height" xml:space="preserve"><value>{0}: The font height "{1}" is not a size in dots, so it was ignored. Give the height as a whole number of dots.</value></data>
@@ -237,8 +237,8 @@
   <data name="Settings_OpenFailed" xml:space="preserve"><value>The settings file could not be opened ({0}). Standard settings are used for now. Close other programs that may be using {1}, then restart LabelScope.</value></data>
   <data name="Settings_ReadFailed" xml:space="preserve"><value>The settings file could not be read ({0}). Standard settings are used for now. Fix the file, or delete it to get a fresh one, then restart LabelScope: {1}</value></data>
   <data name="Settings_And" xml:space="preserve"><value> and </value></data>
-  <data name="Settings_RetiredKey_One" xml:space="preserve"><value>{0} in settings.json is no longer used: the label size now comes from the ZPL (^PW and ^LL). You can delete that line.</value></data>
-  <data name="Settings_RetiredKey_Many" xml:space="preserve"><value>{0} in settings.json are no longer used: the label size now comes from the ZPL (^PW and ^LL). You can delete those lines.</value></data>
+  <data name="Settings_RetiredKey_One" xml:space="preserve"><value>{0} in settings.json is no longer used. The label size comes from the ZPL (^PW and ^LL); when the ZPL gives none, LabelWidthMm and LabelHeightMm are used. You can delete that line.</value></data>
+  <data name="Settings_RetiredKey_Many" xml:space="preserve"><value>{0} in settings.json are no longer used. The label size comes from the ZPL (^PW and ^LL); when the ZPL gives none, LabelWidthMm and LabelHeightMm are used. You can delete those lines.</value></data>
   <data name="Settings_BadListenAddress" xml:space="preserve"><value>ListenAddress "{0}" is not allowed. Use "127.0.0.1" (this computer only) or "0.0.0.0" (also other computers on your network); "{1}" is used instead.</value></data>
   <data name="Settings_BadListenPort" xml:space="preserve"><value>ListenPort {0} is not between 1 and 65535; {1} is used instead.</value></data>
   <data name="Settings_BadDefaultDpi" xml:space="preserve"><value>DefaultDpi {0} is not one of 152, 203, 300, 600; {1} is used instead.</value></data>
@@ -306,4 +306,10 @@
   <data name="Field_OffLabel" xml:space="preserve"><value>This field is outside the label, so none of it prints. Check its position (^FO or ^FT) and the label size (^PW, ^LL).</value></data>
   <data name="Field_PartlyOffLabel" xml:space="preserve"><value>Part of this field is outside the label and is cut off. Move the field or make it smaller.</value></data>
   <data name="Fields_TooMany" xml:space="preserve"><value>This label has {0} fields; only the first 5000 are listed.</value></data>
+  <data name="Painter_LabelTooWide" xml:space="preserve"><value>The label size is too large to draw ({0} x {1} dots); the width of the loaded label was cut to {2} dots. Make the label size in Printer setup narrower, or send ^PW.</value></data>
+  <data name="Settings_BadLabelSize" xml:space="preserve"><value>{0} {1} is not between 5 and 2000 mm; {2} is used instead.</value></data>
+  <data name="Settings_BadLanguage" xml:space="preserve"><value>Language "{0}" is not known. Use "en" (English), "es" (Spanish) or "" (the Windows language); the Windows language is used instead.</value></data>
+  <data name="Settings_Saved" xml:space="preserve"><value>The settings were saved to {0}.</value></data>
+  <data name="Settings_SaveFailed" xml:space="preserve"><value>The settings could not be saved to {0} ({1}). The file was not changed. Check that the folder is writable and that no other program has the file open, then try again.</value></data>
+  <data name="Settings_FileReadOnly" xml:space="preserve"><value>the file is read-only</value></data>
 </root>

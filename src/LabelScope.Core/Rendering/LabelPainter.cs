@@ -33,9 +33,8 @@ internal sealed partial class LabelPainter : IDisposable
     // Dots per inch of the simulated printer: the bitmap fonts (and the OCR fonts) have a different matrix per dpi.
     private readonly int _dpi;
     private readonly PaintContext _context;
-    // Not readonly: a label whose size the ZPL does not give is drawn on a large sheet and then cut to what was drawn.
-    private SKBitmap _bitmap;
-    private SKCanvas _canvas;
+    private readonly SKBitmap _bitmap;
+    private readonly SKCanvas _canvas;
 
     // Printer state that persists between fields.
     private int _homeX, _homeY;
@@ -82,27 +81,22 @@ internal sealed partial class LabelPainter : IDisposable
 
     /// <summary>
     /// Paints one label block and returns its image. The size comes from ^PW and ^LL in this label, or from an earlier
-    /// job (a printer keeps them). A side the ZPL never gave ends at the last thing drawn, so nothing is cut off.
+    /// job (a printer keeps them); a side the ZPL never gave is the loaded label from <paramref name="options"/>.
     /// </summary>
     public static RenderedLabel Paint(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, PaintContext context)
     {
         var setup = context.Memory.Setup.Current;
-        var (width, height, sentWidth, sentHeight) = ResolveSize(block, setup, warnings);
-        bool widthFromZpl = width is not null, heightFromZpl = height is not null;
+        var (width, height, widthFromZpl, heightFromZpl, sentWidth, sentHeight) = ResolveSize(block, setup, options, warnings);
         // Only the last ^PO counts, wherever it appears; without one the last job's ^PO still applies.
         var po = block.LastOrDefault(c => c.Name == "^PO");
         var inverted = po is not null ? po.Args.TrimStart().StartsWith("I", StringComparison.OrdinalIgnoreCase) : setup.Inverted ?? false;
-        // Turning upside down needs the final size, so a label still to be cut to size is turned after the cut.
-        var turnLater = inverted && (width is null || height is null);
-        var (sheetWidth, sheetHeight) = SheetSize(width, height, options.Dpi);
 
-        using var painter = new LabelPainter(sheetWidth, sheetHeight, options.Dpi, warnings, inverted && !turnLater, context, setup);
+        using var painter = new LabelPainter(width, height, options.Dpi, warnings, inverted, context, setup);
         foreach (var cmd in block) painter.Handle(cmd);
-        painter.CutToDrawing(width is null, height is null, options.Dpi);
-        if (turnLater) painter.TurnUpsideDown();
         painter.SaveImageIfAsked();
 
-        // What this label set is kept for the jobs that follow.
+        // What this label set is kept for the jobs that follow. Only what the ZPL itself sent is kept: the loaded
+        // label is a setting, so a later change of it in Printer setup must still take effect.
         context.Memory.Setup.Apply(new PrinterSetup.Values(
             sentWidth,
             sentHeight,
@@ -114,12 +108,14 @@ internal sealed partial class LabelPainter : IDisposable
     }
 
     /// <summary>
-    /// The label size from ^PW and ^LL (this label first, then what an earlier job set); null for a side never given.
+    /// The label size: ^PW and ^LL in this label first, then what an earlier job set, then the loaded label.
     /// ^PW and ^LL usually come after ^XA, so the size must be known before drawing starts.
     /// </summary>
-    /// <returns>The size to draw, and the ^PW and ^LL this label itself sent (null when it sent none), which are what
-    /// later jobs inherit: a size cut only because of the pixel cap must not shrink the jobs that follow.</returns>
-    private static (int? Width, int? Height, int? SentWidth, int? SentHeight) ResolveSize(IReadOnlyList<ZplCommand> block, PrinterSetup.Values setup, List<RenderWarning> warnings)
+    /// <returns>The size to draw, whether each side came from the ZPL, and the ^PW and ^LL this label itself sent
+    /// (null when it sent none), which are what later jobs inherit: a size cut only because of the pixel cap must not
+    /// shrink the jobs that follow.</returns>
+    private static (int Width, int Height, bool WidthFromZpl, bool HeightFromZpl, int? SentWidth, int? SentHeight) ResolveSize(
+        IReadOnlyList<ZplCommand> block, PrinterSetup.Values setup, RenderOptions options, List<RenderWarning> warnings)
     {
         int? sentWidth = null, sentHeight = null;
         foreach (var cmd in block)
@@ -127,105 +123,44 @@ internal sealed partial class LabelPainter : IDisposable
             if (cmd.Name == "^PW" && TryInt(Split(cmd.Args), 0, out var pw)) sentWidth = Clamp(pw, cmd, warnings);
             else if (cmd.Name == "^LL" && TryInt(Split(cmd.Args), 0, out var ll)) sentHeight = Clamp(ll, cmd, warnings);
         }
-        var width = sentWidth ?? setup.WidthDots;
-        var height = sentHeight ?? setup.HeightDots;
+        var zplWidth = sentWidth ?? setup.WidthDots;
+        var zplHeight = sentHeight ?? setup.HeightDots;
+        var defaults = new RenderOptions();
+        var width = zplWidth ?? LoadedDots(options.LabelWidthMm, defaults.LabelWidthMm, options.Dpi);
+        var height = zplHeight ?? LoadedDots(options.LabelHeightMm, defaults.LabelHeightMm, options.Dpi);
 
-        // Enforced before any allocation. The height is reduced because the width usually matches the print head.
-        if (width is { } w && height is { } h && (long)w * h > MaxPixels)
+        // Enforced before any allocation. A side from the loaded label gives way first, because the ZPL did not ask
+        // for it; otherwise the height is reduced, because the width usually matches the print head.
+        if ((long)width * height > MaxPixels)
         {
-            var cutHeight = (int)Math.Max(1, MaxPixels / w);
             var source = block.LastOrDefault(c => c.Name is "^PW" or "^LL");
-            warnings.Add(new(source?.Line ?? 1,
-                Text.Get("Painter_LabelTooLarge", w, h, cutHeight)));
-            height = cutHeight;
-        }
-        return (width, height, sentWidth, sentHeight);
-    }
-
-    /// <summary>
-    /// The sheet drawn on. A side the ZPL gives is used as is; a side it does not give gets room for a large label
-    /// (8.5 inch wide, 12 inch long) and is cut to the drawing afterwards. The pixel cap still applies.
-    /// </summary>
-    private static (int Width, int Height) SheetSize(int? width, int? height, int dpi)
-    {
-        var w = width ?? Math.Min(MaxDots, dpi * 17 / 2);
-        var h = height ?? Math.Min(MaxDots, dpi * 12);
-        // A side the ZPL gave keeps its size; only a side still to be cut to the drawing gives way to the pixel cap.
-        if ((long)w * h > MaxPixels)
-        {
-            if (width is null) w = (int)Math.Max(1, MaxPixels / h);
-            else h = (int)Math.Max(1, MaxPixels / w);
-        }
-        return (w, h);
-    }
-
-    /// <summary>
-    /// Cuts the sheet to the drawing on each side the ZPL did not give. The label starts at the top-left corner, so
-    /// only the right and bottom edges move. A label with nothing drawn becomes one inch on such a side.
-    /// </summary>
-    private void CutToDrawing(bool fitWidth, bool fitHeight, int dpi)
-    {
-        if (!fitWidth && !fitHeight) return;
-        _canvas.Flush();
-        var (right, bottom) = InkExtent();
-        var w = fitWidth ? (right > 0 ? right : Math.Min(dpi, _bitmap.Width)) : _bitmap.Width;
-        var h = fitHeight ? (bottom > 0 ? bottom : Math.Min(dpi, _bitmap.Height)) : _bitmap.Height;
-        // Fields on a side cut to the drawing are judged against the sheet they were drawn on (see _judgeWidth).
-        if (fitWidth) _judgeWidth = _bitmap.Width;
-        if (fitHeight) _judgeHeight = _bitmap.Height;
-        if (w == _bitmap.Width && h == _bitmap.Height) return;
-        var old = _bitmap;
-        ReplaceSheet(w, h, canvas => canvas.DrawBitmap(old, 0, 0));
-    }
-
-    /// <summary>One past the right-most and bottom-most dot that is not white (0, 0 when nothing was drawn).</summary>
-    private (int Right, int Bottom) InkExtent()
-    {
-        var pixels = _bitmap.GetPixelSpan();
-        int width = _bitmap.Width, height = _bitmap.Height, stride = _bitmap.RowBytes;
-        int right = 0, bottom = 0;
-        for (var y = 0; y < height; y++)
-        {
-            var row = pixels.Slice(y * stride, width * 4);
-            // Each row is searched from its right end: the first dot found is the row's right-most one.
-            for (var x = width - 1; x >= 0; x--)
+            var onlyWidthLoaded = zplWidth is null && zplHeight is not null;
+            if (!onlyWidthLoaded)
             {
-                var i = x * 4;
-                if (row[i] == 255 && row[i + 1] == 255 && row[i + 2] == 255) continue;
-                bottom = y + 1;
-                if (x + 1 > right) right = x + 1;
-                break;
+                var cutHeight = (int)Math.Max(1, MaxPixels / width);
+                warnings.Add(new(source?.Line ?? 1, Text.Get("Painter_LabelTooLarge", width, height, cutHeight)));
+                height = cutHeight;
+            }
+            else
+            {
+                // Only the width is the loaded one: it is narrowed so the length the ZPL asked for is kept.
+                var cutWidth = (int)Math.Max(1, MaxPixels / height);
+                warnings.Add(new(source?.Line ?? 1, Text.Get("Painter_LabelTooWide", width, height, cutWidth)));
+                width = cutWidth;
             }
         }
-        return (right, bottom);
+        return (width, height, zplWidth is not null, zplHeight is not null, sentWidth, sentHeight);
     }
 
-    /// <summary>^PO I for a label cut to size: the finished picture is turned half a circle.</summary>
-    private void TurnUpsideDown()
+    /// <summary>
+    /// A side of the loaded label in dots, kept between 1 and <see cref="MaxDots"/>. A size that is not a usable
+    /// number (RenderOptions is public, so it may not come through the settings check) falls back to the default.
+    /// </summary>
+    private static int LoadedDots(double mm, double defaultMm, int dpi)
     {
-        _canvas.Flush();
-        int w = _bitmap.Width, h = _bitmap.Height;
-        var old = _bitmap;
-        _turnedAfterCut = true; // the field boxes are turned the same way in FinishFields
-        ReplaceSheet(w, h, canvas =>
-        {
-            canvas.Translate(w, h);
-            canvas.RotateDegrees(180);
-            canvas.DrawBitmap(old, 0, 0);
-        });
-    }
-
-    /// <summary>Swaps in a new white sheet of the given size, filled by <paramref name="draw"/> from the old one.</summary>
-    private void ReplaceSheet(int width, int height, Action<SKCanvas> draw)
-    {
-        var bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        var canvas = new SKCanvas(bitmap);
-        canvas.Clear(SKColors.White);
-        draw(canvas);
-        canvas.Flush();
-        _canvas.Dispose();
-        _bitmap.Dispose();
-        (_bitmap, _canvas) = (bitmap, canvas);
+        if (!double.IsFinite(mm) || mm <= 0) mm = defaultMm;
+        var dots = Math.Round(mm * dpi / 25.4, MidpointRounding.AwayFromZero);
+        return (int)Math.Clamp(dots, 1, MaxDots);
     }
 
     private static int Clamp(int dots, ZplCommand source, List<RenderWarning> warnings)

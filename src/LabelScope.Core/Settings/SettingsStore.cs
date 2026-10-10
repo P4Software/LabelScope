@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace LabelScope.Core.Settings;
@@ -9,47 +10,127 @@ public sealed record SettingsLoadResult(AppSettings Settings, IReadOnlyList<stri
 /// <summary>Reads settings.json; creates a commented starter file when it is missing.</summary>
 public sealed class SettingsStore
 {
-    /// <summary>The commented file written on first run. JSON allows no comments by spec, so we parse with comments enabled.</summary>
-    public const string StarterText = """
+    /// <summary>
+    /// The commented file written on first run: <see cref="Compose"/> with every default. JSON allows no comments by
+    /// spec, so we parse with comments enabled.
+    /// </summary>
+    public static readonly string StarterText = Compose(new AppSettings());
+
+    // Values are written by the JSON serializer, never by string formatting: in a Spanish culture 101.6 would become
+    // "101,6" and true would become "True", and both would break the file. The relaxed encoder keeps letters such as
+    // an accented vowel in a folder name readable instead of writing a \u escape; quotes and backslashes are still escaped.
+    private static readonly JsonSerializerOptions ValueOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
+    private static string Json<T>(T value) => JsonSerializer.Serialize(value, ValueOptions);
+
+    /// <summary>
+    /// The commented settings file holding the values of <paramref name="s"/>. The starter file and
+    /// <see cref="Save"/> both use it, so the file looks the same however it was written. The comments stay in
+    /// English, like the log files, so a file sent in for support reads the same everywhere.
+    /// </summary>
+    public static string Compose(AppSettings s) => $$"""
         {
           // Address LabelScope listens on. Only two values are allowed:
           // "127.0.0.1" = this computer only (the Windows printer always sends here).
           // "0.0.0.0"   = also accept labels from other computers on your network.
-          "ListenAddress": "127.0.0.1",
+          "ListenAddress": {{Json(s.ListenAddress)}},
 
           // Port for incoming labels. 9100 is the standard label-printer port.
           // If another program already uses it, pick another number (1 to 65535).
-          "ListenPort": 9100,
+          "ListenPort": {{Json(s.ListenPort)}},
 
-          // Print resolution: 152, 203, 300 or 600 dots per inch.
-          "DefaultDpi": 203,
+          // Print density of the label printer: 152, 203, 300 or 600 dots per inch.
+          "DefaultDpi": {{Json(s.DefaultDpi)}},
+
+          // Size of the label loaded in the printer, in millimetres (5 to 2000). It is used only when the ZPL
+          // (this job or an earlier one) does not give the size with ^PW and ^LL. 101.6 x 152.4 is 4 x 6 inches.
+          // The Printer setup window in LabelScope changes these for you.
+          "LabelWidthMm": {{Json(s.LabelWidthMm)}},
+          "LabelHeightMm": {{Json(s.LabelHeightMm)}},
 
           // How many received labels to keep in the list on the left.
-          "HistoryLimit": 100,
+          "HistoryLimit": {{Json(s.HistoryLimit)}},
 
           // Show a light 10 mm measuring grid over the label picture when LabelScope starts.
           // true or false. The "Light grid" box in the window switches it on and off while the program runs.
-          "ShowGrid": false,
+          "ShowGrid": {{Json(s.ShowGrid)}},
 
           // Show the label picture above the ZPL text instead of beside it, when LabelScope starts.
           // true or false. Handy on a narrow screen. The "Stacked layout" box in the window does the same while running.
-          "StackedLayout": false,
+          "StackedLayout": {{Json(s.StackedLayout)}},
+
+          // Language of the window and messages: "en" = English, "es" = Spanish, "" = the language of Windows.
+          "Language": {{Json(s.Language)}},
+
+          // true = a job that arrives is selected and shown at once. false = the job you are looking at stays.
+          "ShowNewestJob": {{Json(s.ShowNewestJob)}},
+
+          // true = keep the job list when LabelScope closes and show it again at the next start. false = start empty.
+          "KeepJobs": {{Json(s.KeepJobs)}},
 
           // Folder with your own TrueType (.ttf) or OpenType (.otf) fonts. A label that names a font such as
           // E:ARIAL.TTF (with ^A@ or ^CW) uses the file with that name from this folder. Leave empty for none.
-          "FontsFolder": "",
+          "FontsFolder": {{Json(s.FontsFolder)}},
 
           // Where log files are written. A relative folder is created next to LabelScope.
-          "LogFolder": "logs",
+          "LogFolder": {{Json(s.LogFolder)}},
 
           // Name of the Windows printer LabelScope installs when you press "Install printer".
-          "PrinterName": "LabelScope",
+          "PrinterName": {{Json(s.PrinterName)}},
 
           // true = at start, ask GitHub once whether a newer LabelScope exists (nothing about you is sent).
           // LabelScope never installs anything by itself; you press the update button. false = never ask.
-          "CheckForUpdates": true
+          "CheckForUpdates": {{Json(s.CheckForUpdates)}}
         }
         """;
+
+    /// <summary>
+    /// Writes <paramref name="s"/> to <paramref name="path"/> in the commented format. The new file is written next
+    /// to the old one first and then swapped in, so a failure halfway (disk full, power cut) never leaves a broken or
+    /// half-written settings file. A read-only file is refused and left as it is. Never throws.
+    /// </summary>
+    /// <returns>Success with a short note, or failure with a plain-language message saying what to do.</returns>
+    public OperationResult Save(string path, AppSettings s)
+    {
+        string? temp = null;
+        try
+        {
+            var full = Path.GetFullPath(path);
+            // Same folder as the target: File.Replace and File.Move are only a swap (not a copy) on the same volume.
+            temp = full + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            File.WriteAllText(temp, Compose(s), new UTF8Encoding(false));
+            if (File.Exists(full))
+            {
+                // Someone made the file read-only on purpose; File.Replace would still swap it on some systems.
+                if (File.GetAttributes(full).HasFlag(FileAttributes.ReadOnly))
+                    throw new UnauthorizedAccessException(Text.Get("Settings_FileReadOnly"));
+                File.Replace(temp, full, null);
+            }
+            else
+            {
+                File.Move(temp, full);
+            }
+            temp = null;
+            return OperationResult.Ok(Text.Get("Settings_Saved", full));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
+                                       or NotSupportedException or System.Security.SecurityException)
+        {
+            return OperationResult.Fail(Text.Get("Settings_SaveFailed", path, ex.Message));
+        }
+        finally
+        {
+            // A temp file left by a failed save is removed; failing to remove it changes nothing for the user.
+            if (temp is not null)
+            {
+                try { File.Delete(temp); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
+        }
+    }
 
     // Parser options: comments and trailing commas are accepted so a hand-edited file still loads.
     // Property names ignore case so "listenport" works as well as "ListenPort".
@@ -175,6 +256,27 @@ public sealed class SettingsStore
             messages.Add(Text.Get("Settings_EmptyPrinterName", d.PrinterName));
             s.PrinterName = d.PrinterName;
         }
+        // Written as "not between" because a NaN size would slip past "is < 5 or > 2000".
+        if (!(s.LabelWidthMm is >= 5 and <= 2000))
+        {
+            messages.Add(Text.Get("Settings_BadLabelSize", nameof(s.LabelWidthMm), s.LabelWidthMm, d.LabelWidthMm));
+            s.LabelWidthMm = d.LabelWidthMm;
+        }
+        if (!(s.LabelHeightMm is >= 5 and <= 2000))
+        {
+            messages.Add(Text.Get("Settings_BadLabelSize", nameof(s.LabelHeightMm), s.LabelHeightMm, d.LabelHeightMm));
+            s.LabelHeightMm = d.LabelHeightMm;
+        }
+        // Language: "" follows Windows. Case and spaces are forgiven ("ES" works) and stored in the one form the app compares.
+        var language = (s.Language ?? "").Trim().ToLowerInvariant();
+        if (language is not ("" or "en" or "es"))
+        {
+            messages.Add(Text.Get("Settings_BadLanguage", s.Language ?? ""));
+            language = d.Language;
+        }
+        s.Language = language;
+        // A null folder ("FontsFolder": null) is repaired silently, so nothing later meets a null.
+        s.FontsFolder ??= d.FontsFolder;
         // An empty log folder is repaired silently: the default is harmless and nothing is lost.
         if (string.IsNullOrWhiteSpace(s.LogFolder)) s.LogFolder = d.LogFolder;
     }

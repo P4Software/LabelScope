@@ -27,8 +27,7 @@ internal sealed partial class LabelPainter
     /// </summary>
     private const float EdgeSlack = 0.5f;
 
-    // Recorded fields, judged against the label edges only in ToResult: a label cut to its drawing is not its final
-    // size while the fields are drawn.
+    // Recorded fields, judged against the label edges in ToResult, once the whole label has been drawn.
     private readonly List<PendingField> _fields = [];
 
     // Every field met in this label, recorded or not; past MaxFieldRecords only this number grows.
@@ -41,15 +40,8 @@ internal sealed partial class LabelPainter
     // survive ^FS: a later field without its own origin is reported at its drawing command, not at an old ^FO.
     private int _originLine;
 
-    // Size the fields are judged against on a side that was cut to the drawing: the sheet before the cut. Nothing
-    // inked lies past the cut, so a field whose empty margin (a text descent, say) reaches past it is not "off" the label.
-    private int? _judgeWidth, _judgeHeight;
-
-    // True when ^PO I turned the finished picture after the cut, so the recorded boxes must be turned the same way.
-    private bool _turnedAfterCut;
-
     /// <summary>A field as drawn, before its problem is judged against the final label size.</summary>
-    /// <param name="Box">Device-space box in dots before any turn after the cut.</param>
+    /// <param name="Box">Device-space box in dots (^PO I is already part of the canvas matrix).</param>
     /// <param name="Judge">The part that must be on the label (the ink of a graphic, else the box); empty for a field not drawn.</param>
     private readonly record struct PendingField(FieldKind Kind, string Summary, string Data, SKRect Box, SKRect Judge,
                                                 int Line, string Detail, string? Problem);
@@ -114,23 +106,19 @@ internal sealed partial class LabelPainter
     }
 
     /// <summary>
-    /// The finished field list: each field judged against the final label size, turned with the label when ^PO I
-    /// turned it after the cut, and, past the cap, one note that says how many fields there were.
+    /// The finished field list: each field judged against the label size (from the ZPL or the loaded label) and,
+    /// past the cap, one note that says how many fields there were.
     /// </summary>
     private List<LabelField> FinishFields()
     {
         int width = _bitmap.Width, height = _bitmap.Height;
-        var judgeWidth = _judgeWidth ?? width;
-        var judgeHeight = _judgeHeight ?? height;
         var result = new List<LabelField>(_fields.Count + 1);
         foreach (var f in _fields)
         {
-            var problem = f.Problem ?? OffLabelProblem(f.Judge, judgeWidth, judgeHeight);
+            var problem = f.Problem ?? OffLabelProblem(f.Judge, width, height);
             // Whole dots that cover the box: a field from x 10.4 to 20.2 occupies dots 10 to 20.
             int x = (int)Math.Floor(f.Box.Left), y = (int)Math.Floor(f.Box.Top);
             int w = (int)Math.Ceiling(f.Box.Right) - x, h = (int)Math.Ceiling(f.Box.Bottom) - y;
-            // The picture was turned half a circle after the cut, so every box turns with it.
-            if (_turnedAfterCut) (x, y) = (width - x - w, height - y - h);
             result.Add(new LabelField(f.Kind, f.Summary, f.Data, x, y, w, h, f.Line, f.Detail, problem));
         }
         if (_fieldCount > MaxFieldRecords)
