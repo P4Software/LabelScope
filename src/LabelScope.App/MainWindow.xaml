@@ -100,10 +100,15 @@
                saves it and draws every job again (MainWindow.OnSizePicked). -->
           <ComboBox x:Name="SizePicker" Style="{StaticResource DropDown}" Margin="0,0,10,0" MinWidth="170"
                     MaxDropDownHeight="480" SelectionChanged="OnSizePicked"/>
+          <!-- The same choices as the Language list of Printer setup. Each language is named in its own language, so a
+               person can always find theirs; only "Windows language" (Tag "") is translated, in ApplyTexts. -->
           <ComboBox x:Name="LanguagePicker" Style="{StaticResource DropDown}" Margin="0,0,10,0" MinWidth="124"
                     SelectionChanged="OnLanguageChanged">
+            <ComboBoxItem x:Name="LanguageWindowsItem" Content="Windows language" Tag=""/>
             <ComboBoxItem Content="English" Tag="en"/>
             <ComboBoxItem Content="Español" Tag="es"/>
+            <ComboBoxItem Content="Português (Brasil)" Tag="pt-BR"/>
+            <ComboBoxItem Content="Français" Tag="fr"/>
           </ComboBox>
           <!-- Shown only when a newer version was found, as in 0.3. -->
           <Button x:Name="UpdateButton" Style="{StaticResource OutlineButton}" Tag="{StaticResource IconDownload}"

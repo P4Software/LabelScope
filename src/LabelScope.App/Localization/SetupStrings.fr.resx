@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- French texts of the Printer setup window (keys start with Setup_). Same keys as SetupStrings.resx. The access
+     keys (the letter after _) are all different within the window. -->
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Setup_WindowTitle" xml:space="preserve"><value>Configurer l'imprimante</value></data>
+  <data name="Setup_Subtitle" xml:space="preserve"><value>Choisissez comment LabelScope apparaît dans Windows et comment il dessine les étiquettes.</value></data>
+  <data name="Setup_WindowsPrinter" xml:space="preserve"><value>Imprimante Windows</value></data>
+  <data name="Setup_PrinterName" xml:space="preserve"><value>_Nom de l'imprimante</value></data>
+  <data name="Setup_Reinstall" xml:space="preserve"><value>_Réinstaller l'imprimante</value></data>
+  <data name="Setup_ReinstallTip" xml:space="preserve"><value>Enregistre ces paramètres, retire l'imprimante LabelScope de Windows, puis l'ajoute de nouveau avec ce nom. Windows demande une autorisation.</value></data>
+  <data name="Setup_StatusChecking" xml:space="preserve"><value>Vérification de l'imprimante…</value></data>
+  <data name="Setup_StatusInstalled" xml:space="preserve"><value>Installée — choisissez « {0} » dans n'importe quelle boîte de dialogue d'impression de Windows.</value></data>
+  <data name="Setup_StatusNotInstalled" xml:space="preserve"><value>Non installée — cliquez sur Réinstaller l'imprimante pour ajouter « {0} » à Windows.</value></data>
+  <data name="Setup_StatusNameTaken" xml:space="preserve"><value>Une autre imprimante Windows utilise déjà le nom « {0} ». LabelScope ne la modifie jamais; tapez un autre nom.</value></data>
+  <data name="Setup_StatusUnknown" xml:space="preserve"><value>LabelScope n'a pas pu vérifier l'imprimante. Cliquez sur Réinstaller l'imprimante pour réessayer; les détails se trouvent dans le dossier des journaux.</value></data>
+  <data name="Setup_StatusWorking" xml:space="preserve"><value>Réinstallation de « {0} »… Windows va demander une autorisation.</value></data>
+  <data name="Setup_Label" xml:space="preserve"><value>Étiquette</value></data>
+  <data name="Setup_LabelSize" xml:space="preserve"><value>_Taille de l'étiquette</value></data>
+  <data name="Setup_SizeItem" xml:space="preserve"><value>{0} × {1} po ({2} × {3} mm)</value></data>
+  <data name="Setup_Custom" xml:space="preserve"><value>Personnalisée…</value></data>
+  <data name="Setup_WidthMm" xml:space="preserve"><value>_Largeur (mm)</value></data>
+  <data name="Setup_HeightMm" xml:space="preserve"><value>_Hauteur (mm)</value></data>
+  <data name="Setup_Density" xml:space="preserve"><value>_Densité d'impression</value></data>
+  <data name="Setup_Dpi" xml:space="preserve"><value>{0} ppp</value></data>
+  <data name="Setup_Behavior" xml:space="preserve"><value>Comportement</value></data>
+  <data name="Setup_Language" xml:space="preserve"><value>Lan_gue</value></data>
+  <data name="Setup_LanguageWindows" xml:space="preserve"><value>Langue de Windows</value></data>
+  <data name="Setup_ShowNewest" xml:space="preserve"><value>_Afficher aussitôt chaque travail reçu</value></data>
+  <data name="Setup_KeepJobs" xml:space="preserve"><value>_Conserver les travaux en quittant LabelScope</value></data>
+  <data name="Setup_Cancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="Setup_Save" xml:space="preserve"><value>Enregistrer</value></data>
+  <data name="Setup_OpenSettingsFile" xml:space="preserve"><value>Ouvrir les paramètres</value></data>
+  <data name="Setup_OpenSettingsFileTip" xml:space="preserve"><value>Ferme cette fenêtre et ouvre settings.json, pour les paramètres qui ne sont pas sur cet écran.</value></data>
+  <data name="Setup_OpenLogFolder" xml:space="preserve"><value>Ouvrir les journaux</value></data>
+  <data name="Setup_CheckUpdates" xml:space="preserve"><value>Vérifier les mises à jour</value></data>
+  <data name="Setup_CheckingUpdates" xml:space="preserve"><value>Vérification des mises à jour…</value></data>
+  <data name="Setup_NameEmpty" xml:space="preserve"><value>Tapez un nom pour l'imprimante, par exemple LabelScope, puis cliquez de nouveau sur Enregistrer.</value></data>
+  <data name="Setup_NameTooLong" xml:space="preserve"><value>Le nom de l'imprimante est trop long ({0} caractères au plus). Raccourcissez-le, puis cliquez de nouveau sur Enregistrer.</value></data>
+  <data name="Setup_NameControlChars" xml:space="preserve"><value>Le nom de l'imprimante doit tenir sur une ligne de texte normal. Retirez les sauts de ligne et les caractères cachés, puis cliquez de nouveau sur Enregistrer.</value></data>
+  <data name="Setup_NameForbiddenChars" xml:space="preserve"><value>Le nom de l'imprimante ne doit pas contenir \ / ! * ? [ ou ]. Retirez-les, puis cliquez de nouveau sur Enregistrer.</value></data>
+  <data name="Setup_NameTaken" xml:space="preserve"><value>Une autre imprimante Windows utilise déjà le nom « {0} », et LabelScope ne la modifie jamais. Tapez un autre nom, puis cliquez de nouveau sur Enregistrer.</value></data>
+  <data name="Setup_WidthInvalid" xml:space="preserve"><value>La largeur de l'étiquette doit être un nombre de 5 à 2000 mm. Tapez la largeur en millimètres, puis cliquez de nouveau sur Enregistrer.</value></data>
+  <data name="Setup_HeightInvalid" xml:space="preserve"><value>La hauteur de l'étiquette doit être un nombre de 5 à 2000 mm. Tapez la hauteur en millimètres, puis cliquez de nouveau sur Enregistrer.</value></data>
+  <data name="Setup_ActionFailed" xml:space="preserve"><value>L'action sur l'imprimante ne s'est pas terminée. Les détails se trouvent dans le dossier des journaux; réessayez.</value></data>
+  <data name="Setup_OldPrinterKept" xml:space="preserve"><value>L'imprimante « {0} » est installée, mais l'ancienne imprimante « {1} » est toujours dans Windows : {2} Vous pouvez la retirer vous-même dans Paramètres Windows &gt; Bluetooth et appareils &gt; Imprimantes et scanners.</value></data>
+  <data name="Setup_OpenFailed" xml:space="preserve"><value>Configurer l'imprimante n'a pas pu être affiché. Les détails se trouvent dans le dossier des journaux; réessayez.</value></data>
+  <data name="Setup_ApplyFailed" xml:space="preserve"><value>Les nouveaux paramètres ont été enregistrés, mais ils n'ont pas tous pu être appliqués. Fermez LabelScope et démarrez-le de nouveau.</value></data>
+</root>

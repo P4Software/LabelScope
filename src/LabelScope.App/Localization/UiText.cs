@@ -4,8 +4,8 @@ using LabelScope.Core.Localization;
 namespace LabelScope.App.Localization;
 
 /// <summary>
-/// Looks up the texts of the window itself (toolbar, cards, tabs, status bar) in UiStrings.resx and
-/// UiStrings.es.resx. It follows the same language as Core's <see cref="Text"/> (<see cref="Text.Culture"/>), so one
+/// Looks up the texts of the window itself (toolbar, cards, tabs, status bar) in UiStrings.resx and its
+/// translations (UiStrings.es.resx, UiStrings.pt-BR.resx, UiStrings.fr.resx). It follows the same language as Core's <see cref="Text"/> (<see cref="Text.Culture"/>), so one
 /// language switch changes both the window texts and the messages that come from Core.
 /// </summary>
 /// <remarks>

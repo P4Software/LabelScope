@@ -316,7 +316,7 @@
   <data name="Fields_TooMany" xml:space="preserve"><value>Esta etiqueta tiene {0} campos; solo se listan los primeros 5000.</value></data>
   <data name="Painter_LabelTooWide" xml:space="preserve"><value>La etiqueta es demasiado grande para dibujarla ({0} x {1} puntos); el ancho de la etiqueta cargada se recortó a {2} puntos. Elija un tamaño de etiqueta más angosto en Configuración de impresora, o envíe ^PW.</value></data>
   <data name="Settings_BadLabelSize" xml:space="preserve"><value>{0} {1} no está entre 5 y 2000 mm; se usa {2} en su lugar.</value></data>
-  <data name="Settings_BadLanguage" xml:space="preserve"><value>El idioma "{0}" no se reconoce. Use "en" (inglés), "es" (español) o "" (el idioma de Windows); se usa el idioma de Windows en su lugar.</value></data>
+  <data name="Settings_BadLanguage" xml:space="preserve"><value>El idioma "{0}" no se reconoce. Use "en" (inglés), "es" (español), "pt-BR" (portugués de Brasil), "fr" (francés) o "" (el idioma de Windows); se usa el idioma de Windows en su lugar.</value></data>
   <data name="Settings_Saved" xml:space="preserve"><value>La configuración se guardó en {0}.</value></data>
   <data name="Settings_SaveFailed" xml:space="preserve"><value>No se pudo guardar la configuración en {0} ({1}). El archivo no se modificó. Compruebe que se pueda escribir en la carpeta y que ningún otro programa tenga abierto el archivo, y vuelva a intentarlo.</value></data>
   <data name="Settings_FileReadOnly" xml:space="preserve"><value>el archivo es de solo lectura</value></data>

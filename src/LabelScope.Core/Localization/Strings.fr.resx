@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <!-- French texts (neutral French, read in Quebec, the Caribbean and Europe alike). Every key of Strings.resx must exist here with the same {n} placeholders. -->
+  <data name="Common_Ready" xml:space="preserve"><value>Prêt</value></data>
+  <data name="Barcode_NoData" xml:space="preserve"><value>Il n'y a aucune donnée pour le code-barres.</value></data>
+  <data name="Barcode_DigitsOnly" xml:space="preserve"><value>Ce code-barres n'accepte que des chiffres, mais les données contiennent '{0}'.</value></data>
+  <data name="Barcode_Code39_BadCharShort" xml:space="preserve"><value>Le Code 39 ne peut pas contenir le caractère '{0}'.</value></data>
+  <data name="Barcode_Code11_BadChar" xml:space="preserve"><value>Le Code 11 ne contient que des chiffres et des traits d'union, mais les données contiennent '{0}'.</value></data>
+  <data name="Barcode_Code128_EndsWithSpecial" xml:space="preserve"><value>Les données se terminent par '&gt;', qui commence un code spécial du Code 128. Ajoutez le caractère du code après celui-ci, ou supprimez le '&gt;'.</value></data>
+  <data name="Barcode_Code128_BadSpecial" xml:space="preserve"><value>'&gt;{0}' n'est pas un code spécial du Code 128. Supprimez-le, ou écrivez &gt;0 pour obtenir un '&gt;' littéral.</value></data>
+  <data name="Barcode_Code128_UnpairedDigit" xml:space="preserve"><value>Dans le sous-ensemble C du Code 128, les chiffres vont par paires, mais un chiffre n'a pas de partenaire. Ajoutez un chiffre ou changez de sous-ensemble avant lui.</value></data>
+  <data name="Barcode_Code128_ShiftNeedsChar" xml:space="preserve"><value>Le code de bascule &gt;4 du Code 128 doit être suivi directement d'un caractère. Placez le caractère juste après &gt;4.</value></data>
+  <data name="Barcode_Code128_ShiftSubset" xml:space="preserve"><value>Le code de bascule &gt;4 du Code 128 ne fonctionne que dans le sous-ensemble A ou B. Passez d'abord à l'un d'eux.</value></data>
+  <data name="Barcode_Code128_SpecialInSubsetC" xml:space="preserve"><value>Ce code spécial du Code 128 ne peut pas être utilisé dans le sous-ensemble C, qui ne contient que des paires de chiffres. Utilisez d'abord &gt;6 pour passer au sous-ensemble B.</value></data>
+  <data name="Barcode_Code128_TildeDelSubsetB" xml:space="preserve"><value>'~' et DEL n'existent que dans le sous-ensemble B; commencez les données par &gt;: ou utilisez &gt;6 pour passer au sous-ensemble B avant ce code.</value></data>
+  <data name="Barcode_Code128_LastDigitUnpaired" xml:space="preserve"><value>Dans le sous-ensemble C du Code 128, les chiffres vont par paires, mais le dernier chiffre n'a pas de partenaire.</value></data>
+  <data name="Barcode_Code128_SubsetCDigitsOnly" xml:space="preserve"><value>Le sous-ensemble C du Code 128 ne contient que des chiffres, mais les données contiennent {0}. Utilisez d'abord &gt;6 pour passer au sous-ensemble B.</value></data>
+  <data name="Barcode_Code128_NotInSubsetA" xml:space="preserve"><value>{0} ne peut pas être écrit dans le sous-ensemble A du Code 128. Utilisez &gt;6 avant pour passer au sous-ensemble B.</value></data>
+  <data name="Barcode_Code128_NotInSubsetB" xml:space="preserve"><value>{0} ne peut pas être écrit dans le sous-ensemble B du Code 128. Utilisez &gt;7 avant pour passer au sous-ensemble A.</value></data>
+  <data name="Barcode_Code128_ControlChar" xml:space="preserve"><value>le caractère de contrôle 0x{0:X2}</value></data>
+  <data name="Barcode_Code128_Char" xml:space="preserve"><value>le caractère '{0}'</value></data>
+  <data name="Barcode_Code128_UccDigitsOnly" xml:space="preserve"><value>Le mode UCC case (m = U) n'accepte que des chiffres. Retirez les lettres et les codes spéciaux des données.</value></data>
+  <data name="Barcode_Code128_UccEanFormat" xml:space="preserve"><value>Le mode UCC/EAN (m = D) demande des données comme (01)12345678901231(10)LOT7 : chaque identifiant d'application entre parenthèses, suivi de sa valeur.</value></data>
+  <data name="Barcode_Code128_BadAi" xml:space="preserve"><value>'({0})' n'est pas un identifiant d'application : il doit compter de deux à quatre chiffres.</value></data>
+  <data name="Barcode_Code128_AiNoValue" xml:space="preserve"><value>L'identifiant d'application ({0}) n'a pas de valeur.</value></data>
+  <data name="Barcode_Code39_StarInData" xml:space="preserve"><value>Le Code 39 utilise '*' comme marque de début et de fin; ce caractère ne peut donc pas faire partie des données.</value></data>
+  <data name="Barcode_Code39_BadChar" xml:space="preserve"><value>Le Code 39 ne peut pas contenir le caractère '{0}'. Il accepte les chiffres, les lettres majuscules et - . espace $ / + %; les lettres minuscules et les autres symboles s'écrivent en paires de deux caractères, par exemple +A pour a.</value></data>
+  <data name="Barcode_Code93_BadChar" xml:space="preserve"><value>Le Code 93 ne peut pas contenir le caractère '{0}'. Les chiffres, les lettres majuscules et - . espace $ / + % sont permis; les autres caractères s'écrivent avec les caractères de bascule &amp; ' ( ) suivis d'une lettre majuscule.</value></data>
+  <data name="Barcode_DataMatrix_EndsWithEscape" xml:space="preserve"><value>Les données se terminent par le caractère d'échappement '{0}' du Data Matrix. Écrivez-le deux fois ({0}{0}) pour obtenir le caractère lui-même, ou supprimez-le.</value></data>
+  <data name="Barcode_DataMatrix_EscapeDigits" xml:space="preserve"><value>L'échappement {0}d du Data Matrix doit être suivi de trois chiffres de 000 à 255.</value></data>
+  <data name="Barcode_DataMatrix_EscapeUnsupported" xml:space="preserve"><value>L'échappement '{0}{1}' du Data Matrix n'est pas encore pris en charge (structured append, FNC3, pages de codes et PAD sont prévus pour une version ultérieure). Supprimez-le pour prévisualiser le reste des données.</value></data>
+  <data name="Barcode_DataMatrix_Rectangular" xml:space="preserve"><value>rectangulaire</value></data>
+  <data name="Barcode_DataMatrix_Square" xml:space="preserve"><value>carré</value></data>
+  <data name="Barcode_DataMatrix_Rows" xml:space="preserve"><value>{0} rangées</value></data>
+  <data name="Barcode_DataMatrix_Columns" xml:space="preserve"><value>{0} colonnes</value></data>
+  <data name="Barcode_DataMatrix_AutoRows" xml:space="preserve"><value>rangées automatiques</value></data>
+  <data name="Barcode_DataMatrix_AutoColumns" xml:space="preserve"><value>colonnes automatiques</value></data>
+  <data name="Barcode_DataMatrix_And" xml:space="preserve"><value> et </value></data>
+  <data name="Barcode_DataMatrix_SizeTooLarge" xml:space="preserve"><value>La valeur demandée ({0}) dépasse ce que permet le plus grand symbole Data Matrix {1} ({2} x {3}). Demandez une taille plus petite, ou laissez les rangées et les colonnes vides pour la taille automatique.</value></data>
+  <data name="Barcode_DataMatrix_DoesNotFitForced" xml:space="preserve"><value>Les données n'entrent pas dans le symbole Data Matrix de {0} x {1} demandé (il contient {2} mots de code, les données en demandent {3}); dans ce cas, l'imprimante n'imprime aucun symbole. Demandez une taille plus grande, ou laissez les rangées et les colonnes vides pour la taille automatique.</value></data>
+  <data name="Barcode_DataMatrix_TooLongRectangular" xml:space="preserve"><value>Les données sont trop longues pour un symbole Data Matrix rectangulaire (le plus grand, de 16 x 48, contient environ 49 lettres ou 98 chiffres). Raccourcissez les données ou utilisez la forme carrée.</value></data>
+  <data name="Barcode_DataMatrix_TooLong" xml:space="preserve"><value>Les données sont trop longues pour un symbole Data Matrix (le plus grand symbole carré contient environ 1550 lettres ou 3100 chiffres). Raccourcissez les données.</value></data>
+  <data name="Barcode_DataMatrix_NoQuality" xml:space="preserve"><value>Aucune qualité n'a été indiquée; l'imprimante utilise donc sa valeur par défaut 0 : un ancien symbole ECC 000 que beaucoup de lecteurs ne peuvent pas lire. LabelScope le dessine plutôt en ECC 200. Ajoutez 200 comme troisième paramètre (par exemple ^BXN,5,200) pour obtenir le type recommandé.</value></data>
+  <data name="Barcode_DataMatrix_OldQuality" xml:space="preserve"><value>La qualité {0} correspond à un ancien symbole ECC 000 à 140 que beaucoup de lecteurs ne peuvent pas lire; LabelScope le dessine plutôt en ECC 200, donc le motif imprimé est différent. Utilisez la qualité 200 pour obtenir le type recommandé.</value></data>
+  <data name="Barcode_DataMatrix_UnknownQuality" xml:space="preserve"><value>La qualité '{0}' ne fait pas partie des valeurs documentées 0, 50, 80, 100, 140 ou 200; le symbole est dessiné en ECC 200. Utilisez 200 pour obtenir le type de Data Matrix recommandé.</value></data>
+  <data name="Barcode_DataMatrix_SizeIgnored" xml:space="preserve"><value>Les rangées et les colonnes demandées ont été ignorées et la taille automatique a été utilisée.</value></data>
+  <data name="Barcode_DataMatrix_SizeRounded" xml:space="preserve"><value>La taille demandée ({0} par {1}) n'est pas une taille de Data Matrix; la taille supérieure suivante, {2} x {3}, a été dessinée.</value></data>
+  <data name="Barcode_UpcE_NoShortForm" xml:space="preserve"><value>Ce numéro UPC-E ne peut pas s'écrire sous la forme courte : les numéros du fabricant et du produit ne suivent pas les règles de suppression des zéros.</value></data>
+  <data name="Barcode_UpcE_Length" xml:space="preserve"><value>L'UPC-E demande 10 chiffres (5 pour le fabricant + 5 pour le produit) ou la forme courte de 6 chiffres.</value></data>
+  <data name="Barcode_Codabar_StartStop" xml:space="preserve"><value>Les caractères de début et de fin du Codabar doivent être A, B, C ou D.</value></data>
+  <data name="Barcode_Codabar_BadChar" xml:space="preserve"><value>Le Codabar ne peut pas contenir le caractère '{0}'. Il accepte les chiffres et - $ : / . +; les lettres de début et de fin se règlent avec les paramètres k et l.</value></data>
+  <data name="Barcode_Msi_BadCheck" xml:space="preserve"><value>L'option de chiffre de contrôle MSI '{0}' n'est pas valide. Utilisez A, B, C ou D.</value></data>
+  <data name="Barcode_Pdf417_DoesNotFitSize" xml:space="preserve"><value>Les données n'entrent pas dans un symbole PDF417 de {0} colonnes x {1} rangées au niveau de sécurité {2}; dans ce cas, l'imprimante n'imprime aucun symbole. Demandez plus de colonnes ou de rangées, baissez le niveau de sécurité ou raccourcissez les données.</value></data>
+  <data name="Barcode_Pdf417_DoesNotFitColumns" xml:space="preserve"><value>Les données n'entrent pas dans {0} colonnes PDF417 (au plus {1} rangées) au niveau de sécurité {2}; dans ce cas, l'imprimante n'imprime aucun symbole. Demandez plus de colonnes, baissez le niveau de sécurité ou raccourcissez les données.</value></data>
+  <data name="Barcode_Pdf417_DoesNotFitRows" xml:space="preserve"><value>Les données n'entrent pas dans {0} rangées PDF417 (au plus {1} colonnes) au niveau de sécurité {2}; dans ce cas, l'imprimante n'imprime aucun symbole. Demandez plus de rangées, baissez le niveau de sécurité ou raccourcissez les données.</value></data>
+  <data name="Barcode_Pdf417_TooLong" xml:space="preserve"><value>Les données sont trop longues pour un symbole PDF417 au niveau de sécurité {0}. Au niveau par défaut, il entre au plus environ 2700 chiffres, 1800 lettres ou 1100 octets (caractères accentués ou autres caractères spéciaux), et moins aux niveaux de sécurité plus élevés. Raccourcissez les données ou baissez le niveau de sécurité (la valeur s de ^B7).</value></data>
+  <data name="Barcode_Pdf417_TooManyCells" xml:space="preserve"><value>{0} colonnes x {1} rangées dépasse ce qu'un symbole PDF417 peut contenir (colonnes x rangées ne doit pas dépasser {2}); dans ce cas, l'imprimante n'imprime aucun symbole. Demandez moins de colonnes ou de rangées.</value></data>
+  <data name="Barcode_Pdf417_SecurityClamped" xml:space="preserve"><value>Le niveau de sécurité {0} est en dehors de 0 à {1}; le niveau {2} a été utilisé.</value></data>
+  <data name="Barcode_Pdf417_ColumnsInvalid" xml:space="preserve"><value>{0} colonnes n'est pas une valeur valide; le nombre de colonnes a été choisi automatiquement.</value></data>
+  <data name="Barcode_Pdf417_ColumnsClamped" xml:space="preserve"><value>{0} colonnes dépasse {1}; {1} colonnes ont été utilisées.</value></data>
+  <data name="Barcode_Pdf417_RowsInvalid" xml:space="preserve"><value>{0} rangées n'est pas une valeur valide; le nombre de rangées a été choisi automatiquement.</value></data>
+  <data name="Barcode_Pdf417_RowsClamped" xml:space="preserve"><value>{0} rangées est en dehors de {1} à {2}; {3} rangées ont été utilisées.</value></data>
+  <data name="Barcode_Qr_NoData" xml:space="preserve"><value>Il n'y a aucune donnée pour le code QR. Ajoutez le texte à encoder après ^FD.</value></data>
+  <data name="Barcode_Qr_BadMode" xml:space="preserve"><value>Le mode d'entrée '{0}' du code QR n'est pas pris en charge. Utilisez N (numérique), A (alphanumérique) ou B (octet), ou omettez le mode pour qu'il soit choisi automatiquement.</value></data>
+  <data name="Barcode_Qr_NotNumeric" xml:space="preserve"><value>Le code QR est réglé en entrée numérique, mais les données contiennent des caractères qui ne sont pas des chiffres. Retirez-les ou utilisez l'entrée automatique.</value></data>
+  <data name="Barcode_Qr_NotAlphanumeric" xml:space="preserve"><value>Le code QR est réglé en entrée alphanumérique (chiffres, lettres majuscules et espace $ % * + - . / :), mais les données contiennent d'autres caractères. Retirez-les ou utilisez l'entrée automatique.</value></data>
+  <data name="Barcode_Qr_TooLong" xml:space="preserve"><value>Les données sont trop longues pour un code QR (le plus grand symbole contient environ 7000 chiffres, 4000 lettres ou 2900 octets avec la correction d'erreurs la plus basse). Raccourcissez les données ou choisissez un niveau de correction d'erreurs plus bas.</value></data>
+  <data name="Barcode_Qr_MixedMode" xml:space="preserve"><value>L'en-tête QR en mode mixte (structured append) n'est pas encore pris en charge. Retirez l'en-tête D pour prévisualiser les données comme un seul symbole.</value></data>
+  <data name="Barcode_Qr_Model1" xml:space="preserve"><value>Le QR modèle 1 est dessiné comme un modèle 2. Les deux se lisent de la même façon, mais le motif diffère de celui d'un symbole modèle 1.</value></data>
+  <data name="Barcode_Qr_ManualNoMode" xml:space="preserve"><value>Les données QR indiquent un mode d'entrée manuel, mais aucune lettre de mode (N, A ou B) ne suit. Ajoutez la lettre du mode, ou utilisez l'entrée automatique (A).</value></data>
+  <data name="Barcode_Qr_ByteCountMissing" xml:space="preserve"><value>Le mode octet du QR demande un nombre de caractères à quatre chiffres après B, par exemple B0005hello.</value></data>
+  <data name="Barcode_Qr_ByteCountMismatch" xml:space="preserve"><value>Le nombre du mode octet du QR indique {0} caractères, mais {1} suivent. Faites correspondre le nombre à quatre chiffres après B avec les données.</value></data>
+  <data name="Barcode_Qr_Kanji" xml:space="preserve"><value>Le mode Kanji du QR n'est pas encore pris en charge. Utilisez l'entrée automatique (A) ou le mode octet (B) pour prévisualiser les données.</value></data>
+  <data name="Barcode_Qr_BadModeLetter" xml:space="preserve"><value>La lettre du mode d'entrée QR doit être N, A, B ou K. Corrigez la lettre après la virgule, ou utilisez l'entrée automatique (A).</value></data>
+  <data name="Barcode_Name_UpcEanExtension" xml:space="preserve"><value>extension UPC/EAN</value></data>
+  <data name="Barcode_Name_Postal" xml:space="preserve"><value>code postal</value></data>
+  <data name="Common_Prefixed" xml:space="preserve"><value>{0} : {1}</value></data>
+  <data name="Painter_ByAdjusted" xml:space="preserve"><value>Les valeurs de ^BY étaient en dehors de la plage permise et ont été ajustées : largeur de module de 1 à 10, rapport de 2,0 à 3,0, hauteur de 1 à 32000.</value></data>
+  <data name="Painter_BarcodeDeferred" xml:space="preserve"><value>{0} ({1}) est prévu pour une version ultérieure de LabelScope; rien n'a été dessiné pour ce champ.</value></data>
+  <data name="Painter_BarcodeDataTooLong" xml:space="preserve"><value>{0} : Les données du code-barres comptent {1} caractères; aucun code-barres n'en contient plus d'environ 7000. Le code-barres n'a pas été dessiné.</value></data>
+  <data name="Painter_BarcodeNotDrawn" xml:space="preserve"><value>{0} : {1} Le code-barres n'a pas été dessiné.</value></data>
+  <data name="Painter_BarcodeInternalError" xml:space="preserve"><value>{0} : Ce code-barres n'a pas pu être dessiné à cause d'une erreur interne; le reste de l'étiquette est affiché.</value></data>
+  <data name="Painter_BarcodeOffLabel" xml:space="preserve"><value>Le code-barres de {0} ({1} x {2} points) ne tient pas sur l'étiquette; la partie qui dépasse est coupée, donc le code-barres ne sera pas lisible. Utilisez une largeur de module plus petite (^BY), des données plus courtes, ou déplacez le champ.</value></data>
+  <data name="Painter_FontUnreadable" xml:space="preserve"><value>La police {0} n'a pas pu être lue comme police TrueType ou OpenType; LabelScope a donc dessiné le texte avec sa police vectorielle intégrée. Remplacez-la par un fichier de police qui fonctionne (dans le FontsFolder, puis redémarrez LabelScope, ou en envoyant de nouveau le téléchargement), puis envoyez de nouveau l'étiquette.</value></data>
+  <data name="Painter_FontUnopenable" xml:space="preserve"><value>Le fichier de police de {0} dans le FontsFolder n'a pas pu être ouvert (un autre programme l'utilise peut-être, ou il a été déplacé); LabelScope a donc dessiné le texte avec sa police vectorielle intégrée. Vérifiez que le fichier se trouve dans le FontsFolder et qu'il n'est pas utilisé, puis envoyez de nouveau l'étiquette.</value></data>
+  <data name="Painter_FontOverBudget" xml:space="preserve"><value>La police {0} n'a pas été chargée parce que LabelScope garde déjà {1} de polices du FontsFolder; il a donc dessiné le texte avec sa police vectorielle intégrée. Utilisez moins de grandes polices dans vos étiquettes; redémarrer LabelScope libère les polices qu'il garde.</value></data>
+  <data name="Painter_FontTte" xml:space="preserve"><value>La police {0} est un fichier d'extension TrueType (.TTE), que LabelScope ne peut pas lire; il a donc dessiné le texte avec sa police vectorielle intégrée. Utilisez plutôt le fichier de police .TTF.</value></data>
+  <data name="Painter_FontMissingScalable" xml:space="preserve"><value>La police {0} ne se trouve ni dans la mémoire d'imprimante de LabelScope ni dans le FontsFolder; LabelScope a donc dessiné le texte avec sa police vectorielle intégrée. Les étiquettes créées dans ZebraDesigner nomment souvent des polices stockées dans l'imprimante, que LabelScope ne peut pas avoir. Pour utiliser la vraie police, copiez {1}.{2} dans le dossier indiqué par FontsFolder dans settings.json et redémarrez LabelScope, ou envoyez le travail qui la télécharge, puis envoyez de nouveau l'étiquette.</value></data>
+  <data name="Painter_FontWhyCf" xml:space="preserve"><value>la police de ^CF, comme le guide ZPL l'indique pour une police absente</value></data>
+  <data name="Painter_FontWhyBuiltIn" xml:space="preserve"><value>la police intégrée {0}</value></data>
+  <data name="Painter_FontWhyFallbackA" xml:space="preserve"><value>la police A, que l'imprimante utilise à la place d'une police inconnue</value></data>
+  <data name="Painter_FontMissingBitmap" xml:space="preserve"><value>La police {0} ne se trouve ni dans la mémoire d'imprimante de LabelScope ni dans le FontsFolder, et LabelScope ne lit que les polices TrueType et OpenType (.TTF, .OTF); il a donc utilisé la police {1} à la place ({2}). Nommez une police .TTF ou une lettre de police intégrée pour choisir la police vous-même.</value></data>
+  <data name="Painter_FontUnknownLetter" xml:space="preserve"><value>La police {0} ne fait pas partie des polices intégrées aux imprimantes Zebra (0, A à H, P à V) et n'a pas été attribuée avec ^CW; LabelScope a donc utilisé la police A. Selon le guide ZPL, une imprimante utilise la police A à la place d'une police inconnue.</value></data>
+  <data name="Painter_FontSizeNote" xml:space="preserve"><value>{0} Utilisez une hauteur ou une largeur plus petite dans ^A ou ^CF pour imprimer ce texte comme l'étiquette le prévoit.</value></data>
+  <data name="Painter_GfBinary" xml:space="preserve"><value>^GF : Les données graphiques binaires (format B) sont prévues pour une version ultérieure de LabelScope; ce graphique n'a pas été dessiné. Des programmes comme ZebraDesigner peuvent envoyer le même graphique en hexadécimal ASCII (format A).</value></data>
+  <data name="Painter_GfCompressed" xml:space="preserve"><value>^GF : Les données graphiques binaires compressées (format C) utilisent une méthode de compression que Zebra ne publie pas; LabelScope ne peut donc pas les dessiner. Envoyez plutôt le graphique en hexadécimal ASCII (format A).</value></data>
+  <data name="Painter_GfBadFormat" xml:space="preserve"><value>^GF : '{0}' n'est pas un format de données graphiques (A, B ou C); le graphique n'a pas été dessiné.</value></data>
+  <data name="Painter_GfNeedsSize" xml:space="preserve"><value>^GF demande la taille du graphique (nombre total d'octets et octets par rangée) avant les données; sans elle, une imprimante ignore la commande, et LabelScope aussi.</value></data>
+  <data name="Painter_GfSizeProblem" xml:space="preserve"><value>^GF : Le graphique n'a pas été dessiné parce que {0}.</value></data>
+  <data name="Painter_GfNoData" xml:space="preserve"><value>^GF n'a pas de données graphiques après sa taille; le graphique n'a donc pas été dessiné. Placez les données graphiques après la valeur d'octets par rangée.</value></data>
+  <data name="Painter_GfNotDrawn" xml:space="preserve"><value>^GF : {0} Le graphique n'a pas été dessiné.</value></data>
+  <data name="Painter_MagnificationNotNumber" xml:space="preserve"><value>L'agrandissement « {0} » n'est pas un nombre entier</value></data>
+  <data name="Painter_MagnificationsNotNumbers" xml:space="preserve"><value>Les agrandissements « {0} » et « {1} » ne sont pas des nombres entiers</value></data>
+  <data name="Painter_MagnificationUsed" xml:space="preserve"><value>{0} : {1}; {2},{3} a donc été utilisé. Indiquez un agrandissement de 1 à 10.</value></data>
+  <data name="Painter_MagnificationRange" xml:space="preserve"><value>{0} : L'agrandissement doit être de 1 à 10; {1},{2} a été utilisé.</value></data>
+  <data name="Painter_GraphicTooLargeMagnified" xml:space="preserve"><value>{0} : {1} à l'agrandissement {2} x {3} ferait {4} x {5} points ({6} points); LabelScope dessine les graphiques jusqu'à {7} points par côté et {8} points au total, il n'a donc pas été dessiné. Utilisez un agrandissement plus petit.</value></data>
+  <data name="Painter_RecallWrongKind_font" xml:space="preserve"><value>{0} : {1} dans la mémoire d'imprimante de LabelScope est une police, pas un graphique; rien n'a donc été dessiné pour ce champ.</value></data>
+  <data name="Painter_RecallWrongKind_graphic" xml:space="preserve"><value>{0} : {1} dans la mémoire d'imprimante de LabelScope n'est pas un graphique qui peut être dessiné ici; rien n'a donc été dessiné pour ce champ.</value></data>
+  <data name="Painter_OtherDrive" xml:space="preserve"><value> LabelScope a bien {0}, mais cette étiquette demande le lecteur {1}:.</value></data>
+  <data name="Painter_GraphicMissing" xml:space="preserve"><value>{0} : Le graphique {1} ne se trouve pas dans la mémoire d'imprimante de LabelScope; il n'a donc pas été dessiné.{2} Une imprimante garde les graphiques qui lui ont été envoyés plus tôt (avec ~DG ou ~DY) jusqu'à ce qu'elle soit éteinte; envoyez d'abord ce travail de téléchargement à LabelScope, puis cette étiquette de nouveau.</value></data>
+  <data name="Painter_IlWrongKind_font" xml:space="preserve"><value>^IL : {0} dans la mémoire d'imprimante de LabelScope est une police, pas une image; l'étiquette est donc dessinée sans arrière-plan.</value></data>
+  <data name="Painter_IlWrongKind_graphic" xml:space="preserve"><value>^IL : {0} dans la mémoire d'imprimante de LabelScope est un graphique, pas une image; l'étiquette est donc dessinée sans arrière-plan.</value></data>
+  <data name="Painter_IlMissing" xml:space="preserve"><value>^IL : Cette étiquette charge l'image {0} depuis la mémoire de l'imprimante comme arrière-plan. Cette image se trouve dans la mémoire de l'imprimante et n'a jamais été envoyée à LabelScope (un logiciel d'étiquettes ou un WMS l'envoie habituellement une fois, avant les étiquettes); l'étiquette est donc dessinée sans elle.{1} Pour voir l'étiquette complète, téléchargez d'abord l'image (le travail qui l'a stockée, avec ~DG, ~DY ou ^IS), puis envoyez de nouveau cette étiquette.</value></data>
+  <data name="Painter_IsNoPrint" xml:space="preserve"><value>^IS {0},N : une imprimante stocke cette étiquette comme image sans l'imprimer; LabelScope l'affiche quand même.</value></data>
+  <data name="Painter_GraphicAllWhite" xml:space="preserve"><value>{0} : Le graphique ({1} x {2} points) est entièrement blanc; rien n'apparaît donc sur l'étiquette. Si une image était attendue, vérifiez les données graphiques.</value></data>
+  <data name="Painter_GraphicOffLabel" xml:space="preserve"><value>{0} : Le graphique ({1} x {2} points) ne tient pas sur l'étiquette; la partie qui dépasse est coupée.</value></data>
+  <data name="Painter_LabelTooLarge" xml:space="preserve"><value>La taille de l'étiquette est trop grande pour être dessinée ({0} x {1} points); elle a été réduite à {0} x {2} points. Vérifiez ^PW et ^LL, ou la taille de l'étiquette dans Configurer l'imprimante.</value></data>
+  <data name="Painter_SizeClamped" xml:space="preserve"><value>{0}{1} est en dehors de la taille d'étiquette prise en charge (1 à {2} points); {3} a été utilisé à la place.</value></data>
+  <data name="Painter_NotSupported" xml:space="preserve"><value>{0} n'est pas encore pris en charge et a été ignoré.</value></data>
+  <data name="Painter_FontSizeNotDots_height" xml:space="preserve"><value>{0} : La hauteur de police « {1} » n'est pas une taille en points; elle a donc été ignorée. Indiquez la hauteur en nombre entier de points.</value></data>
+  <data name="Painter_FontSizeNotDots_width" xml:space="preserve"><value>{0} : La largeur de police « {1} » n'est pas une taille en points; elle a donc été ignorée. Indiquez la largeur en nombre entier de points.</value></data>
+  <data name="Painter_FbZeroWidth" xml:space="preserve"><value>^FB a une largeur de 0, ce qui n'imprime rien sur une imprimante Zebra; ce texte n'a donc pas été dessiné. Donnez à ^FB une largeur en points (par exemple ^FB400,3).</value></data>
+  <data name="Painter_TextTooLong" xml:space="preserve"><value>Ce champ de texte compte {0} caractères; seuls les {1} premiers sont dessinés. Divisez le texte en plusieurs champs de {1} caractères ou moins.</value></data>
+  <data name="Painter_MissingGlyphs" xml:space="preserve"><value>{0} caractère(s) de ce texte ne se trouvent pas dans la police; ils s'impriment donc comme des espaces, comme sur une imprimante. Vérifiez les données du champ, ou choisissez une police qui contient ces caractères.</value></data>
+  <data name="Painter_RoundedCorners" xml:space="preserve"><value>Les coins arrondis de ^GB ne sont pas encore pris en charge; des coins droits sont dessinés.</value></data>
+  <data name="Painter_CharSetUnknown" xml:space="preserve"><value>^CI{0} : ce n'est pas un jeu de caractères connu d'une imprimante Zebra (les jeux vont de 0 à 36); il a donc été ignoré et le texte a été dessiné tel qu'il a été reçu. Vérifiez le nombre après ^CI.</value></data>
+  <data name="Painter_CharSetRemap" xml:space="preserve"><value>^CI{0} : le remplacement de caractères individuels (les nombres après le jeu de caractères) n'est pas encore pris en charge et a été ignoré; ces caractères sont donc dessinés tels qu'ils ont été envoyés.</value></data>
+  <data name="Painter_CharSetNotUtf8" xml:space="preserve"><value>Cette étiquette indique que son texte est en UTF-8 (^CI28), mais les données reçues ne sont pas de l'UTF-8 valide; LabelScope les a donc lues en Windows-1252. Les lettres accentuées peuvent être erronées; réglez le programme expéditeur pour qu'il envoie de l'UTF-8.</value></data>
+  <data name="Painter_CharSetPartial" xml:space="preserve"><value>^CI{0} ({1}) n'est pas encore entièrement pris en charge; les lettres accentuées peuvent différer de celles de l'imprimante. Le texte a été dessiné tel qu'il a été reçu; vérifiez une étiquette imprimée, ou envoyez le texte en UTF-8 avec ^CI28.</value></data>
+  <data name="CharSet_SingleByte" xml:space="preserve"><value>jeu international à un octet de Zebra</value></data>
+  <data name="CharSet_CodePage" xml:space="preserve"><value>page de codes {0}</value></data>
+  <data name="CharSet_Asian" xml:space="preserve"><value>encodage asiatique</value></data>
+  <data name="CharSet_Ucs2" xml:space="preserve"><value>UCS-2, qui n'est plus utilisé</value></data>
+  <data name="Placeholder_NoLabel" xml:space="preserve"><value>Aucune étiquette (^XA ... ^XZ) dans ces données</value></data>
+  <data name="Placeholder_NotDrawn" xml:space="preserve"><value>Cette étiquette n'a pas pu être dessinée</value></data>
+  <data name="Placeholder_NotFoundTitle" xml:space="preserve"><value>Aucune étiquette trouvée</value></data>
+  <data name="Placeholder_NotDrawnTitle" xml:space="preserve"><value>Étiquette non dessinée</value></data>
+  <data name="Placeholder_Stored" xml:space="preserve"><value>Stocké dans la mémoire d'imprimante de LabelScope</value></data>
+  <data name="Placeholder_StoredTitle" xml:space="preserve"><value>Stocké en mémoire</value></data>
+  <data name="Status_AndMore" xml:space="preserve"><value>{0} (et {1} de plus)</value></data>
+  <data name="Status_MemoryLine" xml:space="preserve"><value>Mémoire : {0}</value></data>
+  <data name="Status_NoLabelWithWarnings" xml:space="preserve"><value>Ces données ne contenaient aucune étiquette. S'il s'agissait d'un téléchargement, consultez les avertissements.</value></data>
+  <data name="Status_NoLabel" xml:space="preserve"><value>Des données sont arrivées, mais elles ne contenaient aucune étiquette (^XA ... ^XZ). Le texte ZPL est affiché à droite.</value></data>
+  <data name="Render_XaBeforeXz" xml:space="preserve"><value>Une nouvelle étiquette (^XA) a commencé avant que la précédente se termine par ^XZ. L'étiquette précédente a tout de même été dessinée.</value></data>
+  <data name="Render_XzWithoutXa" xml:space="preserve"><value>Un ^XZ sans ^XA correspondant a été trouvé et ignoré.</value></data>
+  <data name="Render_OutsideLabel" xml:space="preserve"><value>{0} est en dehors d'une étiquette (^XA … ^XZ) ou n'est pas encore pris en charge, et a été ignoré.</value></data>
+  <data name="Render_NoXz" xml:space="preserve"><value>L'étiquette ne s'est pas terminée par ^XZ; elle a été dessinée jusqu'où elle est arrivée.</value></data>
+  <data name="Render_StoppedAtLine" xml:space="preserve"><value>LabelScope a arrêté de lire ce travail à la ligne {0} à cause d'un problème imprévu; les étiquettes avant cette ligne sont affichées. Envoyez de nouveau le travail et, si cela se reproduit, signalez-le en joignant le travail.</value></data>
+  <data name="Render_CommandInternalError" xml:space="preserve"><value>{0} n'a pas pu être traité à cause d'une erreur interne; rien n'a été stocké.</value></data>
+  <data name="Render_LabelNotDrawn" xml:space="preserve"><value>Cette étiquette n'a pas pu être dessinée ({0}).</value></data>
+  <data name="Memory_ObjectTooLarge_graphic" xml:space="preserve"><value>Ce graphique fait {0}, plus que les {1} que LabelScope garde; il n'a pas été stocké. Réduisez la taille du graphique.</value></data>
+  <data name="Memory_ObjectTooLarge_font" xml:space="preserve"><value>Cette police fait {0}, plus que les {1} que LabelScope garde; elle n'a pas été stockée. Utilisez une police plus petite.</value></data>
+  <data name="Memory_Full" xml:space="preserve"><value>La mémoire d'imprimante de LabelScope est pleine ({0}); {1} n'a donc pas été stocké. Supprimez des objets stockés avec ^ID, ou cliquez sur « Vider la mémoire de l'imprimante » dans la fenêtre, puis envoyez de nouveau le téléchargement.</value></data>
+  <data name="Memory_FullCount_One" xml:space="preserve"><value>La mémoire d'imprimante de LabelScope contient déjà {0} objet; {1} n'a donc pas été stocké. Supprimez des objets stockés avec ^ID, ou cliquez sur « Vider la mémoire de l'imprimante » dans la fenêtre, puis envoyez de nouveau le téléchargement.</value></data>
+  <data name="Memory_FullCount_Many" xml:space="preserve"><value>La mémoire d'imprimante de LabelScope contient déjà {0} objets; {1} n'a donc pas été stocké. Supprimez des objets stockés avec ^ID, ou cliquez sur « Vider la mémoire de l'imprimante » dans la fenêtre, puis envoyez de nouveau le téléchargement.</value></data>
+  <data name="Memory_Empty" xml:space="preserve"><value>vide</value></data>
+  <data name="Memory_OneGraphic" xml:space="preserve"><value>1 graphique</value></data>
+  <data name="Memory_Graphics" xml:space="preserve"><value>{0} graphiques</value></data>
+  <data name="Memory_OneFont" xml:space="preserve"><value>1 police</value></data>
+  <data name="Memory_Fonts" xml:space="preserve"><value>{0} polices</value></data>
+  <data name="Memory_OneFontLetter" xml:space="preserve"><value>1 lettre de police</value></data>
+  <data name="Memory_FontLetters" xml:space="preserve"><value>{0} lettres de police</value></data>
+  <data name="Storage_EgIgnored" xml:space="preserve"><value>~EG (effacer les graphiques) n'est décrit dans le guide ZPL que par « voir ^ID »; LabelScope n'a donc rien effacé. Utilisez ^IDR:*.GRF pour supprimer les graphiques stockés.</value></data>
+  <data name="Storage_DgNeedsSize" xml:space="preserve"><value>{0} : Le téléchargement demande le nombre total d'octets et les octets par rangée avant les données; rien n'a été stocké.</value></data>
+  <data name="Storage_GraphicSizeProblem" xml:space="preserve"><value>{0} : Le graphique n'a pas été stocké parce que {1}.</value></data>
+  <data name="Storage_DgNoData" xml:space="preserve"><value>{0} : Le téléchargement n'a pas de données graphiques après sa taille; rien n'a donc été stocké. Placez les données graphiques après la valeur d'octets par rangée.</value></data>
+  <data name="Storage_NothingStored" xml:space="preserve"><value>{0} : {1} Rien n'a été stocké.</value></data>
+  <data name="Storage_NameTooLong" xml:space="preserve"><value>{0} : Le nom dépasse les 8 caractères qu'une imprimante accepte; une vraie imprimante pourrait donc le refuser ou le raccourcir. LabelScope l'a tout de même stocké; utilisez un nom de 8 caractères ou moins.</value></data>
+  <data name="Storage_StoredGraphic" xml:space="preserve"><value>Le graphique {0} ({1} x {2} points) a été stocké dans la mémoire d'imprimante de LabelScope.</value></data>
+  <data name="Storage_DyBinary" xml:space="preserve"><value>Les téléchargements binaires (format de données B) sont prévus pour une version ultérieure de LabelScope; rien n'a été stocké. Le même fichier peut être envoyé en hexadécimal ASCII (format A) ou en ZB64.</value></data>
+  <data name="Storage_DyCompressed" xml:space="preserve"><value>Les téléchargements compressés AR (format de données C) utilisent une méthode de compression que Zebra ne publie pas; rien n'a donc été stocké.</value></data>
+  <data name="Storage_DyNeedsFormat" xml:space="preserve"><value>Le téléchargement demande un format de données (A, B, C ou P) après le nom; rien n'a été stocké.</value></data>
+  <data name="Storage_DyTte" xml:space="preserve"><value>Les fichiers d'extension TrueType (.TTE) ne sont pas pris en charge; rien n'a été stocké. Envoyez plutôt la police en .TTF (type T).</value></data>
+  <data name="Storage_DyPcx" xml:space="preserve"><value>Les images PCX ne sont pas prises en charge; rien n'a été stocké. Envoyez plutôt l'image en PNG (type P) ou en bitmap GRF (type G).</value></data>
+  <data name="Storage_DyNoData" xml:space="preserve"><value>Le téléchargement n'a pas de données; rien n'a été stocké.</value></data>
+  <data name="Storage_DyPngTooLarge" xml:space="preserve"><value>Le PNG fait {0} octets et LabelScope lit les images jusqu'à {1} octets ({2} Mo). Rien n'a été stocké.</value></data>
+  <data name="Storage_DyFontTooLarge" xml:space="preserve"><value>La police fait {0} octets et LabelScope lit les polices jusqu'à {1} octets ({2} Mo). Rien n'a été stocké.</value></data>
+  <data name="Storage_StoredFont" xml:space="preserve"><value>La police {0} ({1}) a été stockée dans la mémoire d'imprimante de LabelScope.</value></data>
+  <data name="Storage_BitmapNeedsSize" xml:space="preserve"><value>Le bitmap demande le nombre total d'octets et les octets par rangée; rien n'a été stocké.</value></data>
+  <data name="Storage_BitmapSizeProblem" xml:space="preserve"><value>Le bitmap n'a pas été stocké parce que {0}.</value></data>
+  <data name="Storage_MessageNothingStored" xml:space="preserve"><value>{0} Rien n'a été stocké.</value></data>
+  <data name="Storage_CwNeedsArgs" xml:space="preserve"><value>^CW demande une lettre de police (A à Z ou 0 à 9) et un nom de police comme E:MYFONT.TTF; il a été ignoré.</value></data>
+  <data name="Storage_CwAssigned" xml:space="preserve"><value>La police {0} désigne maintenant {1} (^CW), jusqu'à la fermeture de LabelScope ou jusqu'à ce que sa mémoire d'imprimante soit vidée.</value></data>
+  <data name="Storage_IdNoMatch" xml:space="preserve"><value>^ID {0} : rien dans la mémoire d'imprimante de LabelScope ne correspondait; rien n'a donc été supprimé.</value></data>
+  <data name="Storage_IdDeleted_One" xml:space="preserve"><value>{0} objet correspondant à {1} a été supprimé de la mémoire d'imprimante de LabelScope.</value></data>
+  <data name="Storage_IdDeleted_Many" xml:space="preserve"><value>{0} objets correspondant à {1} ont été supprimés de la mémoire d'imprimante de LabelScope.</value></data>
+  <data name="Graphics_NotAFont" xml:space="preserve"><value>Les données ne sont pas une police TrueType ou OpenType; elles n'ont donc pas été stockées.</value></data>
+  <data name="Graphics_FontCollection" xml:space="preserve"><value>Les données sont une collection de polices (.TTC), que LabelScope ne lit pas; elles n'ont pas été stockées. Envoyez plutôt une seule police TrueType (.TTF).</value></data>
+  <data name="Graphics_NoSize" xml:space="preserve"><value>Le graphique n'a pas de taille (les octets par rangée ou les rangées sont absents, nuls ou négatifs); il ne peut donc pas être lu.</value></data>
+  <data name="Graphics_TooManyBytes" xml:space="preserve"><value>Le graphique fait {0} octets, plus que les {1} octets que LabelScope dessine.</value></data>
+  <data name="Graphics_FileSizeMismatch" xml:space="preserve"><value>Le fichier fait {0} octets, mais la commande indiquait {1} octets.</value></data>
+  <data name="Graphics_FileNotHex" xml:space="preserve"><value>Les données du fichier contiennent un caractère qui n'est pas un chiffre hexadécimal (code de caractère {0}); le fichier n'a donc pas été stocké.</value></data>
+  <data name="Graphics_FileTooLong" xml:space="preserve"><value>Les données du fichier dépassent {0} octets; le reste a été ignoré.</value></data>
+  <data name="Graphics_FileOddDigits" xml:space="preserve"><value>Les données du fichier ont un nombre impair de chiffres hexadécimaux; le dernier octet est donc incomplet et le fichier n'a pas été stocké.</value></data>
+  <data name="Graphics_Limit_RowMissing" xml:space="preserve"><value>la valeur d'octets par rangée est absente, nulle ou négative</value></data>
+  <data name="Graphics_Limit_TooWide" xml:space="preserve"><value>il fait {0} octets ({1} points) de large et LabelScope dessine les graphiques jusqu'à {2} points de large</value></data>
+  <data name="Graphics_Limit_TotalMissing" xml:space="preserve"><value>le nombre total d'octets est absent, nul ou négatif</value></data>
+  <data name="Graphics_Limit_TooManyBytes" xml:space="preserve"><value>il fait {0} octets et LabelScope dessine les graphiques jusqu'à {1} octets ({2} points)</value></data>
+  <data name="Graphics_Limit_LessThanRow" xml:space="preserve"><value>le nombre total d'octets est inférieur à une rangée</value></data>
+  <data name="Graphics_Limit_TooHigh" xml:space="preserve"><value>il fait {0} points de haut et LabelScope dessine les graphiques jusqu'à {1} points de haut</value></data>
+  <data name="Graphics_Limit_PartialRow" xml:space="preserve"><value>Le nombre total d'octets ({0}) ne correspond pas à un nombre entier de rangées de {1} octets; les {2} derniers octets ont été laissés de côté.</value></data>
+  <data name="Graphics_Hex_BadChars" xml:space="preserve"><value>Les données graphiques contiennent {0} caractère(s) qui ne sont ni des chiffres hexadécimaux ni des codes de compression Zebra; ils ont été ignorés.</value></data>
+  <data name="Graphics_Hex_RepeatPastEnd" xml:space="preserve"><value>Un nombre de répétitions dans les données graphiques dépasse la fin du graphique; l'excédent a été ignoré.</value></data>
+  <data name="Graphics_Hex_NoPreviousRow" xml:space="preserve"><value>Les données graphiques commencent une rangée par ':' (répéter la rangée précédente), mais il n'y a pas de rangée précédente; cette rangée a été laissée blanche.</value></data>
+  <data name="Graphics_Hex_RepeatNoDigit" xml:space="preserve"><value>Un nombre de répétitions dans les données graphiques n'est pas suivi d'un chiffre hexadécimal; il a été ignoré.</value></data>
+  <data name="Graphics_Hex_TooLong" xml:space="preserve"><value>Les données graphiques dépassent la taille indiquée; l'excédent a été ignoré, comme le fait une imprimante.</value></data>
+  <data name="Graphics_Hex_EndedEarly" xml:space="preserve"><value>Les données graphiques se sont arrêtées après {0} rangées sur {1}; le reste du graphique est vide.</value></data>
+  <data name="Graphics_OutOfMemory" xml:space="preserve"><value>Le graphique ({0} x {1} points) n'a pas été dessiné parce qu'il n'y a pas assez de mémoire pour le dessiner. Fermez d'autres programmes ou utilisez un graphique plus petit.</value></data>
+  <data name="Graphics_ImageNoPixels" xml:space="preserve"><value>L'image fait {0} x {1} pixels; elle n'a donc pas été utilisée. Utilisez une image d'au moins 1 pixel dans chaque direction.</value></data>
+  <data name="Graphics_ImageTooLarge" xml:space="preserve"><value>L'image fait {0} x {1} pixels et LabelScope utilise les images jusqu'à {2} x {2} pixels ({3} au total); elle n'a donc pas été utilisée. Utilisez une image plus petite.</value></data>
+  <data name="Graphics_ImageRowsShort" xml:space="preserve"><value>Les rangées de l'image font {0} octets, mais {1} pixels en demandent {2}; l'image n'a donc pas été utilisée. Les données de l'image sont endommagées.</value></data>
+  <data name="Graphics_ImageDataShort" xml:space="preserve"><value>L'image contient {0} octets, mais {1} rangées de {2} pixels en demandent plus; l'image n'a donc pas été utilisée. Les données de l'image sont endommagées.</value></data>
+  <data name="Graphics_PngDamaged" xml:space="preserve"><value>L'image PNG est endommagée ou incomplète; elle ne peut donc pas être utilisée. Envoyez-la de nouveau.</value></data>
+  <data name="Graphics_NotPng" xml:space="preserve"><value>Les données ne sont pas une image PNG. Envoyez l'image en fichier PNG (type P) ou en bitmap GRF (type G).</value></data>
+  <data name="Graphics_PngNotStored" xml:space="preserve"><value>L'image n'a pas été stockée parce que {0}.</value></data>
+  <data name="Graphics_PngOutOfMemory" xml:space="preserve"><value>L'image ({0} x {1} pixels) n'a pas été stockée parce qu'il n'y a pas assez de mémoire pour la décoder. Fermez d'autres programmes ou envoyez une image plus petite.</value></data>
+  <data name="Graphics_Png_NoSize" xml:space="preserve"><value>elle n'a pas de taille</value></data>
+  <data name="Graphics_Png_TooLargeSide" xml:space="preserve"><value>elle fait {0} x {1} pixels et LabelScope dessine les images jusqu'à {2} points par côté</value></data>
+  <data name="Graphics_Png_TooManyPixels" xml:space="preserve"><value>elle a {0} pixels et LabelScope dessine les images jusqu'à {1}</value></data>
+  <data name="Graphics_Zb64_TooMuch" xml:space="preserve"><value>Une fois décompressées, les données graphiques dépassent la taille indiquée; l'excédent a été ignoré.</value></data>
+  <data name="Graphics_Zb64_Damaged" xml:space="preserve"><value>Les données graphiques compressées (:Z64:) sont endommagées et ne peuvent pas être décompressées.</value></data>
+  <data name="Graphics_Zb64_NoHeader" xml:space="preserve"><value>Les données graphiques ne commencent pas par :Z64: ou :B64:; elles ne peuvent donc pas être lues.</value></data>
+  <data name="Graphics_Zb64_NoCrc" xml:space="preserve"><value>Les données graphiques :Z64: ou :B64: n'ont pas de valeur de contrôle (CRC) à la fin; une imprimante pourrait les refuser.</value></data>
+  <data name="Graphics_Zb64_BadCrc" xml:space="preserve"><value>La valeur de contrôle à la fin des données graphiques :Z64: ou :B64: n'est pas formée de quatre chiffres hexadécimaux; une imprimante pourrait les refuser.</value></data>
+  <data name="Graphics_Zb64_NotBase64" xml:space="preserve"><value>Les données graphiques marquées :Z64: ou :B64: ne sont pas un texte Base64 valide; elles ne peuvent donc pas être lues.</value></data>
+  <data name="Graphics_Zb64_EndedEarly" xml:space="preserve"><value>Les données graphiques se sont arrêtées trop tôt ({0} octets sur {1}); le reste est vide.</value></data>
+  <data name="Fonts_BundledMissing" xml:space="preserve"><value>La police intégrée {0} est absente de LabelScope.Core.dll. Réinstallez LabelScope.</value></data>
+  <data name="Fonts_BundledUnreadable" xml:space="preserve"><value>La police intégrée {0} n'a pas pu être lue. Réinstallez LabelScope.</value></data>
+  <data name="Fonts_FolderIsFile" xml:space="preserve"><value>Le FontsFolder de settings.json ({0}) est un fichier, pas un dossier; seules les polices intégrées de LabelScope sont donc utilisées. Indiquez le dossier qui contient vos polices, puis redémarrez LabelScope.</value></data>
+  <data name="Fonts_FolderMissing" xml:space="preserve"><value>Le FontsFolder de settings.json ({0}) n'existe pas; seules les polices intégrées de LabelScope sont donc utilisées. Créez le dossier ou corrigez le paramètre, puis redémarrez LabelScope.</value></data>
+  <data name="Fonts_TooManyFiles" xml:space="preserve"><value>Le FontsFolder contient plus de {0} fichiers de police; seuls les {0} premiers sont utilisés. Déplacez les polices dont vous n'avez pas besoin dans un autre dossier, puis redémarrez LabelScope.</value></data>
+  <data name="Fonts_FolderUnreadable" xml:space="preserve"><value>LabelScope n'a pas pu lire le FontsFolder ({0}); seules ses polices intégrées sont donc utilisées. Vérifiez que le dossier peut être ouvert, puis redémarrez LabelScope.</value></data>
+  <data name="Fonts_TooBig_One" xml:space="preserve"><value>1 fichier de police du FontsFolder dépasse 32 Mo et a été ignoré. Aucune police d'étiquette n'est aussi grosse : vérifiez qu'il s'agit bien d'une police, puis redémarrez LabelScope.</value></data>
+  <data name="Fonts_TooBig_Many" xml:space="preserve"><value>{0} fichiers de police du FontsFolder dépassent 32 Mo et ont été ignorés. Aucune police d'étiquette n'est aussi grosse : vérifiez qu'il s'agit bien de polices, puis redémarrez LabelScope.</value></data>
+  <data name="Fonts_NameTooLong_One" xml:space="preserve"><value>1 fichier de police du FontsFolder a un nom de plus de {0} caractères; une étiquette ne peut donc pas le nommer. Donnez-lui un nom plus court, puis redémarrez LabelScope.</value></data>
+  <data name="Fonts_NameTooLong_Many" xml:space="preserve"><value>{0} fichiers de police du FontsFolder ont des noms de plus de {1} caractères; une étiquette ne peut donc pas les nommer. Donnez-leur des noms plus courts, puis redémarrez LabelScope.</value></data>
+  <data name="Fonts_MagnifyClamped" xml:space="preserve"><value>La police {0} peut être agrandie jusqu'à 10 fois ({1} points de haut, {2} points de large); 10 fois a été utilisé.</value></data>
+  <data name="Fonts_ScalableClamped" xml:space="preserve"><value>LabelScope dessine les polices jusqu'à {0} points de haut et {0} points de large; la taille de police de {1} x {2} points (hauteur x largeur) a donc été dessinée en {3} x {4} points.</value></data>
+  <data name="Settings_Created" xml:space="preserve"><value>Un fichier de paramètres a été créé dans {0}. Ouvrez-le pour changer le port, la taille de l'étiquette ou d'autres options.</value></data>
+  <data name="Settings_CreateFailed" xml:space="preserve"><value>LabelScope n'a pas pu créer le fichier de paramètres dans {0} ({1}). Les paramètres standard sont utilisés pour l'instant; vérifiez qu'il est possible d'écrire dans le dossier.</value></data>
+  <data name="Settings_OpenFailed" xml:space="preserve"><value>Le fichier de paramètres n'a pas pu être ouvert ({0}). Les paramètres standard sont utilisés pour l'instant. Fermez les autres programmes qui pourraient utiliser {1}, puis redémarrez LabelScope.</value></data>
+  <data name="Settings_ReadFailed" xml:space="preserve"><value>Le fichier de paramètres n'a pas pu être lu ({0}). Les paramètres standard sont utilisés pour l'instant. Corrigez le fichier, ou supprimez-le pour en obtenir un nouveau, puis redémarrez LabelScope : {1}</value></data>
+  <data name="Settings_And" xml:space="preserve"><value> et </value></data>
+  <data name="Settings_RetiredKey_One" xml:space="preserve"><value>{0} dans settings.json n'est plus utilisé. La taille de l'étiquette vient du ZPL (^PW et ^LL); quand le ZPL n'en donne aucune, LabelWidthMm et LabelHeightMm sont utilisés. Vous pouvez supprimer cette ligne.</value></data>
+  <data name="Settings_RetiredKey_Many" xml:space="preserve"><value>{0} dans settings.json ne sont plus utilisés. La taille de l'étiquette vient du ZPL (^PW et ^LL); quand le ZPL n'en donne aucune, LabelWidthMm et LabelHeightMm sont utilisés. Vous pouvez supprimer ces lignes.</value></data>
+  <data name="Settings_BadListenAddress" xml:space="preserve"><value>ListenAddress "{0}" n'est pas permis. Utilisez "127.0.0.1" (cet ordinateur seulement) ou "0.0.0.0" (aussi les autres ordinateurs de votre réseau); "{1}" est utilisé à la place.</value></data>
+  <data name="Settings_BadListenPort" xml:space="preserve"><value>ListenPort {0} n'est pas entre 1 et 65535; {1} est utilisé à la place.</value></data>
+  <data name="Settings_BadDefaultDpi" xml:space="preserve"><value>DefaultDpi {0} ne fait pas partie de 152, 203, 300, 600; {1} est utilisé à la place.</value></data>
+  <data name="Settings_BadHistoryLimit" xml:space="preserve"><value>HistoryLimit {0} n'est pas entre 1 et 1000; {1} est utilisé à la place.</value></data>
+  <data name="Settings_EmptyPrinterName" xml:space="preserve"><value>PrinterName est vide; "{0}" est utilisé à la place.</value></data>
+  <data name="Installer_NameEmpty" xml:space="preserve"><value>Le nom de l'imprimante est vide. Ouvrez Configurer l'imprimante, tapez un nom pour l'imprimante et cliquez sur Enregistrer.</value></data>
+  <data name="Installer_NameTooLong" xml:space="preserve"><value>Le nom de l'imprimante est trop long ({0} caractères au plus). Ouvrez Configurer l'imprimante, raccourcissez le nom et cliquez sur Enregistrer.</value></data>
+  <data name="Installer_NameControlChars" xml:space="preserve"><value>Le nom de l'imprimante doit tenir sur une seule ligne de texte normal, sans saut de ligne ni caractère caché. Ouvrez Configurer l'imprimante, corrigez le nom et cliquez sur Enregistrer.</value></data>
+  <data name="Installer_NameForbiddenChars" xml:space="preserve"><value>Le nom de l'imprimante ne doit contenir ni barre oblique inversée, ni barre oblique, ni point d'exclamation, ni astérisque, ni point d'interrogation, ni crochet. Ouvrez Configurer l'imprimante, retirez-les du nom et cliquez sur Enregistrer.</value></data>
+  <data name="Installer_BadPort" xml:space="preserve"><value>Le port dans settings.json doit être un nombre entre 1 et 65535. Corrigez-le et démarrez LabelScope de nouveau.</value></data>
+  <data name="Installer_AlreadyInstalled" xml:space="preserve"><value>L'imprimante « {0} » est déjà installée. Vous pouvez y imprimer depuis n'importe quel programme.</value></data>
+  <data name="Installer_NameTakenInstall" xml:space="preserve"><value>Une imprimante nommée « {0} » existe déjà et n'a pas été créée par LabelScope; elle a donc été laissée telle quelle. Ouvrez Configurer l'imprimante, choisissez un autre nom d'imprimante et réessayez.</value></data>
+  <data name="Installer_Installed" xml:space="preserve"><value>L'imprimante « {0} » est installée. Imprimez-y depuis n'importe quel programme et l'étiquette apparaît dans LabelScope.</value></data>
+  <data name="Installer_InstallFailed" xml:space="preserve"><value>L'imprimante n'a pas pu être installée</value></data>
+  <data name="Installer_NotInstalled" xml:space="preserve"><value>L'imprimante « {0} » n'est pas installée; il n'y a donc rien à retirer.</value></data>
+  <data name="Installer_NameTakenRemove" xml:space="preserve"><value>Une imprimante nommée « {0} » existe, mais elle n'a pas été créée par LabelScope; elle a donc été laissée telle quelle.</value></data>
+  <data name="Installer_Removed" xml:space="preserve"><value>L'imprimante « {0} » a été retirée.</value></data>
+  <data name="Installer_RemoveFailed" xml:space="preserve"><value>L'imprimante n'a pas pu être retirée</value></data>
+  <data name="Installer_StatusCheckFailed" xml:space="preserve"><value>LabelScope n'a pas pu vérifier quelles imprimantes sont installées; rien n'a donc été changé. Vérifiez que le service Windows « Spouleur d'impression » est en cours d'exécution, puis réessayez.</value></data>
+  <data name="Installer_Timeout" xml:space="preserve"><value>{0} : Windows n'a pas terminé à temps (plus de {1} secondes). Il se peut que rien n'ait été changé. Cliquez de nouveau sur le bouton et répondez rapidement à la demande de Windows.</value></data>
+  <data name="Installer_PermissionDeclined" xml:space="preserve"><value>Windows a demandé une autorisation et elle n'a pas été accordée; rien n'a donc été changé. Cliquez de nouveau sur le bouton et choisissez Oui quand Windows le demande.</value></data>
+  <data name="Installer_NoAnswer" xml:space="preserve"><value>Windows n'a donné aucune réponse.</value></data>
+  <data name="Installer_SpoolerAdvice" xml:space="preserve"><value>Vérifiez que le service Windows « Spouleur d'impression » est en cours d'exécution, puis réessayez.</value></data>
+  <data name="Installer_AdminAdvice" xml:space="preserve"><value>Réessayez. Si l'échec se répète, montrez ce message à votre administrateur.</value></data>
+  <data name="Installer_Failure" xml:space="preserve"><value>{0} : {1} {2}</value></data>
+  <data name="Installer_ScriptNameTaken" xml:space="preserve"><value>Une autre imprimante utilise déjà ce nom.</value></data>
+  <data name="Installer_ScriptNotOurs" xml:space="preserve"><value>Cette imprimante n'a pas été créée par LabelScope.</value></data>
+  <data name="Runner_PowerShellMissing" xml:space="preserve"><value>Windows PowerShell est introuvable sur cet ordinateur; l'imprimante ne peut donc pas être gérée. Réparez Windows et réessayez.</value></data>
+  <data name="Runner_NotStarted" xml:space="preserve"><value>Windows PowerShell n'a pas pu être démarré.</value></data>
+  <data name="Runner_NameTooLong" xml:space="preserve"><value>Le nom de l'imprimante est trop long pour que Windows l'installe. Ouvrez Configurer l'imprimante et choisissez un nom plus court.</value></data>
+  <data name="Runner_StartFailed" xml:space="preserve"><value>Windows PowerShell n'a pas pu être démarré ({0}).</value></data>
+  <data name="Runner_AnswerUnreadable" xml:space="preserve"><value>La réponse de Windows PowerShell n'a pas pu être lue ({0}).</value></data>
+  <data name="Runner_UnsafeScript" xml:space="preserve"><value>Le script de l'imprimante contient un caractère qui ne peut pas être transmis à Windows PowerShell de façon sûre.</value></data>
+  <data name="Lookup_NoPrintSystem" xml:space="preserve"><value>Le système d'impression de Windows n'est pas disponible sur cet ordinateur.</value></data>
+  <data name="Lookup_ListFailed" xml:space="preserve"><value>Windows n'a pas pu dresser la liste des imprimantes : {0}</value></data>
+  <data name="Lookup_ListKeptChanging" xml:space="preserve"><value>Windows n'a pas pu dresser la liste des imprimantes parce qu'elle changeait sans cesse. Réessayez.</value></data>
+  <data name="Update_HttpStatus" xml:space="preserve"><value>GitHub a répondu {0}; LabelScope n'a donc pas pu savoir s'il existe une nouvelle version. Réessayez plus tard.</value></data>
+  <data name="Update_Unreachable" xml:space="preserve"><value>LabelScope n'a pas pu joindre GitHub pour chercher une nouvelle version. Vérifiez la connexion Internet et réessayez.</value></data>
+  <data name="Update_BadVersionName" xml:space="preserve"><value>La version la plus récente sur GitHub porte un nom de version que LabelScope ne comprend pas; elle a donc été ignorée.</value></data>
+  <data name="Update_NoInstaller" xml:space="preserve"><value>La version {0} existe, mais aucun programme d'installation n'y est encore joint. Réessayez plus tard.</value></data>
+  <data name="Listener_PortInUse" xml:space="preserve"><value>Le port {0} est déjà utilisé par un autre programme (peut-être une autre copie de LabelScope). Fermez ce programme, ou choisissez un autre numéro pour ListenPort dans settings.json et démarrez LabelScope de nouveau.</value></data>
+  <data name="Listener_StartFailed" xml:space="preserve"><value>LabelScope n'a pas pu commencer l'écoute sur {0}:{1} ({2}). Vérifiez ListenAddress et ListenPort dans settings.json.</value></data>
+  <data name="Listener_AcceptTrouble" xml:space="preserve"><value>LabelScope a eu de la difficulté à accepter une connexion et continue d'écouter. Si les étiquettes cessent d'arriver, redémarrez LabelScope.</value></data>
+  <data name="Listener_Busy" xml:space="preserve"><value>LabelScope est occupé : trop de programmes envoient des étiquettes en même temps. Les nouvelles connexions ont été refusées. Réessayez dans un instant.</value></data>
+  <data name="Listener_TooLarge" xml:space="preserve"><value>Une étiquette de plus de 16 Mo a été reçue sans marque de fin (^XZ) et a été rejetée. Vérifiez le programme qui envoie les étiquettes.</value></data>
+  <data name="Field_TextSummary" xml:space="preserve"><value>Texte « {0} »</value></data>
+  <data name="Field_TextDetail" xml:space="preserve"><value>police {0}, {1} points</value></data>
+  <data name="Field_TextBlockDetail" xml:space="preserve"><value>police {0}, {1} points, bloc de {2} points de large, jusqu'à {3} lignes</value></data>
+  <data name="Field_BarcodeSummary" xml:space="preserve"><value>Code-barres {0}</value></data>
+  <data name="Field_BarcodeLinearDetail" xml:space="preserve"><value>{0}, module {1}, hauteur {2}</value></data>
+  <data name="Field_BarcodeMatrixDetail" xml:space="preserve"><value>{0}, module {1} x {2} points, {3} x {4} modules</value></data>
+  <data name="Field_BarcodeNotDrawnDetail" xml:space="preserve"><value>{0}, non dessiné</value></data>
+  <data name="Field_BoxSummary" xml:space="preserve"><value>Cadre</value></data>
+  <data name="Field_BoxDetail" xml:space="preserve"><value>{0} x {1}, épaisseur {2}</value></data>
+  <data name="Field_LineSummary" xml:space="preserve"><value>Ligne diagonale</value></data>
+  <data name="Field_LineDetail" xml:space="preserve"><value>{0} x {1}, épaisseur {2}</value></data>
+  <data name="Field_CircleSummary" xml:space="preserve"><value>Cercle</value></data>
+  <data name="Field_CircleDetail" xml:space="preserve"><value>diamètre {0}, épaisseur {1}</value></data>
+  <data name="Field_GraphicInlineSummary" xml:space="preserve"><value>Graphique</value></data>
+  <data name="Field_GraphicSummary" xml:space="preserve"><value>Graphique {0}</value></data>
+  <data name="Field_ImageSummary" xml:space="preserve"><value>Image {0}</value></data>
+  <data name="Field_BackgroundSummary" xml:space="preserve"><value>Image d'arrière-plan {0}</value></data>
+  <data name="Field_GraphicDetail" xml:space="preserve"><value>{0} x {1} points</value></data>
+  <data name="Field_GraphicMagnifiedDetail" xml:space="preserve"><value>{0} x {1} points, agrandi {2} x {3}</value></data>
+  <data name="Field_OffLabel" xml:space="preserve"><value>Ce champ est en dehors de l'étiquette; rien n'en est donc imprimé. Vérifiez sa position (^FO ou ^FT) et la taille de l'étiquette (^PW, ^LL).</value></data>
+  <data name="Field_PartlyOffLabel" xml:space="preserve"><value>Une partie de ce champ est en dehors de l'étiquette et est coupée. Déplacez le champ ou réduisez sa taille.</value></data>
+  <data name="Fields_TooMany" xml:space="preserve"><value>Cette étiquette a {0} champs; seuls les 5000 premiers sont listés.</value></data>
+  <data name="Painter_LabelTooWide" xml:space="preserve"><value>La taille de l'étiquette est trop grande pour être dessinée ({0} x {1} points); la largeur de l'étiquette chargée a été réduite à {2} points. Réduisez la largeur de l'étiquette dans Configurer l'imprimante, ou envoyez ^PW.</value></data>
+  <data name="Settings_BadLabelSize" xml:space="preserve"><value>{0} {1} n'est pas entre 5 et 2000 mm; {2} est utilisé à la place.</value></data>
+  <data name="Settings_BadLanguage" xml:space="preserve"><value>La langue « {0} » n'est pas reconnue. Utilisez "en" (anglais), "es" (espagnol), "pt-BR" (portugais du Brésil), "fr" (français) ou "" (la langue de Windows); la langue de Windows est utilisée à la place.</value></data>
+  <data name="Settings_Saved" xml:space="preserve"><value>Les paramètres ont été enregistrés dans {0}.</value></data>
+  <data name="Settings_SaveFailed" xml:space="preserve"><value>Les paramètres n'ont pas pu être enregistrés dans {0} ({1}). Le fichier n'a pas été modifié. Vérifiez qu'il est possible d'écrire dans le dossier et qu'aucun autre programme n'a ouvert le fichier, puis réessayez.</value></data>
+  <data name="Settings_FileReadOnly" xml:space="preserve"><value>le fichier est en lecture seule</value></data>
+  <data name="Field_BarcodePartlyOffLabel" xml:space="preserve"><value>Une partie de ce code-barres est en dehors de l'étiquette; elle est donc coupée et le code ne sera pas lisible. Utilisez une largeur de module plus petite (^BY), des données plus courtes, ou déplacez le champ.</value></data>
+  <data name="Job_DefaultName" xml:space="preserve"><value>Étiquette</value></data>
+  <data name="Job_ThisComputer" xml:space="preserve"><value>Cet ordinateur</value></data>
+  <data name="Job_OpenedFromFile" xml:space="preserve"><value>Ouvert depuis un fichier</value></data>
+  <data name="Job_Pasted" xml:space="preserve"><value>Collé</value></data>
+  <data name="Log_Received" xml:space="preserve"><value>{1} octets reçus. Expéditeur : {0}.</value></data>
+  <data name="Log_OpenedFromFile" xml:space="preserve"><value>Ouvert depuis un fichier, {0} octets.</value></data>
+  <data name="Log_Pasted" xml:space="preserve"><value>Collé depuis le presse-papiers, {0} octets.</value></data>
+  <data name="Log_Incomplete" xml:space="preserve"><value>L'expéditeur s'est arrêté avant la fin de la dernière étiquette (^XZ); il peut donc manquer des parties à cette étiquette. Envoyez de nouveau le travail; si cela se reproduit, vérifiez le réseau ou le programme expéditeur.</value></data>
+  <data name="Jobs_Saved" xml:space="preserve"><value>{0} travaux ont été enregistrés dans {1}.</value></data>
+  <data name="Jobs_SaveFailed" xml:space="preserve"><value>La liste des travaux n'a pas pu être enregistrée dans {0} ({1}). Les travaux sont toujours affichés, mais ils ne reviendront pas au prochain démarrage. Vérifiez qu'il est possible d'écrire dans le dossier et qu'aucun autre programme n'a ouvert le fichier.</value></data>
+  <data name="Jobs_LoadFailed" xml:space="preserve"><value>Les travaux enregistrés dans {0} n'ont pas pu être ouverts ({1}). LabelScope a démarré avec une liste vide et a laissé le fichier tel quel. Fermez tout programme qui pourrait utiliser le fichier; les travaux reviendront au prochain démarrage.</value></data>
+  <data name="Jobs_LoadDamaged" xml:space="preserve"><value>Les travaux enregistrés dans {0} n'ont pas pu être lus parce que le fichier est endommagé ({1}). LabelScope a démarré avec une liste vide. Les nouveaux travaux remplaceront le fichier à la fermeture de LabelScope.</value></data>
+  <data name="Jobs_NoVersion" xml:space="preserve"><value>le fichier n'a pas de numéro de version valide</value></data>
+  <data name="Jobs_LoadNewer" xml:space="preserve"><value>Les travaux enregistrés dans {0} ont été écrits par une version plus récente de LabelScope et ne peuvent pas être lus par celle-ci. LabelScope a démarré avec une liste vide. Installez la version plus récente pour revoir ces travaux.</value></data>
+  <data name="Jobs_SaveRefusedNewer" xml:space="preserve"><value>La liste des travaux n'a pas été enregistrée, parce que {0} a été écrit par une version plus récente de LabelScope (version de fichier {1}) et qu'un enregistrement effacerait ces travaux. Installez la version plus récente, ou déplacez le fichier ailleurs si vous n'avez plus besoin de ces travaux.</value></data>
+</root>

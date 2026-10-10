@@ -298,7 +298,7 @@ public partial class PrinterSetupWindow : Window
     /// <param name="WidthMm">Loaded label width in millimetres.</param>
     /// <param name="HeightMm">Loaded label height in millimetres.</param>
     /// <param name="Dpi">The chosen density, or null when no option is checked (a 152 from the file stays as it is).</param>
-    /// <param name="Language">"", "en" or "es".</param>
+    /// <param name="Language">"" (the Windows language) or one of Text.Languages: "en", "es", "pt-BR" or "fr".</param>
     /// <param name="ShowNewestJob">Show the newest job as it arrives.</param>
     /// <param name="KeepJobs">Keep jobs after closing LabelScope.</param>
     private sealed record DialogValues(string PrinterName, double WidthMm, double HeightMm, int? Dpi, string Language,

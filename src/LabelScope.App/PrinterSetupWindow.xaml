@@ -147,6 +147,8 @@
               <!-- Each language is named in its own language, so a person can always find theirs. -->
               <ComboBoxItem Tag="en" Content="English" />
               <ComboBoxItem Tag="es" Content="Español" />
+              <ComboBoxItem Tag="pt-BR" Content="Português (Brasil)" />
+              <ComboBoxItem Tag="fr" Content="Français" />
             </ComboBox>
           </StackPanel>
           <StackPanel Grid.Column="2" Margin="4,5,0,0">

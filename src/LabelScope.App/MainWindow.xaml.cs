@@ -1318,6 +1318,8 @@ public partial class MainWindow : Window
         FitButton.ToolTip = UiText.Get("Ui_FitTip");
         SizePicker.ToolTip = UiText.Get("Ui_SizePickerTip");
         LanguagePicker.ToolTip = UiText.Get("Ui_LanguageTip");
+        // The one translated entry of the language list; the same words as in Printer setup.
+        LanguageWindowsItem.Content = SetupText.Get("Setup_LanguageWindows");
         MoreButton.ToolTip = UiText.Get("Ui_More");
         PrevPageButton.ToolTip = UiText.Get("Ui_PrevLabel");
         NextPageButton.ToolTip = UiText.Get("Ui_NextLabel");
@@ -1469,10 +1471,18 @@ public partial class MainWindow : Window
 
     // ---- language -------------------------------------------------------------------------------------
 
-    /// <summary>Selects the picker entry of the current language without running the switch itself.</summary>
+    /// <summary>
+    /// Selects the picker entry of the current language without running the switch itself. "Windows language" is
+    /// shown while the Language setting is "" and the window really speaks the Windows language; otherwise the entry
+    /// of the language in use (for example after a choice that could not be saved).
+    /// </summary>
     private void SelectLanguageInPicker()
     {
-        var code = Text.Culture.TwoLetterISOLanguageName == "es" ? "es" : "en";
+        var setting = Text.NormalizeLanguage(_settings.Language) ?? "";
+        // Culture names are compared, not two-letter codes: "pt-BR" has the two-letter code "pt".
+        var code = setting == "" && Text.CultureForLanguage("").Name == Text.Culture.Name
+            ? ""
+            : Text.LanguageOf(Text.Culture);
         _changingLanguagePicker = true;
         try { LanguagePicker.SelectedItem = LanguagePicker.Items.OfType<ComboBoxItem>().First(i => (string)i.Tag == code); }
         finally { _changingLanguagePicker = false; }
@@ -1482,29 +1492,28 @@ public partial class MainWindow : Window
     private bool _changingLanguagePicker;
 
     /// <summary>
-    /// English / Español was chosen: save it as the Language setting (so the next start uses it too), switch the
-    /// window and Core's messages, and draw every job again so its warnings and field texts change language.
+    /// A language (or "Windows language") was chosen: save it as the Language setting (so the next start uses it
+    /// too), switch the window and Core's messages, and draw every job again so its warnings and field texts change
+    /// language.
     /// </summary>
     private void OnLanguageChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_changingLanguagePicker || !IsLoaded || LanguagePicker.SelectedItem is not ComboBoxItem { Tag: string code }) return;
-        if (Text.Culture.TwoLetterISOLanguageName == code && _settings.Language == code) return;
+        var culture = Text.CultureForLanguage(code);
+        if (culture.Name == Text.Culture.Name && string.Equals(_settings.Language, code, StringComparison.OrdinalIgnoreCase)) return;
         if (!SaveSettingsChange(s => s.Language = code))
         {
             // Not saved (the message says why), but the person asked for this language now.
-            SwitchLanguage(new CultureInfo(code));
+            SwitchLanguage(culture);
             _ = RerenderAllJobsAsync();
         }
     }
 
     /// <summary>
-    /// The culture for the Language setting: "en" or "es" as chosen, and for "" the same rule Core uses by default
-    /// (Spanish when the Windows display language is Spanish, otherwise English).
+    /// The culture for the Language setting: the language chosen, and for "" the same Windows rule Core uses by
+    /// default (Spanish, Portuguese or French Windows gives that language, anything else English).
     /// </summary>
-    private static CultureInfo CultureForSetting(string? language) =>
-        new(language is "en" or "es"
-            ? language
-            : CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "es" : "en");
+    private static CultureInfo CultureForSetting(string? language) => Text.CultureForLanguage(language);
 
     /// <summary>
     /// Changes the language of the window and of Core's messages, then rewrites every text. The jobs' own warnings

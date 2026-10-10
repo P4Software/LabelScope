@@ -4,7 +4,8 @@ using LabelScope.Core.Localization;
 namespace LabelScope.App.Localization;
 
 /// <summary>
-/// Looks up the texts of the Printer setup window in SetupStrings.resx and SetupStrings.es.resx. Like
+/// Looks up the texts of the Printer setup window in SetupStrings.resx and its translations (SetupStrings.es.resx,
+/// SetupStrings.pt-BR.resx, SetupStrings.fr.resx). Like
 /// <see cref="UiText"/>, it follows Core's <see cref="Text.Culture"/>, so the dialog always speaks the same language
 /// as the main window and as the messages that come from Core.
 /// </summary>

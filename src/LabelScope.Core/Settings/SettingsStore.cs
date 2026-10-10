@@ -62,7 +62,8 @@ public sealed class SettingsStore
           // true or false. Handy on a narrow screen. The "Stacked layout" box in the window does the same while running.
           "StackedLayout": {{Json(s.StackedLayout)}},
 
-          // Language of the window and messages: "en" = English, "es" = Spanish, "" = the language of Windows.
+          // Language of the window and messages: "en" = English, "es" = Spanish, "pt-BR" = Portuguese (Brazil),
+          // "fr" = French, "" = the language of Windows.
           "Language": {{Json(s.Language)}},
 
           // true = a job that arrives is selected and shown at once. false = the job you are looking at stays.
@@ -267,9 +268,10 @@ public sealed class SettingsStore
             messages.Add(Text.Get("Settings_BadLabelSize", nameof(s.LabelHeightMm), s.LabelHeightMm, d.LabelHeightMm));
             s.LabelHeightMm = d.LabelHeightMm;
         }
-        // Language: "" follows Windows. Case and spaces are forgiven ("ES" works) and stored in the one form the app compares.
-        var language = (s.Language ?? "").Trim().ToLowerInvariant();
-        if (language is not ("" or "en" or "es"))
+        // Language: "" follows Windows. Case and spaces are forgiven ("ES", "pt-br" work) and the value is stored in
+        // the one spelling the app compares ("pt-BR", not "pt-br"), which is why this is not a plain lower-casing.
+        var language = Text.NormalizeLanguage(s.Language);
+        if (language is null)
         {
             messages.Add(Text.Get("Settings_BadLanguage", s.Language ?? ""));
             language = d.Language;

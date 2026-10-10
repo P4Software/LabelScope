@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Window texts of the LabelScope app (main window). Keys start with Ui_. Generated from one table so
-     the English and Spanish files always hold the same keys. -->
+     the English file and its translations always hold the same keys. -->
 <root>
   <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
   <resheader name="version"><value>2.0</value></resheader>

@@ -4,7 +4,7 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
-  <!-- English (neutral) texts. Key naming: Area_Thing. Placeholders must match Strings.es.resx. -->
+  <!-- English (neutral) texts. Key naming: Area_Thing. Placeholders must match the translations (Strings.es, Strings.pt-BR, Strings.fr). -->
   <data name="Common_Ready" xml:space="preserve"><value>Ready</value></data>
   <data name="Barcode_NoData" xml:space="preserve"><value>There is no data for the barcode.</value></data>
   <data name="Barcode_DigitsOnly" xml:space="preserve"><value>This barcode accepts digits only, but the data contains '{0}'.</value></data>
@@ -316,7 +316,7 @@
   <data name="Fields_TooMany" xml:space="preserve"><value>This label has {0} fields; only the first 5000 are listed.</value></data>
   <data name="Painter_LabelTooWide" xml:space="preserve"><value>The label size is too large to draw ({0} x {1} dots); the width of the loaded label was cut to {2} dots. Make the label size in Printer setup narrower, or send ^PW.</value></data>
   <data name="Settings_BadLabelSize" xml:space="preserve"><value>{0} {1} is not between 5 and 2000 mm; {2} is used instead.</value></data>
-  <data name="Settings_BadLanguage" xml:space="preserve"><value>Language "{0}" is not known. Use "en" (English), "es" (Spanish) or "" (the Windows language); the Windows language is used instead.</value></data>
+  <data name="Settings_BadLanguage" xml:space="preserve"><value>Language "{0}" is not known. Use "en" (English), "es" (Spanish), "pt-BR" (Portuguese, Brazil), "fr" (French) or "" (the Windows language); the Windows language is used instead.</value></data>
   <data name="Settings_Saved" xml:space="preserve"><value>The settings were saved to {0}.</value></data>
   <data name="Settings_SaveFailed" xml:space="preserve"><value>The settings could not be saved to {0} ({1}). The file was not changed. Check that the folder is writable and that no other program has the file open, then try again.</value></data>
   <data name="Settings_FileReadOnly" xml:space="preserve"><value>the file is read-only</value></data>

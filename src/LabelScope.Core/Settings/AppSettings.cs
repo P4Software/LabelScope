@@ -24,7 +24,7 @@ public sealed class AppSettings
     /// </summary>
     public double LabelHeightMm { get; set; } = 152.4;
 
-    /// <summary>Language of the window and messages: "en", "es", or "" to follow the Windows language.</summary>
+    /// <summary>Language of the window and messages: "en", "es", "pt-BR", "fr", or "" to follow the Windows language.</summary>
     public string Language { get; set; } = "";
 
     /// <summary>When true, a job that arrives is selected and shown at once.</summary>

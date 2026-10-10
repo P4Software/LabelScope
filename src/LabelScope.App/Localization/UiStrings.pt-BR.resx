@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Brazilian Portuguese window texts of the LabelScope app (main window). Keys start with Ui_. Same keys and
+     {n} placeholders as UiStrings.resx. -->
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Ui_OpenFile" xml:space="preserve"><value>Abrir arquivo ZPL</value></data>
+  <data name="Ui_OpenFileTip" xml:space="preserve"><value>Mostra um arquivo ZPL do disco como se ele tivesse sido impresso no LabelScope</value></data>
+  <data name="Ui_PasteZpl" xml:space="preserve"><value>Colar ZPL</value></data>
+  <data name="Ui_PasteZplTip" xml:space="preserve"><value>Mostra o ZPL que está na área de transferência</value></data>
+  <data name="Ui_CopyZpl" xml:space="preserve"><value>Copiar ZPL</value></data>
+  <data name="Ui_CopyZplTip" xml:space="preserve"><value>Copia o ZPL da etiqueta selecionada</value></data>
+  <data name="Ui_SavePng" xml:space="preserve"><value>Salvar como PNG</value></data>
+  <data name="Ui_ClearJobs" xml:space="preserve"><value>Limpar trabalhos</value></data>
+  <data name="Ui_ClearJobsTip" xml:space="preserve"><value>Remove todos os trabalhos da lista. A memória da impressora é mantida.</value></data>
+  <data name="Ui_ZoomOut" xml:space="preserve"><value>Diminuir zoom</value></data>
+  <data name="Ui_ZoomIn" xml:space="preserve"><value>Aumentar zoom</value></data>
+  <data name="Ui_Fit" xml:space="preserve"><value>Ajustar {0}%</value></data>
+  <data name="Ui_Zoom" xml:space="preserve"><value>{0}%</value></data>
+  <data name="Ui_FitTip" xml:space="preserve"><value>Ajusta a etiqueta inteira à janela</value></data>
+  <data name="Ui_SizePicker" xml:space="preserve"><value>{0} × {1} pol. · {2} dpi</value></data>
+  <data name="Ui_SizePickerTip" xml:space="preserve"><value>A etiqueta carregada na impressora, usada quando o ZPL não informa um tamanho. Escolher outra salva a escolha e desenha todos os trabalhos de novo.</value></data>
+  <data name="Ui_LanguageTip" xml:space="preserve"><value>Idioma da janela</value></data>
+  <data name="Ui_PrinterSetup" xml:space="preserve"><value>Configurar impressora</value></data>
+  <data name="Ui_More" xml:space="preserve"><value>Mais ações</value></data>
+  <data name="Ui_InstallPrinter" xml:space="preserve"><value>Instalar impressora</value></data>
+  <data name="Ui_InstallPrinterTip" xml:space="preserve"><value>Adiciona a impressora do Windows que envia as etiquetas ao LabelScope</value></data>
+  <data name="Ui_RemovePrinter" xml:space="preserve"><value>Remover impressora</value></data>
+  <data name="Ui_CopyImage" xml:space="preserve"><value>Copiar imagem</value></data>
+  <data name="Ui_CopyOriginal" xml:space="preserve"><value>Copiar ZPL original</value></data>
+  <data name="Ui_CopyOriginalTip" xml:space="preserve"><value>Copia o ZPL exatamente como foi recebido</value></data>
+  <data name="Ui_ClearMemory" xml:space="preserve"><value>Limpar memória da impressora</value></data>
+  <data name="Ui_ClearMemoryTip" xml:space="preserve"><value>Apaga os gráficos e as fontes que o LabelScope guarda dos downloads ~DG, ~DY e ^IS, e as letras de fonte definidas com ^CW</value></data>
+  <data name="Ui_LightGrid" xml:space="preserve"><value>Grade leve (10 mm)</value></data>
+  <data name="Ui_StackedLayout" xml:space="preserve"><value>Layout empilhado</value></data>
+  <data name="Ui_OpenLog" xml:space="preserve"><value>Abrir pasta de logs</value></data>
+  <data name="Ui_CheckUpdates" xml:space="preserve"><value>Verificar atualizações</value></data>
+  <data name="Ui_UpdateTo" xml:space="preserve"><value>Atualizar para {0}</value></data>
+  <data name="Ui_PrintJobs" xml:space="preserve"><value>Trabalhos de impressão</value></data>
+  <data name="Ui_ReceivedToday" xml:space="preserve"><value>{0} recebidos hoje</value></data>
+  <data name="Ui_StatusStarting" xml:space="preserve"><value>Iniciando…</value></data>
+  <data name="Ui_StatusReady" xml:space="preserve"><value>Pronto — a impressora do Windows “{0}” está escutando</value></data>
+  <data name="Ui_StatusNoPrinter" xml:space="preserve"><value>Escutando, mas a impressora do Windows “{0}” não está instalada. Escolha Configurar impressora para instalá-la.</value></data>
+  <data name="Ui_StatusNameTaken" xml:space="preserve"><value>Escutando, mas outra impressora do Windows já usa o nome “{0}”. Escolha Configurar impressora e defina outro nome.</value></data>
+  <data name="Ui_StatusPrinterUnknown" xml:space="preserve"><value>Escutando em {0}. Não foi possível verificar a impressora do Windows.</value></data>
+  <data name="Ui_StatusPrinterSettings" xml:space="preserve"><value>Escutando em {0}. As configurações da impressora precisam de correção; veja a mensagem na parte de baixo.</value></data>
+  <data name="Ui_StatusNotListening" xml:space="preserve"><value>Não está escutando — as etiquetas não podem chegar. Veja na mensagem na parte de baixo o que fazer.</value></data>
+  <data name="Ui_RenderedOk" xml:space="preserve"><value>Desenhada corretamente</value></data>
+  <data name="Ui_Incomplete" xml:space="preserve"><value>incompleta</value></data>
+  <data name="Ui_Caption" xml:space="preserve"><value>{0} pol. ({1} pontos)</value></data>
+  <data name="Ui_TabZpl" xml:space="preserve"><value>ZPL</value></data>
+  <data name="Ui_TabFields" xml:space="preserve"><value>Campos</value></data>
+  <data name="Ui_TabLog" xml:space="preserve"><value>Registro</value></data>
+  <data name="Ui_LogLine" xml:space="preserve"><value>Linha {0}</value></data>
+  <data name="Ui_SelectedNone" xml:space="preserve"><value>Selecionado: nada. Clique em um campo na etiqueta, em uma linha de Campos ou em uma linha do ZPL.</value></data>
+  <data name="Ui_SelectedLine" xml:space="preserve"><value>Selecionado: linha {0}</value></data>
+  <data name="Ui_EmptyCanvas" xml:space="preserve"><value>Nenhuma etiqueta ainda. Imprima na impressora do Windows “{0}”, abra um arquivo ZPL ou cole ZPL.</value></data>
+  <data name="Ui_BarLabel" xml:space="preserve"><value>Etiqueta {0} de {1}</value></data>
+  <data name="Ui_BarSize" xml:space="preserve"><value>{0} × {1} pol. · {2} dpi</value></data>
+  <data name="Ui_BarDots" xml:space="preserve"><value>{0} × {1} pontos</value></data>
+  <data name="Ui_ReceivedFrom" xml:space="preserve"><value>Recebido de {0} às {1}</value></data>
+  <data name="Ui_OpenFileFilter" xml:space="preserve"><value>Arquivos ZPL|*.zpl;*.prn;*.txt|Todos os arquivos|*.*</value></data>
+  <data name="Ui_FileTooLarge" xml:space="preserve"><value>Este arquivo tem mais de 16 MB, mais do que um trabalho de etiquetas pode ter. Escolha um arquivo menor.</value></data>
+  <data name="Ui_FileReadFailed" xml:space="preserve"><value>O arquivo não pôde ser lido. Verifique se ele ainda existe e se nenhum outro programa está com ele aberto e tente novamente. Os detalhes estão no arquivo de log.</value></data>
+  <data name="Ui_FileEmpty" xml:space="preserve"><value>Este arquivo não contém ZPL (nenhum ^XA encontrado). Escolha um arquivo ZPL.</value></data>
+  <data name="Ui_PasteEmpty" xml:space="preserve"><value>A área de transferência não contém ZPL (nenhum ^XA encontrado). Copie primeiro o texto da etiqueta e depois clique em Colar ZPL.</value></data>
+  <data name="Ui_PasteFailed" xml:space="preserve"><value>A área de transferência não pôde ser lida porque outro programa está usando-a. Tente novamente.</value></data>
+  <data name="Ui_SizePickerName" xml:space="preserve"><value>Tamanho da etiqueta e densidade de impressão</value></data>
+  <data name="Ui_SizePickerDpi" xml:space="preserve"><value>{0} × {1} pol. · {2} dpi (densidade)</value></data>
+  <data name="Ui_SizePickerCustom" xml:space="preserve"><value>Personalizado… (Configurar impressora)</value></data>
+  <data name="Ui_SelectedField" xml:space="preserve"><value>Selecionado: {0} · x {1}, y {2} · {3} · linha {4}</value></data>
+  <data name="Ui_SelectedTextField" xml:space="preserve"><value>campo de texto “{0}”</value></data>
+  <data name="Ui_ReceivedThisComputer" xml:space="preserve"><value>Recebido deste computador às {0}</value></data>
+  <data name="Ui_ReceivedFile" xml:space="preserve"><value>Aberto de um arquivo às {0}</value></data>
+  <data name="Ui_ReceivedPasted" xml:space="preserve"><value>Colado às {0}</value></data>
+  <data name="Ui_JobSubtitle" xml:space="preserve"><value>{0} · {1} · {2}</value></data>
+  <data name="Ui_JobLabelsOne" xml:space="preserve"><value>{0} etiqueta</value></data>
+  <data name="Ui_JobLabelsMany" xml:space="preserve"><value>{0} etiquetas</value></data>
+  <data name="Ui_JobLinesOne" xml:space="preserve"><value>{0} linha</value></data>
+  <data name="Ui_JobLinesMany" xml:space="preserve"><value>{0} linhas</value></data>
+  <data name="Ui_ErrorOne" xml:space="preserve"><value>1 erro — {0}</value></data>
+  <data name="Ui_ErrorMany" xml:space="preserve"><value>{0} erros — {1}</value></data>
+  <data name="Ui_TabFieldsCount" xml:space="preserve"><value>Campos ({0})</value></data>
+  <data name="Ui_FieldKindText" xml:space="preserve"><value>Texto</value></data>
+  <data name="Ui_FieldKindBarcode" xml:space="preserve"><value>Código de barras</value></data>
+  <data name="Ui_FieldKindBox" xml:space="preserve"><value>Caixa</value></data>
+  <data name="Ui_FieldKindCircle" xml:space="preserve"><value>Círculo</value></data>
+  <data name="Ui_FieldKindLine" xml:space="preserve"><value>Linha</value></data>
+  <data name="Ui_FieldKindGraphic" xml:space="preserve"><value>Gráfico</value></data>
+  <data name="Ui_FieldKindImage" xml:space="preserve"><value>Imagem</value></data>
+  <data name="Ui_FieldPosition" xml:space="preserve"><value>{0}, {1} · {2} × {3}</value></data>
+  <data name="Ui_FieldLine" xml:space="preserve"><value>linha {0}</value></data>
+  <data name="Ui_FieldsEmpty" xml:space="preserve"><value>Esta etiqueta não desenha nenhum campo.</value></data>
+  <data name="Ui_FieldsNoLabel" xml:space="preserve"><value>Nenhuma etiqueta foi desenhada a partir deste trabalho, então não há campos. A aba Registro explica o motivo.</value></data>
+  <data name="Ui_NoJobSelected" xml:space="preserve"><value>Selecione um trabalho à esquerda para ver seus campos e o que aconteceu com ele.</value></data>
+  <data name="Ui_BarLinesFields" xml:space="preserve"><value>{0} linhas ZPL · {1} campos</value></data>
+  <data name="Ui_BarErrorOne" xml:space="preserve"><value>1 erro</value></data>
+  <data name="Ui_BarErrorMany" xml:space="preserve"><value>{0} erros</value></data>
+  <data name="Ui_PrevLabel" xml:space="preserve"><value>Etiqueta anterior deste trabalho</value></data>
+  <data name="Ui_NextLabel" xml:space="preserve"><value>Próxima etiqueta deste trabalho</value></data>
+  <data name="Ui_DismissMessage" xml:space="preserve"><value>Ocultar estas mensagens</value></data>
+  <data name="Ui_SizeTip" xml:space="preserve"><value>Largura: {0}. Altura: {1}. Desenhada a {2} dpi; {3} cópia(s) pedida(s).</value></data>
+  <data name="Ui_SizeFromZpl" xml:space="preserve"><value>{0} pontos, enviados pelo programa com {1}</value></data>
+  <data name="Ui_SizeFromSetup" xml:space="preserve"><value>{0} pontos, a etiqueta carregada em Configurar impressora (o ZPL não informa {1})</value></data>
+  <data name="Ui_StartupFailed" xml:space="preserve"><value>O LabelScope não conseguiu terminar de iniciar. Feche-o e inicie-o novamente; os detalhes estão no arquivo de log.</value></data>
+  <data name="Ui_LogFolderFailed" xml:space="preserve"><value>O LabelScope não conseguiu criar sua pasta de logs ({0}). Ele continua funcionando sem arquivo de log; escolha outra LogFolder no settings.json para ter um.</value></data>
+  <data name="Ui_ListenAllNote" xml:space="preserve"><value>O LabelScope aceita etiquetas de outros computadores da sua rede (ListenAddress 0.0.0.0). O Windows pode pedir que você permita o LabelScope no firewall; responder a isso exige um administrador.</value></data>
+  <data name="Ui_LabelFailed" xml:space="preserve"><value>Chegou uma etiqueta, mas o LabelScope não conseguiu exibi-la. Envie-a novamente; os detalhes estão no arquivo de log.</value></data>
+  <data name="Ui_SkippedLabels" xml:space="preserve"><value>{0} trabalho(s) não foram exibidos porque chegaram mais rápido do que podem ser mostrados. Eles estão listados no arquivo de log.</value></data>
+  <data name="Ui_NotDrawnNote" xml:space="preserve"><value>Chegaram dados, mas nenhuma imagem de etiqueta pôde ser desenhada a partir deles. O ZPL e os motivos são exibidos à direita.</value></data>
+  <data name="Ui_IncompleteNote" xml:space="preserve"><value>Uma etiqueta chegou incompleta (sem ^XZ no final). Ela é exibida até onde chegou.</value></data>
+  <data name="Ui_ShowFailed" xml:space="preserve"><value>Este trabalho não pôde ser exibido. Os detalhes estão no arquivo de log.</value></data>
+  <data name="Ui_RerenderFailed" xml:space="preserve"><value>Nem todos os trabalhos puderam ser desenhados de novo com as novas configurações. Os detalhes estão no arquivo de log; os novos trabalhos usam as novas configurações.</value></data>
+  <data name="Ui_KeptJobsFailed" xml:space="preserve"><value>Os trabalhos mantidos da última vez não puderam ser exibidos. O LabelScope começou com a lista vazia; os detalhes estão no arquivo de log.</value></data>
+  <data name="Ui_LanguageFailed" xml:space="preserve"><value>Não foi possível mudar o idioma. Os detalhes estão no arquivo de log.</value></data>
+  <data name="Ui_InstallAsk" xml:space="preserve"><value>O LabelScope vai adicionar uma impressora do Windows chamada “{0}” que envia as etiquetas a este programa.
+
+O Windows vai pedir permissão uma vez. Continuar?</value></data>
+  <data name="Ui_RemoveAsk" xml:space="preserve"><value>Remover a impressora do Windows “{0}”?</value></data>
+  <data name="Ui_PrinterActionFailed" xml:space="preserve"><value>A ação na impressora não terminou. Os detalhes estão no arquivo de log; tente novamente.</value></data>
+  <data name="Ui_NothingToSave" xml:space="preserve"><value>Ainda não há etiqueta para salvar. Primeiro envie uma ao LabelScope, abra um arquivo ZPL ou cole ZPL.</value></data>
+  <data name="Ui_PngFilter" xml:space="preserve"><value>Imagem PNG|*.png</value></data>
+  <data name="Ui_PngSaved" xml:space="preserve"><value>{0} salvo</value></data>
+  <data name="Ui_PngSaveFailed" xml:space="preserve"><value>A imagem não pôde ser salva em {0}. Escolha outra pasta e tente novamente.</value></data>
+  <data name="Ui_NothingToCopyImage" xml:space="preserve"><value>Ainda não há etiqueta para copiar. Primeiro envie uma ao LabelScope.</value></data>
+  <data name="Ui_ImageCopied" xml:space="preserve"><value>A imagem da etiqueta foi copiada. Cole-a em qualquer programa.</value></data>
+  <data name="Ui_ClipboardBusy" xml:space="preserve"><value>O LabelScope não conseguiu usar a área de transferência porque outro programa está usando-a. Tente novamente.</value></data>
+  <data name="Ui_NothingToCopyZpl" xml:space="preserve"><value>Ainda não há ZPL para copiar. Primeiro envie uma etiqueta ao LabelScope.</value></data>
+  <data name="Ui_NoZplText" xml:space="preserve"><value>Este trabalho não contém texto ZPL para copiar.</value></data>
+  <data name="Ui_OriginalCopied" xml:space="preserve"><value>ZPL original copiado.</value></data>
+  <data name="Ui_ZplCopied" xml:space="preserve"><value>ZPL copiado ({0} linhas).</value></data>
+  <data name="Ui_CopyFailed" xml:space="preserve"><value>O ZPL não pôde ser copiado. Os detalhes estão no arquivo de log.</value></data>
+  <data name="Ui_ClearJobsAsk" xml:space="preserve"><value>Remover todos os {0} trabalhos da lista?
+
+Isso só limpa a lista. Os gráficos e as fontes na memória da impressora são mantidos.</value></data>
+  <data name="Ui_ClearMemoryAsk" xml:space="preserve"><value>Apagar tudo o que o LabelScope guarda na sua memória de impressora (gráficos e fontes baixados, e letras de fonte definidas com ^CW)?
+
+As etiquetas que usam esses gráficos, fontes ou letras de fonte vão mostrar um aviso até que o download ou o ^CW seja enviado novamente.</value></data>
+  <data name="Ui_MemoryCleared" xml:space="preserve"><value>A memória de impressora do LabelScope foi limpa.</value></data>
+  <data name="Ui_MemoryTip" xml:space="preserve"><value>Memória da impressora: {0}. Os gráficos e as fontes enviados com ~DG, ~DY ou ^IS, e as letras de fonte definidas com ^CW, ficam guardados aqui até o LabelScope ser fechado ou até você escolher Limpar memória da impressora.</value></data>
+  <data name="Ui_OpenPathFailed" xml:space="preserve"><value>O Windows não conseguiu abrir {0}. Abra-o você mesmo no Explorador de Arquivos.</value></data>
+  <data name="Ui_UpdateAvailable" xml:space="preserve"><value>Há uma nova versão do LabelScope disponível ({0}). Escolha “Atualizar para {0}” na barra de ferramentas para instalá-la.</value></data>
+  <data name="Ui_UpToDate" xml:space="preserve"><value>Você tem a versão mais recente ({0}).</value></data>
+  <data name="Ui_UpdateCheckFailed" xml:space="preserve"><value>O LabelScope não conseguiu verificar se há atualizações. Verifique a conexão com a internet e tente novamente; os detalhes estão no arquivo de log.</value></data>
+  <data name="Ui_UpdateAsk" xml:space="preserve"><value>Instalar o LabelScope {0} agora?
+
+O LabelScope vai fechar, se atualizar e abrir de novo. Suas configurações são mantidas. Os trabalhos da lista à esquerda são apagados, a menos que “Conservar os trabalhos ao fechar o LabelScope” esteja ativado.</value></data>
+  <data name="Ui_UpdateTitle" xml:space="preserve"><value>Atualizar o LabelScope</value></data>
+  <data name="Ui_Downloading" xml:space="preserve"><value>Baixando a nova versão… {0}%</value></data>
+  <data name="Ui_Installing" xml:space="preserve"><value>Instalando a nova versão. O LabelScope vai abrir de novo em instantes.</value></data>
+  <data name="Ui_InstallerBlocked" xml:space="preserve"><value>O Windows não permitiu que o instalador fosse iniciado. Baixe o LabelScope-Setup.exe da página de versões (releases) do GitHub e execute-o você mesmo; os detalhes estão no arquivo de log.</value></data>
+  <data name="Ui_DownloadFailed" xml:space="preserve"><value>A nova versão não pôde ser baixada. Verifique a conexão com a internet e tente novamente.</value></data>
+  <data name="Ui_InstallerNotSigned" xml:space="preserve"><value>O instalador baixado não está assinado pelo editor do LabelScope, então foi apagado e não foi executado. Baixe o LabelScope novamente da página de versões (releases) do GitHub.</value></data>
+  <data name="Ui_JobPart" xml:space="preserve"><value>{0} (parte {1})</value></data>
+  <data name="Ui_BarLinesFieldsOne" xml:space="preserve"><value>{0} linhas ZPL · {1} campo</value></data>
+  <data name="Ui_ClearJobsAskOne" xml:space="preserve"><value>Remover {0} trabalho da lista?
+
+Isso só limpa a lista. Os gráficos e as fontes na memória da impressora são mantidos.</value></data>
+  <data name="Ui_ReceivedTodayOne" xml:space="preserve"><value>{0} recebido hoje</value></data>
+  <data name="Ui_FieldPositionOnly" xml:space="preserve"><value>{0}, {1}</value></data>
+</root>
