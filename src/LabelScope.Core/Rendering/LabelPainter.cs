@@ -78,6 +78,7 @@ internal sealed partial class LabelPainter : IDisposable
                        po.Args.TrimStart().StartsWith("I", StringComparison.OrdinalIgnoreCase);
         using var painter = new LabelPainter(w, h, warnings, inverted, context);
         foreach (var cmd in block) painter.Handle(cmd);
+        painter.SaveImageIfAsked();
         return painter.ToResult(w, h, widthFromZpl, heightFromZpl, options.Dpi);
     }
 
@@ -150,6 +151,8 @@ internal sealed partial class LabelPainter : IDisposable
             case "^GB": DrawBox(cmd, a); break;
             case "^XG": RecallGraphic(cmd, a, scalable: true); break;
             case "^IM": RecallGraphic(cmd, a, scalable: false); break;
+            case "^IL": LoadImage(cmd, a); break;
+            case "^IS": RememberImageSave(cmd, a); break;
             case "^GC": DrawCircle(a); break;
             case "^GD": DrawDiagonal(a); break;
             case "^PO": break; // already applied in Paint

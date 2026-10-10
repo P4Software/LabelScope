@@ -114,6 +114,58 @@ internal sealed partial class LabelPainter
                "send that download job to LabelScope first, then this label again.";
     }
 
+    // ^IS asks for the finished label to be saved; remembered until the last command has been drawn.
+    private (ObjectName Name, bool Print, int Line)? _imageSave;
+
+    /// <summary>
+    /// ^ILd:o.x: a stored image as the background of the whole label. The guide places it at ^FO0,0 (so ^LH
+    /// applies) and it is never turned. Only black dots are drawn, so where it appears among the fields does not
+    /// change the picture, except under ^FR / ^LR, where it reverses like any field. A missing image costs the
+    /// background, never the label.
+    /// </summary>
+    private void LoadImage(ZplCommand cmd, string[] a)
+    {
+        var name = ObjectName.Parse(a.Length > 0 ? a[0] : "", "GRF", 'R');
+        var found = _context.Memory.Find(name, out var elsewhere);
+        if (found is StoredGraphic graphic)
+        {
+            DrawImage(cmd.Name, cmd.Line, graphic.Image, 1, 1, _homeX, _homeY, 'N', fromBase: false);
+            return;
+        }
+        if (found is not null)
+        {
+            Warn(cmd, $"^IL: {name.Display} in LabelScope's printer memory is a {found.Kind}, not an image, so the label is drawn without a background.");
+            return;
+        }
+        var where = elsewhere is { } other ? $" LabelScope does have {other.Display}, but this label asks for drive {name.Drive}:." : "";
+        Warn(cmd, $"^IL: This label loads the image {name.Display} from the printer's memory as its background. " +
+                  "That image lives in the printer's memory and was never sent to LabelScope (a label program or WMS usually sends it once, before the labels), so the label is drawn without it." + where +
+                  " To see the full label, download the image first (the job that stored it, with ~DG, ~DY or ^IS), then send this label again.");
+    }
+
+    /// <summary>^ISd:o.x,p: remembers that the finished label must be saved as an image (done in <see cref="SaveImageIfAsked"/>).</summary>
+    private void RememberImageSave(ZplCommand cmd, string[] a)
+    {
+        var name = ObjectName.Parse(a.Length > 0 ? a[0] : "", "GRF", 'R');
+        _imageSave = (name, ZplArgs.Letter(a, 1, 'Y') != 'N', cmd.Line);
+    }
+
+    /// <summary>
+    /// Runs after the last command of the label: ^IS saves the whole finished label, so it must see every field,
+    /// including the ones after ^IS. The picture is stored in black and white as drawn (a ^PO I label is stored
+    /// already turned), the way a printer stores its bitmap.
+    /// </summary>
+    private void SaveImageIfAsked()
+    {
+        if (_imageSave is not { } save) return;
+        _canvas.Flush();
+        var image = MonoImage.FromRgba(_bitmap.GetPixelSpan(), _bitmap.Width, _bitmap.Height, _bitmap.RowBytes, premultiplied: true);
+        var cmd = new ZplCommand("^IS", "", save.Line);
+        StorageCommands.StoreGraphic(cmd, _context, _warnings, save.Name, image, $"^IS {save.Name.Display}");
+        if (!save.Print)
+            _warnings.Add(new(save.Line, $"^IS {save.Name.Display},N: a printer stores this label as an image without printing it; LabelScope shows it anyway."));
+    }
+
     private void Warn(ZplCommand cmd, string message) => _warnings.Add(new(cmd.Line, message));
 
     /// <summary>
