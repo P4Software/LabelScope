@@ -96,7 +96,10 @@ internal sealed partial class LabelPainter
                           $"To use the real font, copy {f.Name}.{f.Extension} into the folder named by FontsFolder in settings.json and restart LabelScope, " +
                           "or send the job that downloads it, then send the label again.",
                 });
-                var standIn = ZplFontFactory.Scalable(BundledFonts.Scalable, height, width, out var standInNote);
+                // Laid out exactly like font 0: the stand-in then gives the same line lengths and positions as the
+                // printer's own fallback font, rather than a third look of its own.
+                var standIn = ZplFontFactory.Scalable(BundledFonts.Scalable, height, width, out var standInNote,
+                    ZplFontFactory.BundledScalableWidth, ZplFontFactory.BundledCapHeight);
                 AddSizeNote(standInNote, line);
                 return standIn;
             }

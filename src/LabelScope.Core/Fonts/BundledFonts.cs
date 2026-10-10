@@ -8,10 +8,10 @@ namespace LabelScope.Core.Fonts;
 /// </summary>
 internal static class BundledFonts
 {
-    private static readonly Lazy<SKTypeface> ScalableFace = new(() => Load("IBMPlexSansCondensed-Bold.ttf"));
+    private static readonly Lazy<SKTypeface> ScalableFace = new(() => Load("NotoSans-ExtraCondensedBold.ttf"));
     private static readonly Lazy<SKTypeface> MonoFace = new(() => Load("IBMPlexMono-Regular.ttf"));
 
-    /// <summary>IBM Plex Sans Condensed Bold: stands in for Zebra's scalable font 0 (CG Triumvirate Bold Condensed) and fonts P to V.</summary>
+    /// <summary>Noto Sans ExtraCondensed Bold: stands in for Zebra's scalable font 0 (CG Triumvirate Bold Condensed) and fonts P to V; chosen because its letter widths follow font 0 closely.</summary>
     public static SKTypeface Scalable => ScalableFace.Value;
 
     /// <summary>IBM Plex Mono Regular: stretched into the cells of Zebra's bitmap fonts A to H, and used for barcode text lines.</summary>

@@ -151,17 +151,36 @@ internal sealed class ScalableFont : ZplFont
 {
     private readonly SKTypeface _face;
     private readonly SKFont _font;
+    // Set when the font is laid out like the printer's font 0 (see the constructor); null for a face's own layout.
+    private readonly float? _capTop;
+    private readonly int _height;
 
     /// <summary>
     /// Creates the font at <paramref name="height"/> dots; <paramref name="width"/> equal to the height keeps the face's
     /// own proportions. <paramref name="faceWidth"/> narrows or widens the face itself, so a stand-in face can match the
     /// letter widths of the printer font it replaces (1 = the face as designed).
+    /// <paramref name="capHeight"/>, when given, lays the face out like the printer's font 0 instead of by its own
+    /// metrics: capitals are that fraction of the height, and their tops sit on the top of the field (^FO), so text
+    /// lands where the printer prints it whatever space the stand-in face leaves above its capitals.
     /// </summary>
-    public ScalableFont(SKTypeface face, int height, int width, float faceWidth = 1f)
+    public ScalableFont(SKTypeface face, int height, int width, float faceWidth = 1f, float? capHeight = null)
     {
         _face = face;
-        _font = new SKFont(face, height);
-        var scaleX = width / (float)height * faceWidth;
+        _height = height;
+        var size = (float)height;
+        if (capHeight is { } cap)
+        {
+            using var probe = new SKFont(face, 1000);
+            var capPerEm = probe.Metrics.CapHeight / 1000f;
+            if (capPerEm > 0)
+            {
+                size = height * cap / capPerEm;
+                _capTop = height * cap;
+            }
+        }
+        _font = new SKFont(face, size);
+        // The width asked for is measured against the height, so the stretch is relative to the height, not the size.
+        var scaleX = width / (float)height * faceWidth * (height / size);
         if (scaleX != 1f) _font.ScaleX = Math.Clamp(scaleX, 0.1f, 10f);
     }
 
@@ -169,13 +188,13 @@ internal sealed class ScalableFont : ZplFont
     protected override SKTypeface Face => _face;
 
     /// <inheritdoc />
-    public override float LineHeight => _font.Size;
+    public override float LineHeight => _capTop is null ? _font.Size : _height;
 
     /// <inheritdoc />
-    public override float Baseline => -_font.Metrics.Ascent;
+    public override float Baseline => _capTop ?? -_font.Metrics.Ascent;
 
     /// <inheritdoc />
-    public override float Descent => _font.Metrics.Descent;
+    public override float Descent => _capTop is { } top ? _height - top : _font.Metrics.Descent;
 
     /// <inheritdoc />
     public override float Measure(string text)
@@ -214,21 +233,27 @@ internal static class ZplFontFactory
                 note = $"Font {id} can be enlarged up to 10 times ({spec.Height * 10} dots high, {spec.Width * 10} dots wide); 10 times was used.";
             return new CellFont(spec, magX, magY, BundledFonts.Mono);
         }
-        return FontMatrices.IsScalableBuiltIn(id) ? Scalable(BundledFonts.Scalable, height, width, out note, BundledScalableWidth) : null;
+        return FontMatrices.IsScalableBuiltIn(id) ? Scalable(BundledFonts.Scalable, height, width, out note, BundledScalableWidth, BundledCapHeight) : null;
     }
 
     /// <summary>
-    /// IBM Plex Sans Condensed Bold sets text about 11% wider than the printer's font 0 at the same size (measured on
-    /// a real customer label: "1000AAA" at 59 dots is 210 dots wide on the printer, 234 dots with the face as designed).
-    /// Narrowing the face keeps text lengths, and so ^FB wrapping and centring, close to what the printer prints.
+    /// Noto Sans ExtraCondensed Bold, laid out with <see cref="BundledCapHeight"/>, sets text about 5% narrower than
+    /// the printer's font 0; this widens it to match. Checked on capitals, lowercase, digits and stretched sizes from 20
+    /// to 100 dots: line lengths land within about 2% of the printer's, so ^FB wrapping and centring follow it.
     /// </summary>
-    internal const float BundledScalableWidth = 0.9f;
+    internal const float BundledScalableWidth = 1.05f;
+
+    /// <summary>
+    /// Capitals of the printer's font 0 are about this fraction of the font height, and their tops sit on the top of
+    /// the field: "1000AAA" at ^FO..,38 with height 59 prints capitals 46 dots tall from y 37 to 82.
+    /// </summary>
+    internal const float BundledCapHeight = 0.77f;
 
     /// <summary>
     /// A scalable font; when only the height or only the width is given, the other follows it (the face's own
     /// proportion). <paramref name="note"/> explains a size above <see cref="MaxScalableDots"/> that had to be limited.
     /// </summary>
-    public static ScalableFont Scalable(SKTypeface face, int height, int width, out string? note, float faceWidth = 1f)
+    public static ScalableFont Scalable(SKTypeface face, int height, int width, out string? note, float faceWidth = 1f, float? capHeight = null)
     {
         if (height <= 0) height = width > 0 ? width : 9;   // 9 dots: Zebra's ^CF default height
         if (width <= 0) width = height;
@@ -236,7 +261,7 @@ internal static class ZplFontFactory
         note = (h, w) == (height, width)
             ? null
             : $"LabelScope draws fonts up to {MaxScalableDots} dots high and {MaxScalableDots} dots wide, so the font size {height} x {width} dots (height x width) was drawn as {h} x {w} dots.";
-        return new ScalableFont(face, h, w, faceWidth);
+        return new ScalableFont(face, h, w, faceWidth, capHeight);
     }
 
     /// <summary>

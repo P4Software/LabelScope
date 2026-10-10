@@ -160,7 +160,7 @@ Any command that is not drawn is listed in the warnings list with its line numbe
 
 ### Limits worth knowing
 
-- **Fonts are approximate in shape, exact in size.** The fonts built into Zebra printers are drawn with two bundled open-licence fonts (IBM Plex). Fonts A to H use Zebra's own cell sizes, so line lengths and wrapping match a printer, but the letter shapes differ. The OCR fonts E and H are drawn in a plain fixed-width font. Characters a font does not have print as spaces, with a warning. LabelScope is a preview tool, not a pixel-exact replacement for a printer.
+- **Fonts are approximate in shape, exact in size.** The fonts built into Zebra printers are drawn with two bundled open-licence fonts, because Zebra's own fonts are licensed and cannot be shipped. Fonts A to H use Zebra's own cell sizes, so line lengths and wrapping match a printer. Font 0 and P to V use Noto Sans ExtraCondensed Bold, placed and sized like Zebra's font 0: capitals start on the `^FO` line and are as tall as on a printer, and line lengths land within about 2%. The letter shapes differ. The OCR fonts E and H are drawn in a plain fixed-width font. Characters a font does not have print as spaces, with a warning. LabelScope is a preview tool, not a pixel-exact replacement for a printer.
 - **Printer memory lasts while LabelScope runs.** Graphics and fonts sent with `~DG`, `~DY` or `^IS`, and font letters set with `^CW`, are kept, like a printer's R: drive, until LabelScope closes or you press **Clear printer memory**, up to 64 MB or 1000 objects. They are not saved to disk, so nothing is kept after a restart. A label that uses a graphic LabelScope never received (for example a background loaded with `^IL` that was stored in the real printer long ago) is drawn without it, with a warning naming the file.
 - **Graphics not supported yet.** `^GF` and `~DY` with binary data (format B), Zebra's AR compression (format C), stored formats (`^DF` and `^XF`), and downloadable bitmap fonts (`~DB`) show a warning and are skipped. `~EG` shows a warning and erases nothing; use `^ID` instead (for example `^IDR:*.GRF`). The OCR fonts E and H are not skipped: they are drawn in a plain fixed-width font.
 - **Binary graphic data and job splitting.** LabelScope still splits a job at every `^XZ`, even inside binary graphic data, and binary data that happens to be valid text can be counted wrongly. Send graphics as ASCII hex or Z64 for now; this is planned for a later release.
@@ -255,7 +255,7 @@ assets/                 Logo and icon
 
 ## Third-party software
 
-LabelScope uses SkiaSharp, Serilog, ZXing.Net and the .NET runtime, and credits the Project Nayuki QR Code generator library. The built-in Zebra fonts are drawn with the bundled IBM Plex Sans Condensed and IBM Plex Mono fonts (SIL Open Font License 1.1). Their licences and copyright notices are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which is also installed next to `LabelScope.exe`.
+LabelScope uses SkiaSharp, Serilog, ZXing.Net and the .NET runtime, and credits the Project Nayuki QR Code generator library. The built-in Zebra fonts are drawn with the bundled Noto Sans ExtraCondensed Bold and IBM Plex Mono fonts (SIL Open Font License 1.1). Their licences and copyright notices are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which is also installed next to `LabelScope.exe`.
 
 ## Trademarks and licence
 
