@@ -101,7 +101,7 @@ To remove the printer again, press **Remove printer**. LabelScope only ever remo
 
 - **Left: history list.** Every received label, newest first, showing the time, the size in dots and the sender address. A label that arrived without its closing `^XZ` is marked "(incomplete)". The list keeps the newest `HistoryLimit` labels.
 - **Middle: the label picture**, with a **Fit to window** box and a **Zoom** slider (moving the slider switches fit off). A line above the picture shows the size in dots, the number of copies requested (`^PQ`) and the number of warnings.
-- **Right: the ZPL**, shown formatted with one command group per line (a field such as `^FO50,50^A0N,60,60^FDHello^FS` stays on one line) and with line numbers, side by side with the picture. The **Copy** button above it copies the formatted text and **Copy original** copies the ZPL as it was received (with Windows line endings). The display re-flows line breaks, including breaks inside field data, because ZPL ignores them; use **Copy original** when you need the text byte for byte. Under it is the **warnings list** ("Line 7: ^GF is not supported yet and was ignored."). Click a warning to select and scroll to that line in the ZPL.
+- **Right: the ZPL**, shown formatted with one command group per line (a field such as `^FO50,50^A0N,60,60^FDHello^FS` stays on one line) and with line numbers, side by side with the picture. The **Copy** button above it copies the formatted text and **Copy original** copies the ZPL as it was received (with Windows line endings). The display re-flows line breaks, including breaks inside field data, because ZPL ignores them; use **Copy original** when you need the text byte for byte. Under it is the **warnings list** ("Line 7: ^SN is not supported yet and was ignored."). Click a warning to select and scroll to that line in the ZPL.
 - **Toolbar:** **Install printer**, **Remove printer**, **Save PNG**, **Copy image**, **Clear history**, **Open settings**, **Open log folder**. Two boxes at the end of the toolbar change the view: **Light grid** draws a thin 10 mm grid over the label picture (it is not part of saved or copied images), and **Stacked layout** puts the ZPL below the picture instead of beside it, which suits a narrow window. `ShowGrid` and `StackedLayout` in `settings.json` set how they start; the boxes themselves are not saved.
 - **Status bar:** the first part says `Listening on 127.0.0.1:9100` (or `NOT listening` if the port could not be opened); the second part shows the printer state (`Printer "LabelScope": installed`, `Printer: not installed (press "Install printer")`, `Printer "...": name used by another printer`, `Printer: status could not be checked` or `Printer: settings need fixing`); the third part shows notes and the result of your last action, such as problems found in `settings.json`.
 
@@ -140,7 +140,7 @@ On first start LabelScope creates `settings.json` next to the program, with an e
 | `HistoryLimit` | `100` | How many labels to keep in the list, 1 to 1000. |
 | `ShowGrid` | `false` | `true` starts with the light 10 mm measuring grid shown over the label picture. |
 | `StackedLayout` | `false` | `true` starts with the label picture above the ZPL instead of beside it. |
-| `FontsFolder` | empty | Folder with your own TrueType fonts. Read but not used yet (a later release). |
+| `FontsFolder` | empty | Folder with your own TrueType (.ttf) or OpenType (.otf) fonts. A label that names a font file with `^A@` or `^CW` (for example `E:ARIAL.TTF`) uses the file with the same name from this folder. |
 | `LogFolder` | `logs` | Where log files are written. A relative folder is relative to the program folder. |
 | `PrinterName` | `LabelScope` | Name of the Windows printer (see [Printer details](#printer-details)). |
 | `CheckForUpdates` | `true` | Ask GitHub once at start whether a newer version exists. LabelScope only tells you; it installs a new version when you press **Update**. |
@@ -155,14 +155,20 @@ LabelScope draws what it understands and **tells you about everything else** ins
 |---|---|---|
 | 1. Core | `^XA ^XZ ^PW ^LL ^LH ^FO ^FT ^FD ^FS ^A ^CF ^FB ^FR ^GB ^GC ^PQ` | Built, being tested |
 | 2. Barcodes and rotation | Barcodes `^BY ^BC ^B3 ^BL ^BA ^BE ^BU ^B8 ^B9 ^B2 ^BK ^B1 ^BM ^BQ ^BX ^B7` (Code 128, Code 39, LOGMARS, Code 93, EAN-13, UPC-A, EAN-8, UPC-E, Interleaved 2 of 5, Codabar, Code 11, MSI, QR Code, Data Matrix, PDF417); rotation `^FW ^PO` and the orientation letter of `^A`; `^GD`; `^FH` | Built (version 0.2.0). Not yet compared with a real Zebra printer, see the limits below |
-| 3. Graphics and fonts | `^GF ~DG ^XG ^IM ^IL`, your own TrueType fonts | Planned |
+| 3. Graphics and fonts | Images `^GF` (ASCII hex, Zebra compression, Z64 and B64), `~DG ~DY ^XG ^IM ^IL ^IS ^ID ~EG ~DN` (graphics sent as GRF or PNG are kept in printer memory); built-in fonts `0`, `A`-`H` and `P`-`V` drawn with bundled open-licence fonts in Zebra's cell sizes; `^A@` and `^CW` with your own fonts (`~DY` can also send a TrueType font) | Built (version 0.3.0). Not yet: binary graphic data (`^GF` format B, `~DY` format B), Zebra's AR compression (format C), stored formats (`^DF`/`^XF`), downloadable bitmap fonts (`~DB`), OCR font shapes; each shows a warning |
 | 4. Advanced | `^SN ^FV ^CI`, more | Planned |
 
-Any command that is not drawn is listed in the warnings list with its line number, for example `^GF is not supported yet and was ignored.` A few commands that only change printer behaviour and not the picture (`^MN ^MM ^MD ^MT ^PR ^JU`) are ignored without a warning.
+Any command that is not drawn is listed in the warnings list with its line number, for example `^SN is not supported yet and was ignored.` A few commands that only change printer behaviour and not the picture (`^MN ^MM ^MD ^MT ^PR ^JU`) are ignored without a warning.
 
 ### Limits worth knowing
 
-- **Fonts are approximate.** Text is drawn with an approximation of the Zebra fonts (a scaled Arial when it is installed, otherwise the Windows default font), so letter shapes and widths can differ from a real printer. LabelScope is a preview tool, not a pixel-exact replacement for a printer.
+- **Fonts are approximate in shape, exact in size.** The fonts built into Zebra printers are drawn with two bundled open-licence fonts (IBM Plex). Fonts A to H use Zebra's own cell sizes, so line lengths and wrapping match a printer, but the letter shapes differ. The OCR fonts E and H are drawn in a plain fixed-width font. Characters a font does not have print as spaces, with a warning. LabelScope is a preview tool, not a pixel-exact replacement for a printer.
+- **Printer memory lasts while LabelScope runs.** Graphics and fonts sent with `~DG`, `~DY` or `^IS` are kept, like a printer's R: drive, until LabelScope closes or you press **Clear printer memory**, up to 64 MB or 1000 objects. They are not saved to disk, so nothing is kept after a restart. A label that uses a graphic LabelScope never received (for example a background loaded with `^IL` that was stored in the real printer long ago) is drawn without it, with a warning naming the file.
+- **Graphics not supported yet.** `^GF` and `~DY` with binary data (format B), Zebra's AR compression (format C), stored formats (`^DF` and `^XF`), downloadable bitmap fonts (`~DB`) and the OCR font shapes show a warning and are skipped.
+- **Binary graphic data and job splitting.** LabelScope still splits a job at every `^XZ`, even inside binary graphic data, and binary data that happens to be valid text can be counted wrongly. Send graphics as ASCII hex or Z64 for now; this is planned for a later release.
+- **`^GF` is painted where it is written.** A `^FR` written after `^GF` in the same field does not invert it; put `^FR` before `^GF`.
+- **The check value of Z64 and B64 graphics is not verified.** It is read, but Zebra does not publish the method. Z64 data is still checked by its own compression checksum and its size.
+- **Graphics and fonts have not been compared with a real Zebra printer**, just like the barcodes. Check important labels on your printer.
 - **Barcodes are drawn from the published symbology rules, not yet compared with a real Zebra printer.** They scan with an independent decoder in our own checks, but small details (quiet space around a symbol, the exact size LabelScope picks when a label does not give columns and rows for PDF417, or the digit size under EAN/UPC) may differ from a real printer. For PDF417 the row height (`h`) is taken in dots; a printer may multiply it by the module width. Always scan-test a label on your real printer before relying on it.
 - **Barcodes not drawn yet.** `^BI ^BJ ^BP ^BS ^B5 ^BZ ^BR ^BD ^B0 ^BO ^B4 ^BB ^BT ^BF` (industrial 2 of 5, Plessey, add-ons, postal codes, GS1 DataBar, MaxiCode, Aztec, Code 49, CODABLOCK, TLC39, MicroPDF417) show a warning that they are planned for a later release. Data Matrix with quality 0 to 140 is drawn as the modern ECC 200 type, with a warning. GS1 application identifiers in Code 128 mode D are not validated.
 - **`^BY`, `^FW` and `^CF` apply to one label only.** LabelScope starts every label with fresh printer settings, so a value set in one label does not carry over to the next label as it would on a real printer. Repeat the command in every label that needs it.
@@ -221,7 +227,7 @@ assets/                 Logo and icon
 - [x] Barcodes and rotated text (version 0.2.0)
 - [x] Light-grid and stacked-layout view options, crash log, `^FB` width 0, `^LR`, quieter warnings for ZebraDesigner setup blocks (version 0.2.1)
 - [ ] Comparison of barcodes with a real Zebra printer
-- [ ] Graphics, images and custom fonts
+- [x] Graphics, images and custom fonts (version 0.3.0)
 - [x] Windows installer (signed)
 - [ ] Advanced commands, Spanish user interface
 - [ ] Optional: save every received label automatically to PDF or image files
@@ -244,13 +250,13 @@ assets/                 Logo and icon
 | "ListenAddress ... is not allowed" or "... is not between 1 and 65535" | A setting had a wrong value and the default was used. Fix the named setting and restart. |
 | "A label larger than 16 MB was received without an end marker (^XZ) and was discarded" | The sender is not sending real labels, or never sends `^XZ`. Check the program that sends the labels. |
 | "A label arrived incomplete (no ^XZ at the end)" | The sender disconnected before sending `^XZ`. The label is shown as far as it arrived. |
-| A label looks different from the real printer | Fonts are approximated and some commands are not supported yet. Check the warnings list. |
+| A label looks different from the real printer | Fonts are approximated in shape and some commands are not supported yet. Check the warnings list. |
 | LabelScope closed by itself, or showed "LabelScope hit an unexpected error" | LabelScope saved the technical details in `crash.log` next to the program (in the `logs` folder), or under `%LocalAppData%\LabelScope\logs` if the program folder is read-only. The file can contain file paths, including your Windows user name, so look at it before you email it to support. |
 | Something else | Press **Open log folder** and look at the newest file. |
 
 ## Third-party software
 
-LabelScope uses SkiaSharp, Serilog, ZXing.Net and the .NET runtime, and credits the Project Nayuki QR Code generator library. Their licences and copyright notices are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which is also installed next to `LabelScope.exe`.
+LabelScope uses SkiaSharp, Serilog, ZXing.Net and the .NET runtime, and credits the Project Nayuki QR Code generator library. The built-in Zebra fonts are drawn with the bundled IBM Plex Sans Condensed and IBM Plex Mono fonts (SIL Open Font License 1.1). Their licences and copyright notices are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which is also installed next to `LabelScope.exe`.
 
 ## Trademarks and licence
 

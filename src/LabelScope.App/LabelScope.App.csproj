@@ -9,7 +9,7 @@
     <ApplicationIcon>..\..\assets\labelscope.ico</ApplicationIcon>
     <AssemblyName>LabelScope</AssemblyName>
     <RootNamespace>LabelScope.App</RootNamespace>
-    <Version>0.2.1</Version>
+    <Version>0.3.0</Version>
     <Product>LabelScope</Product>
     <Company>P4 Software</Company>
     <Copyright>Copyright (c) 2026 P4 Software. MIT licence.</Copyright>
