@@ -25,6 +25,8 @@ internal sealed partial class LabelPainter : IDisposable
     // font) and says so, which a silent cap here would hide.
     private const int MaxCoordinate = 100_000;
     private const int MaxFieldBlockLines = 1000;
+    /// <summary>Longest text field drawn; longer ^FD text is cut, with a warning (see DrawText).</summary>
+    internal const int MaxTextFieldCharacters = 65_536;
     private const int MaxCopies = 99_999_999; // the ZPL limit for ^PQ
 
     private readonly List<RenderWarning> _warnings;
@@ -258,9 +260,21 @@ internal sealed partial class LabelPainter : IDisposable
             return;
         }
 
+        // A text field longer than any label can show is cut before it is checked, wrapped and drawn: every one of
+        // those steps works per character, so a hostile multi-megabyte ^FD would otherwise hold a render slot for
+        // minutes. 65536 characters is far more than fits on a label even in the smallest font.
+        var data = _data;
+        if (data.Length > MaxTextFieldCharacters)
+        {
+            _warnings.Add(new(_dataLine, $"This text field is {data.Length.ToString(CultureInfo.InvariantCulture)} characters long; only the first {MaxTextFieldCharacters} are drawn. Split the text into several fields of {MaxTextFieldCharacters} characters or fewer."));
+            // Never cut between the two halves of a surrogate pair (an emoji, for example).
+            var cut = char.IsHighSurrogate(data[MaxTextFieldCharacters - 1]) ? MaxTextFieldCharacters - 1 : MaxTextFieldCharacters;
+            data = data[..cut];
+        }
+
         // Built for this field only and disposed with it: SKFont is not thread-safe and labels render concurrently.
         using var font = MakeFont(_dataLine);
-        var text = font.Prepare(_data, out var missing);
+        var text = font.Prepare(data, out var missing);
         if (missing > 0)
             _warnings.Add(new(_dataLine, $"{missing} character(s) in this text are not in the font, so they print as spaces, as on a printer. Check the field data, or choose a font that has these characters."));
         using var paint = InkPaint();
@@ -311,26 +325,60 @@ internal sealed partial class LabelPainter : IDisposable
         }
     }
 
-    /// <summary>Greedy word wrap; "\&amp;" in ZPL field data forces a line break.</summary>
-    private static List<string> Wrap(string text, ZplFont font, int width, int maxLines)
+    /// <summary>
+    /// Greedy word wrap into at most <paramref name="maxLines"/> lines; "\&amp;" in ZPL field data forces a line break.
+    /// Words are separated by one or more spaces and joined again with exactly one.
+    /// </summary>
+    /// <remarks>
+    /// Each word is measured once and the line width is kept as a running total (line + one space + word), so the
+    /// work grows with the length of the text. Measuring the whole line again for every word, as a simple wrap does,
+    /// grows with its square: a field of a million short words took minutes. Wrapping stops as soon as
+    /// <paramref name="maxLines"/> lines are full, because the rest is never drawn.
+    /// </remarks>
+    internal static List<string> Wrap(string text, ZplFont font, int width, int maxLines)
     {
         var lines = new List<string>();
+        if (maxLines <= 0) return lines;
+        var space = font.Measure(" ");
+        // A running total of glyph advances can differ from measuring the joined line by a rounding error in the
+        // last bit. Within a dot of the edge, where that could decide the break, the line is measured whole, as
+        // before. The budget keeps hostile text (for example zero-width words that sit at the edge forever) from
+        // making that exact check quadratic again.
+        var exactChecks = 256;
+        var current = new System.Text.StringBuilder();
         foreach (var paragraph in text.Split("\\&"))
         {
-            var current = "";
+            current.Clear();
+            var currentWidth = 0f;
             foreach (var word in paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
-                var candidate = current.Length == 0 ? word : current + " " + word;
-                if (current.Length > 0 && font.Measure(candidate) > width)
+                var wordWidth = font.Measure(word);
+                if (current.Length == 0)
                 {
-                    lines.Add(current);
-                    current = word;
+                    current.Append(word);
+                    currentWidth = wordWidth;
+                    continue;
                 }
-                else current = candidate;
+                var candidateWidth = currentWidth + space + wordWidth;
+                if (MathF.Abs(candidateWidth - width) < 1 && exactChecks-- > 0)
+                    candidateWidth = font.Measure(current + " " + word);
+                if (candidateWidth > width)
+                {
+                    lines.Add(current.ToString());
+                    if (lines.Count == maxLines) return lines;
+                    current.Clear().Append(word);
+                    currentWidth = wordWidth;
+                }
+                else
+                {
+                    current.Append(' ').Append(word);
+                    currentWidth = candidateWidth;
+                }
             }
-            lines.Add(current);
+            lines.Add(current.ToString());
+            if (lines.Count == maxLines) return lines;
         }
-        return lines.Take(maxLines).ToList();
+        return lines;
     }
 
     private static char Justify(string[] a) =>
