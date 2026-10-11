@@ -1,8 +1,11 @@
+using LabelScope.Core.Rendering;
+
 namespace LabelScope.Core.Memory;
 
 /// <summary>
 /// Label setup a real printer keeps from one job to the next: print width (^PW), label length (^LL), label home (^LH),
-/// print orientation (^PO), reverse-all (^LR) and the clock time set with ^ST. Label programs often send these once, in a setup job of their own,
+/// print orientation (^PO), reverse-all (^LR), and the clock: the time set with ^ST, the ^SO2 / ^SO3 offsets and the
+/// ^SL language, which the guide says a printer keeps until they are changed or it is switched off. Label programs often send these once, in a setup job of their own,
 /// and the labels that follow rely on them; forgetting them would draw those labels on the wrong size.
 /// Kept until LabelScope closes or the user clears printer memory, as a printer keeps them until it is switched off.
 /// Safe to use from several threads.
@@ -30,8 +33,12 @@ public sealed class PrinterSetup
     /// <c>FieldClock.PrinterNow</c>): later jobs show the set time moved on by the time since, as a printer's battery
     /// clock does. Null when no ^ST was sent, so the clock is the job's own time.
     /// </param>
+    /// <param name="ClockSecondary">Last ^SO2 offset; null when none was sent (the secondary clock is then unset).</param>
+    /// <param name="ClockThird">Last ^SO3 offset; null when none was sent.</param>
+    /// <param name="ClockLanguage">Last ^SL language (1-18); null when none was sent (English).</param>
     public sealed record Values(int? WidthDots, int? HeightDots, int? HomeX, int? HomeY, bool? Inverted, bool? ReverseAll,
-                                TimeSpan? ClockOffset = null)
+                                TimeSpan? ClockOffset = null, ClockShift? ClockSecondary = null, ClockShift? ClockThird = null,
+                                int? ClockLanguage = null)
     {
         /// <summary>Nothing set yet.</summary>
         public static readonly Values None = new(null, null, null, null, null, null);
@@ -55,7 +62,10 @@ public sealed class PrinterSetup
                 changes.HomeY ?? _values.HomeY,
                 changes.Inverted ?? _values.Inverted,
                 changes.ReverseAll ?? _values.ReverseAll,
-                changes.ClockOffset ?? _values.ClockOffset);
+                changes.ClockOffset ?? _values.ClockOffset,
+                changes.ClockSecondary ?? _values.ClockSecondary,
+                changes.ClockThird ?? _values.ClockThird,
+                changes.ClockLanguage ?? _values.ClockLanguage);
         }
     }
 

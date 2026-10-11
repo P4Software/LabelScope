@@ -281,12 +281,7 @@ public partial class MainWindow : Window
             if (_closing) return;
             // One read of the field: Printer setup may replace the settings object while this thread runs. How the bytes
             // were read goes with the label, so a ^CI28 label whose data was not UTF-8 says so.
-            // The clock fields (^FC) show the time the job arrived, so a redraw shows the same time. A label that will
-            // join the open job of its connection uses that job's time: a redraw draws the joined job at that one moment.
-            // (When the job turns out to be full and this label starts a new one, its card keeps its own arrival time;
-            // a redraw of that card may then show a few seconds later than this first drawing.)
-            var clock = _assembler.CurrentJob(received.ConnectionId)?.ReceivedAt ?? received.ReceivedAt;
-            var options = OptionsFor(_settings) with { TextReadAsWindows1252 = received.ReadAsWindows1252, Clock = clock };
+            var options = OptionsFor(_settings) with { TextReadAsWindows1252 = received.ReadAsWindows1252 };
             // Format first and draw THE FORMATTED TEXT: warnings and fields carry line numbers, and they must point
             // at the lines the user sees. Formatting does not change the picture (ZPL ignores line breaks).
             // Formatting copies the whole text, so it waits for the same gate as drawing: a flood of very large
@@ -297,7 +292,12 @@ public partial class MainWindow : Window
             try
             {
                 formatted = ZplFormatter.Format(received.Zpl);
-                result = _renderer.Render(formatted, options);
+                // The clock fields (^FC) show the time the job arrived, so a redraw shows the same time. Whether the
+                // label joins the open job of its connection is decided first: a joining label is drawn at that job's
+                // time (a redraw draws the joined job at that one moment), a label that starts a new job at its own.
+                var clock = _assembler.WouldJoin(received.ConnectionId, received.Zpl, formatted, received.ReadAsWindows1252)?.ReceivedAt
+                            ?? received.ReceivedAt;
+                result = _renderer.Render(formatted, options with { Clock = clock });
             }
             finally { _renderGate.Release(); }
             Log.Information("Label received from {Source}: {Labels} image(s), {Warnings} warning(s), complete={Complete}, connection {Connection}",

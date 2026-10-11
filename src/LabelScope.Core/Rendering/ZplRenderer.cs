@@ -105,6 +105,8 @@ public sealed class ZplRenderer
                         }
                         // ^ST sets the printer clock, which is printer state: setup jobs often send it on its own.
                         else if (cmd.Name == "^ST") LabelPainter.SetClock(cmd, context, warnings);
+                        // ^SO and ^SL are clock settings a printer keeps, so they count before ^XA as well.
+                        else if (cmd.Name is "^SO" or "^SL") LabelPainter.SetClockSetting(cmd, context, warnings);
                         // Downloads usually travel outside any label; they act on printer memory right here, in stream order.
                         else if (HandleStorageSafely(cmd, context, warnings)) { }
                         else if (!SilentCommands.IsSilent(cmd.Name, cmd.Args))

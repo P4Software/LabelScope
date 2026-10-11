@@ -82,12 +82,8 @@ public sealed class JobAssembler
         lock (_lock)
             if (!_open.TryGetValue(connectionId, out open!)) return null;
 
+        if (!CanJoin(open, zpl, formatted, readAsWindows1252)) return null;
         var previous = open.Job;
-        if (previous.LabelCount >= MaxLabelsPerJob || (long)previous.Zpl.Length + zpl.Length + 1 > MaxCharsPerJob) return null;
-        // The boundary check described in the remarks: only then is the line shift right.
-        var pieceHasBinary = BinaryDownloads.ContainsAny(zpl);
-        if (open.HasBinary || pieceHasBinary || !open.EndsWithLabelEnd || !StartsWithCommand(formatted)) return null;
-        if (previous.ReadAsWindows1252 != readAsWindows1252) return null;
 
         var offset = open.FormattedLines + 1; // the blank line between labels
         var before = previous.Result;
@@ -118,6 +114,33 @@ public sealed class JobAssembler
             if (_open.ContainsKey(connectionId))
                 _open[connectionId] = new Open(job, open.FormattedLines + 1 + CountLines(formatted), EndsWithLabelEnd(formatted), false, open.Part);
         return job;
+    }
+
+    /// <summary>
+    /// The open job of connection <paramref name="connectionId"/> that a label with this text would join, or null when
+    /// it would start a new job. The rules are the ones <see cref="TryAppend"/> applies, and none of them depends on the
+    /// drawing, so the window can ask before drawing: the clock fields (^FC) of a joining label are drawn at the job's
+    /// time, the time a redraw of the joined job uses, and those of a new job at its own arrival time.
+    /// </summary>
+    /// <param name="connectionId">The connection the label came over; 0 never joins anything.</param>
+    /// <param name="zpl">The label's ZPL as received.</param>
+    /// <param name="formatted">The label's ZPL as formatted for display.</param>
+    /// <param name="readAsWindows1252">True when the label's bytes were read as Windows-1252.</param>
+    public LabelJob? WouldJoin(long connectionId, string zpl, string formatted, bool readAsWindows1252 = false)
+    {
+        ArgumentNullException.ThrowIfNull(zpl);
+        ArgumentNullException.ThrowIfNull(formatted);
+        return Current(connectionId) is { } open && CanJoin(open, zpl, formatted, readAsWindows1252) ? open.Job : null;
+    }
+
+    /// <summary>Whether a label with this text joins <paramref name="open"/> (see the remarks of <see cref="TryAppend"/>).</summary>
+    private static bool CanJoin(Open open, string zpl, string formatted, bool readAsWindows1252)
+    {
+        var previous = open.Job;
+        if (previous.LabelCount >= MaxLabelsPerJob || (long)previous.Zpl.Length + zpl.Length + 1 > MaxCharsPerJob) return false;
+        // The boundary check described in the remarks: only then is the line shift right.
+        if (open.HasBinary || BinaryDownloads.ContainsAny(zpl) || !open.EndsWithLabelEnd || !StartsWithCommand(formatted)) return false;
+        return previous.ReadAsWindows1252 == readAsWindows1252;
     }
 
     /// <summary>

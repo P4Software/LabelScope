@@ -14,16 +14,24 @@ internal readonly record struct ClockIndicators(char Primary, char? Secondary, c
 
 /// <summary>
 /// One ^SO offset, in the order the command gives them. Months and years are calendar steps (31 January plus one
-/// month is the end of February), so they cannot be a <see cref="TimeSpan"/>.
+/// month is the end of February), so they cannot be a <see cref="TimeSpan"/>. Public because printer setup keeps it
+/// (<see cref="Memory.PrinterSetup.Values.ClockSecondary"/>).
 /// </summary>
-internal sealed record ClockShift(int Months, int Days, int Years, int Hours, int Minutes, int Seconds);
+/// <param name="Months">Months to add (negative to go back).</param>
+/// <param name="Days">Days to add.</param>
+/// <param name="Years">Years to add.</param>
+/// <param name="Hours">Hours to add.</param>
+/// <param name="Minutes">Minutes to add.</param>
+/// <param name="Seconds">Seconds to add.</param>
+public sealed record ClockShift(int Months, int Days, int Years, int Hours, int Minutes, int Seconds);
 
 /// <summary>
-/// What a label sets for its clock fields: the ^SL language of month and day names and the ^SO2 / ^SO3 offsets.
+/// What the clock fields of a label use: the ^SL language of month and day names and the ^SO2 / ^SO3 offsets, as sent
+/// by this label or kept in printer setup from an earlier job.
 /// </summary>
 /// <param name="Language">^SL language number, 1 (English) to 18.</param>
-/// <param name="Secondary">The ^SO2 offset; null when the label sets none, which leaves the secondary clock unset.</param>
-/// <param name="Third">The ^SO3 offset; null when the label sets none.</param>
+/// <param name="Secondary">The ^SO2 offset; null when none was ever set, which leaves the secondary clock unset.</param>
+/// <param name="Third">The ^SO3 offset; null when none was ever set.</param>
 internal sealed record ClockSettings(int Language, ClockShift? Secondary, ClockShift? Third);
 
 /// <summary>Why some clock text of a field was left as written; the painter turns each into one warning.</summary>

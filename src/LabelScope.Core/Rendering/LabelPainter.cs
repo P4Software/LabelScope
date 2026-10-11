@@ -51,13 +51,13 @@ internal sealed partial class LabelPainter : IDisposable
     private SerialSpec? _serial;
     private readonly List<(SerialSpec Spec, string Data)> _serialFields = [];
     private int _serialFieldCount;
-    // Field clock. The indicators of the field being built (^FC, reset by ^FS); the label's ^SL language and ^SO2 / ^SO3
-    // offsets (they last for this label); the printer clock offset that ^ST sets (printer state, carried from earlier
-    // jobs and kept for later ones when this label sets it); and the clock warnings already given in this label.
+    // Field clock. The indicators of the field being built (^FC, reset by ^FS); the ^SL language and ^SO2 / ^SO3
+    // offsets and the printer clock offset that ^ST sets (all printer state: carried from earlier jobs, and kept for
+    // later ones when this label sets them); and the clock warnings already given in this label.
     private ClockIndicators? _clock;
-    private ClockSettings _clockSettings = new(1, null, null);
+    private ClockSettings _clockSettings;
     private TimeSpan? _clockOffset;
-    private bool _clockOffsetSet;
+    private bool _clockOffsetSet, _clockSecondarySet, _clockThirdSet, _clockLanguageSet;
     private ClockProblems _clockWarned;
     private bool _clockLanguageWarned;
     // Whether this label sent ^LH or ^LR, so only what it set is kept for the next job.
@@ -93,6 +93,7 @@ internal sealed partial class LabelPainter : IDisposable
         _homeY = setup.HomeY ?? 0;
         _reverseAll = setup.ReverseAll ?? false;
         _clockOffset = setup.ClockOffset;
+        _clockSettings = new ClockSettings(setup.ClockLanguage ?? 1, setup.ClockSecondary, setup.ClockThird);
         _dpi = dpi;
         _context = context;
         _bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
@@ -162,7 +163,10 @@ internal sealed partial class LabelPainter : IDisposable
             painter._homeSet ? painter._homeY : null,
             po is not null ? inverted : null,
             painter._reverseAllSet ? painter._reverseAll : null,
-            painter._clockOffsetSet ? painter._clockOffset : null));
+            painter._clockOffsetSet ? painter._clockOffset : null,
+            painter._clockSecondarySet ? painter._clockSettings.Secondary : null,
+            painter._clockThirdSet ? painter._clockSettings.Third : null,
+            painter._clockLanguageSet ? painter._clockSettings.Language : null));
         return painter.ToResult(widthFromZpl, heightFromZpl, options.Dpi);
     }
 
@@ -415,23 +419,57 @@ internal sealed partial class LabelPainter : IDisposable
     }
 
     /// <summary>
-    /// ^SO2 / ^SO3: the offset of the secondary or third clock, for the fields after it in this label. The guide says a
-    /// printer keeps offsets until they change; LabelScope keeps them for the label only (the design for this release),
-    /// so a label never depends on an offset sent by an earlier job.
+    /// ^SO2 / ^SO3: the offset of the secondary or third clock, for the fields after it. The guide says a printer keeps
+    /// offsets until they are changed or it is switched off, so the offset is also kept in printer setup for later jobs.
     /// </summary>
     private void SetClockShift(ZplCommand cmd)
     {
-        if (!FieldClock.TryReadShift(cmd.Args, out var clock, out var shift, out var shown))
+        if (ReadShift(cmd, _warnings) is not { } read) return;
+        if (read.Clock == 2)
         {
-            _warnings.Add(new(cmd.Line, Text.Get("Clock_OffsetClockUnknown", shown)));
-            return;
+            _clockSettings = _clockSettings with { Secondary = read.Shift };
+            _clockSecondarySet = true;
         }
-        _clockSettings = clock == 2 ? _clockSettings with { Secondary = shift } : _clockSettings with { Third = shift };
+        else
+        {
+            _clockSettings = _clockSettings with { Third = read.Shift };
+            _clockThirdSet = true;
+        }
+    }
+
+    /// <summary>Reads a ^SO; null, with a warning, when it names neither clock 2 nor clock 3.</summary>
+    private static (int Clock, ClockShift Shift)? ReadShift(ZplCommand cmd, List<RenderWarning> warnings)
+    {
+        if (FieldClock.TryReadShift(cmd.Args, out var clock, out var shift, out var shown)) return (clock, shift);
+        warnings.Add(new(cmd.Line, Text.Get("Clock_OffsetClockUnknown", shown)));
+        return null;
     }
 
     /// <summary>
-    /// ^SLa,b: the language of month and day names, for the fields after it in this label. The mode (a) only says when
-    /// a printer reads its clock; LabelScope draws a whole job at one moment, so every mode gives the same picture.
+    /// A ^SO or ^SL outside any label: printer state, set straight away, as setup jobs and the lines before ^XA send it.
+    /// </summary>
+    internal static void SetClockSetting(ZplCommand cmd, PaintContext context, List<RenderWarning> warnings)
+    {
+        if (cmd.Name == "^SO")
+        {
+            if (ReadShift(cmd, warnings) is not { } read) return;
+            context.Memory.Setup.Apply(read.Clock == 2
+                ? PrinterSetup.Values.None with { ClockSecondary = read.Shift }
+                : PrinterSetup.Values.None with { ClockThird = read.Shift });
+            return;
+        }
+        switch (FieldClock.ReadLanguage(cmd.Args, out var shown))
+        {
+            case null: break;
+            case 0: warnings.Add(new(cmd.Line, Text.Get("Clock_LanguageUnknown", shown, FieldClock.LanguageCount))); break;
+            case { } language: context.Memory.Setup.Apply(PrinterSetup.Values.None with { ClockLanguage = language }); break;
+        }
+    }
+
+    /// <summary>
+    /// ^SLa,b: the language of month and day names, for the fields after it and, as printer state, for later jobs. The
+    /// mode (a) only says when a printer reads its clock; LabelScope draws a whole job at one moment, so every mode gives
+    /// the same picture.
     /// </summary>
     private void SetClockLanguage(ZplCommand cmd)
     {
@@ -449,6 +487,7 @@ internal sealed partial class LabelPainter : IDisposable
                 break;
             case { } language:
                 _clockSettings = _clockSettings with { Language = language };
+                _clockLanguageSet = true;
                 break;
         }
     }
