@@ -233,7 +233,7 @@ public sealed class ZplRenderer
             if (serials is null || before is null)
                 labels.Add(first);
             else
-                lastImage = PaintSerialImages(expanded, options, warnings, labels, context.Fonts, context.Now, before, first, serials);
+                lastImage = PaintSerialImages(expanded, options, warnings, labels, context, before, first, serials);
 
             // ^MC as it stands at the end of the label decides what the next label starts on. Labels that never met a
             // ^MCN (almost all) only read two values here.
@@ -259,24 +259,36 @@ public sealed class ZplRenderer
     /// first image, whose printer setup holds the ^CI in effect before ^XA. A ~DG, ^ID, ^CW or ^CI inside the label therefore acts at the same
     /// point on every image, while the real memory and printer setup are changed once, by the first image. The later
     /// images' warnings and memory notes are thrown away: they repeat the first image's line for line. Past
-    /// <see cref="Serialization.MaxImages"/> values one warning gives the total and the last values, worked out without
-    /// drawing them. A later image that fails ends the run with a warning; the images already drawn are kept.
+    /// <see cref="Serialization.MaxImages"/> values, or once the job's pixel budget
+    /// (<see cref="PaintContext.SerialPixelsLeft"/>) has no room for one more image, one warning gives the total and
+    /// the last values, worked out without drawing them. The first image is always drawn and always charged. A later
+    /// image that fails ends the run with a warning; the images already drawn are kept.
     /// </remarks>
-    /// <returns>The value number of the last image drawn, which is the one ^MCN keeps for the next label.</returns>
+    /// <returns>
+    /// The value number of the image ^MCN keeps for the next label: the last value the printer prints, even when
+    /// LabelScope stopped drawing earlier (the background is painted for that value directly), or the last image drawn
+    /// when a later image failed.
+    /// </returns>
     private static long PaintSerialImages(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, List<RenderedLabel> labels,
-                                          FontLibrary fonts, DateTimeOffset now, PrinterMemory before, RenderedLabel first, SerialRun serials)
+                                          PaintContext context, PrinterMemory before, RenderedLabel first, SerialRun serials)
     {
         var (quantity, replicates) = (serials.Quantity, serials.Replicates);
         var (_, distinct) = Serialization.Counts(quantity, replicates);
         labels.Add(first with { Copies = Serialization.CopiesOf(0, quantity, replicates) });
 
+        // Every image of one label has the size of the first: the same block is painted against the same setup.
+        var pixelsPerImage = Math.Max(1L, (long)first.WidthDots * first.HeightDots);
+        context.SerialPixelsLeft -= pixelsPerImage;
         var images = Math.Min(distinct, Serialization.MaxImages);
         var scratch = new List<RenderWarning>();
+        var drawn = 1L;
         for (long i = 1; i < images; i++)
         {
+            if (context.SerialPixelsLeft < pixelsPerImage) break;
+            context.SerialPixelsLeft -= pixelsPerImage;
             scratch.Clear();
             // The same moment as the first image: a job is drawn at one time.
-            var copy = new PaintContext(before.Fork(), [], fonts) { Now = now };
+            var copy = new PaintContext(before.Fork(), [], context.Fonts) { Now = context.Now };
             RenderedLabel image;
             try
             {
@@ -290,15 +302,19 @@ public sealed class ZplRenderer
                 return i - 1;
             }
             labels.Add(image with { Copies = Serialization.CopiesOf(i, quantity, replicates) });
+            drawn++;
         }
 
-        if (distinct > Serialization.MaxImages)
+        if (drawn < distinct)
         {
-            warnings.Add(new(serials.Fields[0].Spec.Line, Text.Get("Render_SerialCapped",
+            // Stopped by the pixel budget before the image cap: say the labels are too large, not only too many.
+            var key = drawn < images ? "Render_SerialCappedLarge" : "Render_SerialCapped";
+            warnings.Add(new(serials.Fields[0].Spec.Line, Text.Get(key,
                 distinct.ToString(CultureInfo.InvariantCulture), quantity.ToString(CultureInfo.InvariantCulture),
-                Serialization.MaxImages, serials.ValuesAt(distinct - 1))));
+                drawn, serials.ValuesAt(distinct - 1))));
         }
-        return images - 1;
+        // The printer prints every value, so its last label (and the ^MCN background it leaves) shows the last value.
+        return distinct - 1;
     }
 
     /// <summary>

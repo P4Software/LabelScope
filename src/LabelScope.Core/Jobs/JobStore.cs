@@ -18,8 +18,12 @@ namespace LabelScope.Core.Jobs;
 /// <param name="Complete">False when the sender stopped before the last ^XZ.</param>
 /// <param name="ReadAsWindows1252">True when the job's bytes were not valid UTF-8 and were read as Windows-1252;
 /// absent (false) in files written before it was kept, which only loses a ^CI28 warning.</param>
+/// <param name="Epoch">The printer epoch the job was drawn in (see <see cref="LabelJob.Epoch"/>); absent (null) in files
+/// written before 0.5.0, whose jobs then all count as one earlier epoch. Adding it needs no new file version: older
+/// LabelScope versions ignore a member they do not know, so they can still read and write the file.</param>
 public sealed record SavedJob(Guid Id, string Name, string? RemoteAddress, string? ResolvedHost, JobOrigin Origin,
-                              DateTimeOffset ReceivedAt, string Zpl, bool Complete, bool ReadAsWindows1252 = false);
+                              DateTimeOffset ReceivedAt, string Zpl, bool Complete, bool ReadAsWindows1252 = false,
+                              Guid? Epoch = null);
 
 /// <summary>
 /// Keeps the job list between runs ("Keep jobs after closing LabelScope") in jobs.json, as

@@ -44,6 +44,10 @@ public partial class MainWindow : Window
     // as on a real printer. Nothing is saved when LabelScope closes.
     private readonly PrinterMemory _memory = new();
 
+    // The printer epoch: a new one starts with this window (a new session) and with each Clear printer memory. Every
+    // job is stamped with it, so a redraw clears its own memory where the live memory was cleared (see EpochReplay).
+    private readonly PrinterEpoch _epoch = new();
+
     // Rebuilt once in OnLoaded with the fonts from the FontsFolder setting, before the listener starts.
     private ZplRenderer _renderer;
     private FontLibrary _fonts = FontLibrary.Empty;
@@ -288,6 +292,10 @@ public partial class MainWindow : Window
             // labels must not be able to hold many extra copies in memory at once.
             string formatted;
             RenderResult result;
+            // Read once, before deciding the join and drawing, so the job's epoch, the join and the drawing agree. A
+            // Clear that lands while the label is being drawn is a race this does not close: the label keeps the epoch
+            // it started in, which at worst makes its redraw differ from what was shown live.
+            var epoch = _epoch.Current;
             _renderGate.Wait();
             try
             {
@@ -295,7 +303,7 @@ public partial class MainWindow : Window
                 // The clock fields (^FC) show the time the job arrived, so a redraw shows the same time. Whether the
                 // label joins the open job of its connection is decided first: a joining label is drawn at that job's
                 // time (a redraw draws the joined job at that one moment), a label that starts a new job at its own.
-                var clock = _assembler.WouldJoin(received.ConnectionId, received.Zpl, formatted, received.ReadAsWindows1252)?.ReceivedAt
+                var clock = _assembler.WouldJoin(received.ConnectionId, received.Zpl, formatted, received.ReadAsWindows1252, epoch)?.ReceivedAt
                             ?? received.ReceivedAt;
                 result = _renderer.Render(formatted, options with { Clock = clock });
             }
@@ -304,7 +312,7 @@ public partial class MainWindow : Window
                 received.Source, result.Labels.Count, result.Warnings.Count, received.Complete, received.ConnectionId);
 
             var job = _assembler.TryAppend(received.ConnectionId, received.Zpl, formatted, result, received.Complete,
-                received.ReadAsWindows1252);
+                received.ReadAsWindows1252, epoch);
             // An appended label belongs to the part being filled; carried along so a card that has to be made again
             // (its earlier versions were trimmed or skipped) still says which part it is.
             var part = job is null ? 1 : _assembler.CurrentPart(received.ConnectionId);
@@ -322,6 +330,7 @@ public partial class MainWindow : Window
                     Zpl = received.Zpl,
                     Complete = received.Complete,
                     ReadAsWindows1252 = received.ReadAsWindows1252,
+                    Epoch = epoch,
                     Result = result,
                 };
                 _assembler.Remember(received.ConnectionId, job, formatted, part);
@@ -538,7 +547,9 @@ public partial class MainWindow : Window
     /// <remarks>
     /// The jobs are drawn oldest first into a fresh printer memory, not the live one: replaying their downloads and
     /// deletes into the live memory would repeat them out of order (a replayed ^ID would delete a graphic that a later
-    /// job downloaded). A label whose graphic came with a job that is no longer in the list then warns about it.
+    /// job downloaded). A label whose graphic came with a job that is no longer in the list then warns about it. Where
+    /// the user cleared printer memory (or LabelScope was restarted) between two jobs, the pass clears its memory too
+    /// (<see cref="EpochReplay"/>), so no job is drawn with printer state that was gone when it arrived.
     /// </remarks>
     private async Task RerenderAllJobsAsync()
     {
@@ -552,12 +563,17 @@ public partial class MainWindow : Window
             var finished = await Task.Run(() =>
             {
                 var renderer = new ZplRenderer(new PrinterMemory(), fonts);
+                var replay = new EpochReplay();
                 foreach (var job in jobs)
                 {
                     if (_closing || Volatile.Read(ref _renderGeneration) != generation) return false;
                     RenderResult result;
                     _renderGate.Wait();
-                    try { result = renderer.Render(ZplFormatter.Format(job.Zpl), options with { TextReadAsWindows1252 = job.ReadAsWindows1252, Clock = job.ReceivedAt }); }
+                    try
+                    {
+                        replay.Enter(renderer.Memory, job.Epoch);
+                        result = renderer.Render(ZplFormatter.Format(job.Zpl), options with { TextReadAsWindows1252 = job.ReadAsWindows1252, Clock = job.ReceivedAt });
+                    }
                     finally { _renderGate.Release(); }
                     // A newer pass started meanwhile: its result wins, this one is dropped.
                     if (Volatile.Read(ref _renderGeneration) != generation) return false;
@@ -583,7 +599,8 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Brings back the jobs kept by an earlier run (newest first, up to HistoryLimit), drawn again with today's
-    /// settings into a fresh printer memory, oldest first: nothing of the old printer memory comes back.
+    /// settings into a fresh printer memory, oldest first: nothing of the old printer memory comes back. The memory is
+    /// cleared again wherever the kept jobs' epochs change (<see cref="EpochReplay"/>), as it was cleared when they arrived.
     /// </summary>
     private async Task LoadKeptJobsAsync()
     {
@@ -611,6 +628,7 @@ public partial class MainWindow : Window
             var jobs = await Task.Run(() =>
             {
                 var renderer = new ZplRenderer(new PrinterMemory(), fonts);
+                var replay = new EpochReplay();
                 var list = new List<LabelJob>();
                 foreach (var s in keep)
                 {
@@ -620,7 +638,11 @@ public partial class MainWindow : Window
                     var options = OptionsFor(_settings);
                     RenderResult result;
                     _renderGate.Wait();
-                    try { result = renderer.Render(ZplFormatter.Format(s.Zpl), options with { TextReadAsWindows1252 = s.ReadAsWindows1252, Clock = s.ReceivedAt }); }
+                    try
+                    {
+                        replay.Enter(renderer.Memory, s.Epoch);
+                        result = renderer.Render(ZplFormatter.Format(s.Zpl), options with { TextReadAsWindows1252 = s.ReadAsWindows1252, Clock = s.ReceivedAt });
+                    }
                     finally { _renderGate.Release(); }
                     list.Add(LabelJob.FromSaved(s, result));
                 }
@@ -2228,6 +2250,9 @@ public partial class MainWindow : Window
             MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
         if (answer != MessageBoxResult.Yes) return;
         _memory.Clear();
+        // A new epoch from here on: jobs that arrive now are redrawn without the state just cleared. A send that is
+        // still open goes on in a new job (JobAssembler refuses to join across epochs).
+        _epoch.StartNew();
         Log.Information("Printer memory cleared by the user");
         ShowMessage(UiText.Get("Ui_MemoryCleared"));
     }

@@ -10,7 +10,7 @@ internal static class SilentCommands
 {
     // Commands whose every value is about the printer mechanics, memory or comments, never the drawn label.
     // Deliberately NOT here (each can change the picture or how the rest of the job is read, see IsSilent):
-    // ^PM (mirror), ^JM (half density doubles the format).
+    // ^PM (mirror), ^JM (half density doubles the format), ^MU (inches, millimetres or a density conversion).
     // ^CC / ^CD / ^CT and their ~ forms are not here: the parser applies them and the renderer warns about a refused one.
     // ^CI and ^MC are not here either: the painter and the renderer handle them themselves (CharacterSets, and the ^MCN
     // background in ZplRenderer.PaintSafely).
@@ -36,11 +36,26 @@ internal static class SilentCommands
             "^PM" => a.Length == 0 || char.ToUpperInvariant(a[0]) == 'N',
             // Half density (B) doubles the size of the whole format; A is the native density.
             "^JM" => a.Length == 0 || char.ToUpperInvariant(a[0]) == 'A',
+            // Units of measure: D (dots) is the default, so ^MUd changes nothing. I (inches) and M (millimetres) change
+            // how every later number is read and keep their warning until they are supported; so does a dpi
+            // conversion (^MUd,200,300 scales the format), unless both densities are the same.
+            "^MU" => IsDotsWithoutConversion(a),
             // Orientation and reverse print are handled inside a label; outside one the "off" value is a no-op,
             // while ^POI / ^LRY would be lost, so those keep their warning.
             "^PO" or "^LR" => a.Length == 0 || char.ToUpperInvariant(a[0]) == 'N',
             _ => false,
         };
+    }
+
+    /// <summary>True for ^MU in dots (or with no unit) and no change of density: the power-up state, so nothing to say.</summary>
+    private static bool IsDotsWithoutConversion(string args)
+    {
+        var parts = args.Split(',');
+        var unit = parts[0].Trim();
+        if (unit.Length > 0 && !unit.Equals("D", StringComparison.OrdinalIgnoreCase)) return false;
+        var from = parts.Length > 1 ? parts[1].Trim() : "";
+        var to = parts.Length > 2 ? parts[2].Trim() : "";
+        return (from.Length == 0 && to.Length == 0) || from == to;
     }
 
     private static bool IsZero(string text) =>

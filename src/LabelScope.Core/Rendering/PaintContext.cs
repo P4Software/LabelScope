@@ -21,4 +21,11 @@ internal sealed class PaintContext(PrinterMemory memory, List<string> memoryNote
     /// is drawn at one moment.
     /// </summary>
     public DateTimeOffset Now { get; init; }
+
+    /// <summary>
+    /// Pixels the serial images of this job may still use (see <see cref="Serialization.MaxJobPixels"/>). One budget
+    /// for the whole job: each image is a full label picture, so 100 images of a very large label (or several large
+    /// serial labels in one job) would take minutes and gigabytes, where 100 images of a shipping label take a moment.
+    /// </summary>
+    public long SerialPixelsLeft { get; set; } = Serialization.MaxJobPixels;
 }

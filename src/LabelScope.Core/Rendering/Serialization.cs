@@ -64,6 +64,13 @@ internal static class Serialization
     /// </summary>
     public const int MaxImages = 100;
 
+    /// <summary>
+    /// Most pixels the serial images of one job may use together (images x width x height), about 400 megapixels. A
+    /// 4x6 inch label at 203 dpi is about 1 megapixel, so it still gets all <see cref="MaxImages"/> images; a 40
+    /// megapixel label gets about 10. Past it the renderer stops with the same kind of warning as past MaxImages.
+    /// </summary>
+    public const long MaxJobPixels = 400_000_000;
+
     /// <summary>Most serial fields whose last value a warning lists; a label may have 100 or more.</summary>
     public const int MaxListedFields = 5;
 

@@ -110,6 +110,14 @@ public sealed class LabelJob
     public bool ReadAsWindows1252 { get; init; }
 
     /// <summary>
+    /// The printer epoch the job was drawn in (see <see cref="Memory.PrinterEpoch"/>): each start of LabelScope and each
+    /// "Clear printer memory" begins a new one. A redraw clears its memory where the epoch changes between jobs, so it
+    /// sees the printer state the live drawing saw. Null for a job kept by a LabelScope older than 0.5.0; all of those
+    /// count as one earlier epoch. Saved in jobs.json, so a job restored from an earlier session keeps its epoch.
+    /// </summary>
+    public Guid? Epoch { get; init; }
+
+    /// <summary>
     /// The drawn labels, warnings and memory notes. Replace it after drawing <see cref="Zpl"/> again (language or label
     /// size changed); the <see cref="Log"/> follows at once. It may be replaced from any thread (a re-render can finish
     /// on a worker thread while the window reads the job): every reader sees either the old or the new result whole.
@@ -172,7 +180,7 @@ public sealed class LabelJob
     }
 
     /// <summary>The raw facts to write to jobs.json; the drawn result is not saved because it is redrawn on load.</summary>
-    public SavedJob ToSaved() => new(Id, Name, RemoteAddress, ResolvedHost, Origin, ReceivedAt, Zpl, Complete, ReadAsWindows1252);
+    public SavedJob ToSaved() => new(Id, Name, RemoteAddress, ResolvedHost, Origin, ReceivedAt, Zpl, Complete, ReadAsWindows1252, Epoch);
 
     /// <summary>Rebuilds a job read from jobs.json, with <paramref name="result"/> from drawing its ZPL again.</summary>
     public static LabelJob FromSaved(SavedJob saved, RenderResult result)
@@ -189,6 +197,7 @@ public sealed class LabelJob
             Zpl = saved.Zpl ?? "",
             Complete = saved.Complete,
             ReadAsWindows1252 = saved.ReadAsWindows1252,
+            Epoch = saved.Epoch,
             Result = result,
         };
     }

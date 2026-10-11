@@ -177,7 +177,7 @@ public sealed class ZplStreamSplitter
     {
         var text = Decode(_bytes, start, count, out var windows1252);
         // A leading byte order mark would otherwise show up as an invisible character in the ZPL.
-        return new DecodedZpl(text.Trim().Trim('﻿').Trim(), windows1252);
+        return new DecodedZpl(text.Trim().Trim('\uFEFF').Trim(), windows1252);
     }
 
     /// <summary>

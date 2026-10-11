@@ -73,8 +73,13 @@ public sealed class JobAssembler
     /// True when the label's bytes were read as Windows-1252. A label read differently from the job starts a new job:
     /// the job keeps one flag for every redraw, and a mixed job would give other ^CI28 warnings after a redraw.
     /// </param>
+    /// <param name="epoch">
+    /// The printer epoch the label was drawn in (see <see cref="LabelJob.Epoch"/>). A label of another epoch than the
+    /// job (the user cleared printer memory while the send was open) starts a new job: a job keeps one epoch, and a
+    /// redraw clears its memory only between jobs, so a job split across a Clear would be redrawn wrongly.
+    /// </param>
     public LabelJob? TryAppend(long connectionId, string zpl, string formatted, RenderResult result, bool complete,
-                               bool readAsWindows1252 = false)
+                               bool readAsWindows1252 = false, Guid? epoch = null)
     {
         ArgumentNullException.ThrowIfNull(zpl);
         ArgumentNullException.ThrowIfNull(formatted);
@@ -84,7 +89,7 @@ public sealed class JobAssembler
         lock (_lock)
             if (!_open.TryGetValue(connectionId, out open!)) return null;
 
-        if (!CanJoin(open, zpl, formatted, readAsWindows1252)) return null;
+        if (!CanJoin(open, zpl, formatted, readAsWindows1252, epoch)) return null;
         var previous = open.Job;
 
         var offset = open.FormattedLines + 1; // the blank line between labels
@@ -111,6 +116,8 @@ public sealed class JobAssembler
             Zpl = previous.Zpl + "\n" + zpl,
             Complete = complete,
             ReadAsWindows1252 = readAsWindows1252,
+            // Equal to the label's epoch: CanJoin refused anything else.
+            Epoch = previous.Epoch,
             Result = merged,
         };
         // Replacing the entry lets go of the previous job object; the window replaces its card's job the same way.
@@ -130,21 +137,25 @@ public sealed class JobAssembler
     /// <param name="zpl">The label's ZPL as received.</param>
     /// <param name="formatted">The label's ZPL as formatted for display.</param>
     /// <param name="readAsWindows1252">True when the label's bytes were read as Windows-1252.</param>
-    public LabelJob? WouldJoin(long connectionId, string zpl, string formatted, bool readAsWindows1252 = false)
+    /// <param name="epoch">The printer epoch the label is drawn in (see <see cref="TryAppend"/>).</param>
+    public LabelJob? WouldJoin(long connectionId, string zpl, string formatted, bool readAsWindows1252 = false, Guid? epoch = null)
     {
         ArgumentNullException.ThrowIfNull(zpl);
         ArgumentNullException.ThrowIfNull(formatted);
-        return Current(connectionId) is { } open && CanJoin(open, zpl, formatted, readAsWindows1252) ? open.Job : null;
+        return Current(connectionId) is { } open && CanJoin(open, zpl, formatted, readAsWindows1252, epoch) ? open.Job : null;
     }
 
     /// <summary>Whether a label with this text joins <paramref name="open"/> (see the remarks of <see cref="TryAppend"/>).</summary>
-    private static bool CanJoin(Open open, string zpl, string formatted, bool readAsWindows1252)
+    private static bool CanJoin(Open open, string zpl, string formatted, bool readAsWindows1252, Guid? epoch)
     {
         var previous = open.Job;
         if (previous.LabelCount >= MaxLabelsPerJob || (long)previous.Zpl.Length + zpl.Length + 1 > MaxCharsPerJob) return false;
         // The boundary check described in the remarks: only then is the line shift right.
         if (open.Unformatted || ZplFormatter.LeavesAsIs(zpl) || !open.EndsWithLabelEnd || !StartsWithCommand(formatted)) return false;
-        return previous.ReadAsWindows1252 == readAsWindows1252;
+        // A Clear printer memory between two labels of one send ends the job (see TryAppend): checked here rather than
+        // by closing every open job on Clear, so the rule holds whichever thread sees the Clear first, and a label that
+        // arrives after it simply becomes the next part of the send.
+        return previous.ReadAsWindows1252 == readAsWindows1252 && previous.Epoch == epoch;
     }
 
     /// <summary>
