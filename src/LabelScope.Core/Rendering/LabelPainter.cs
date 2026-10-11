@@ -84,13 +84,15 @@ internal sealed partial class LabelPainter : IDisposable
     // Orientation named by ^A for the field being built (null = use the ^FW default). Reset by ^FS.
     private char? _textOrientation;
 
-    // ^CI in effect for this label (null = none sent: the power-up default, never warned about) and its line.
-    private int? _charSet;
-    private int _charSetLine;
+    // ^CI in effect (printer state, carried from earlier jobs; null = none ever sent, so text is drawn as received),
+    // whether this label sent one (only then is it kept for the next job), and its decoder, made when first needed.
+    private CharacterSetting? _charSetting;
+    private bool _charSettingSet;
+    private CharacterDecoder? _decoder;
     // Whether the job's bytes were read as Windows-1252 (RenderOptions.TextReadAsWindows1252).
     private bool _readAsWindows1252;
     // Each ^CI warning is given at most once per label: one label with twenty accented fields is one problem.
-    private bool _notUtf8Warned, _partialWarned;
+    private bool _notUtf8Warned, _sentAsUtf8Warned, _tableWarned;
 
     private sealed record FieldBlock(int Width, int MaxLines, int LineSpacing, char Justify, int Line);
 
@@ -103,6 +105,7 @@ internal sealed partial class LabelPainter : IDisposable
         _homeY = setup.HomeY ?? 0;
         _reverseAll = setup.ReverseAll ?? false;
         _keepImage = setup.KeepImage ?? false;
+        _charSetting = setup.CharacterSet;
         _clockOffset = setup.ClockOffset;
         _clockSettings = new ClockSettings(setup.ClockLanguage ?? 1, setup.ClockSecondary, setup.ClockThird);
         _dpi = dpi;
@@ -187,12 +190,6 @@ internal sealed partial class LabelPainter : IDisposable
             painter._withoutVariableFields = withoutVariableFields;
             painter._readAsWindows1252 = options.TextReadAsWindows1252;
             painter._copyIndex = copyIndex;
-            // A ^CI sent just before this label's ^XA applies to it, and to it only (see PaintContext).
-            if (context.PendingCharacterSet is { } pending)
-            {
-                context.PendingCharacterSet = null;
-                painter.UseCharacterSet(pending.Set, pending.Line);
-            }
             // Which field gets the data of which ^FN number, decided once before drawing (see PlanFieldNumbers).
             painter._fieldPlans = PlanFieldNumbers(block, warnings, copyIndex);
             // The plan is keyed by the position of each field's ^FS in this very list, and the painter is told that
@@ -218,7 +215,8 @@ internal sealed partial class LabelPainter : IDisposable
                 painter._clockSecondarySet ? painter._clockSettings.Secondary : null,
                 painter._clockThirdSet ? painter._clockSettings.Third : null,
                 painter._clockLanguageSet ? painter._clockSettings.Language : null,
-                painter._keepImageSet ? painter._keepImage : null));
+                painter._keepImageSet ? painter._keepImage : null,
+                painter._charSettingSet ? painter._charSetting : null));
             return painter;
         }
         catch
@@ -321,6 +319,8 @@ internal sealed partial class LabelPainter : IDisposable
         // Commands that carry bulk data are handled before the generic comma split: their data may be megabytes
         // of compressed hex in which ',' is a fill character, not a separator.
         if (cmd.Name == "^GF") { DrawGraphicField(cmd); return; }
+        // ^CI may carry up to 256 remapping pairs, and a hostile one millions of commas: it reads its own arguments in place.
+        if (cmd.Name == "^CI") { SetCharacterSet(cmd); return; }
 
         // Downloads and deletions act on printer memory wherever they appear, inside a label as well as outside.
         if (StorageCommands.TryHandle(cmd, _context, _warnings)) return;
@@ -381,7 +381,6 @@ internal sealed partial class LabelPainter : IDisposable
             case "^PO": break; // already applied in Paint
             case "^BY": SetBarDefaults(cmd, a); break;
             case "^FW": _fieldOrientation = a.Length > 0 && a[0].Length > 0 ? FieldPlacement.Normalize(a[0][0]) : 'N'; break;
-            case "^CI": SetCharacterSet(cmd, a); break;
             case "^FH": _hexIndicator = a.Length > 0 && a[0].Length > 0 ? a[0][0] : '_'; break;
             default:
                 if (TryStartBarcode(cmd, a)) break;
@@ -440,52 +439,56 @@ internal sealed partial class LabelPainter : IDisposable
     // ---- character sets ----------------------------------------------------------------------
 
     /// <summary>
-    /// ^CIa,s1,d1,...: the character set for the fields that follow. The text is already characters (see
-    /// <see cref="CharacterSets"/>), so a known set changes nothing in the picture; it only decides which warnings apply.
+    /// ^CIa,s1,d1,...: the character set, and remapping pairs, for the fields that follow. It is printer state: it stays
+    /// for later labels and jobs until the next ^CI (see <see cref="PrinterSetup.Values.CharacterSet"/>).
     /// </summary>
-    private void SetCharacterSet(ZplCommand cmd, string[] a)
+    private void SetCharacterSet(ZplCommand cmd)
     {
-        if (CheckCharacterSetCommand(cmd, a, _warnings) is { } set) UseCharacterSet(set, cmd.Line);
+        if (CharacterSets.ReadCommand(cmd, _warnings) is not { } setting) return;
+        _charSetting = setting;
+        _charSettingSet = true;
+        _decoder = null;
+    }
+
+    /// <summary>A ^CI outside any label: printer state, set straight away for the labels that follow.</summary>
+    internal static void SetCharacterSetSetting(ZplCommand cmd, PaintContext context, List<RenderWarning> warnings)
+    {
+        if (CharacterSets.ReadCommand(cmd, warnings) is { } setting)
+            context.Memory.Setup.Apply(PrinterSetup.Values.None with { CharacterSet = setting });
     }
 
     /// <summary>
-    /// Checks a ^CI command anywhere in a job and returns its set, or null (with a warning) when the number is no
-    /// character set. Remapping pairs after the set are warned about and otherwise ignored.
+    /// The field's data as characters. A text field under a ^CI goes through the set (see
+    /// <see cref="CharacterDecoder.DecodeField"/>), with the set's warnings once per label. A barcode keeps the bytes it
+    /// encodes, and without any ^CI text is drawn as received: both read ^FH escapes as before, as UTF-8 under ^CI28.
     /// </summary>
-    internal static int? CheckCharacterSetCommand(ZplCommand cmd, string[] a, List<RenderWarning> warnings)
+    private string DecodeFieldData()
     {
-        if (!CharacterSets.TryParse(a, out var set) || (!CharacterSets.IsUnicode(set) && CharacterSets.Describe(set) is null))
-        {
-            warnings.Add(new(cmd.Line, Text.Get("Painter_CharSetUnknown", CharacterSets.Shown(a))));
-            return null;
-        }
-        if (CharacterSets.HasRemapping(a))
-            warnings.Add(new(cmd.Line, Text.Get("Painter_CharSetRemap", set)));
-        return set;
-    }
-
-    private void UseCharacterSet(int set, int line)
-    {
-        _charSet = set;
-        _charSetLine = line;
-        // The label promises UTF-8, but the bytes were not UTF-8: the sender most likely sent Windows-1252, which is
-        // what LabelScope drew, while a printer would print other letters.
-        if (set == CharacterSets.Utf8 && _readAsWindows1252 && !_notUtf8Warned)
+        if (_charSetting is not { } setting) return FieldData.Decode(_data, _hexIndicator);
+        var set = setting.Set;
+        // The label promises UTF-8, but the bytes were not UTF-8: the sender most likely sent Windows-1252, which is what
+        // LabelScope drew, while a printer would print other letters.
+        if (set == CharacterSets.Utf8 && _readAsWindows1252 && !_notUtf8Warned && CharacterSets.HasNonAscii(_data))
         {
             _notUtf8Warned = true;
-            _warnings.Add(new(line, Text.Get("Painter_CharSetNotUtf8")));
+            _warnings.Add(new(_dataLine, Text.Get("Painter_CharSetNotUtf8")));
         }
-    }
+        if (_barcode is not null) return FieldData.Decode(_data, _hexIndicator, utf8: set == CharacterSets.Utf8);
 
-    /// <summary>
-    /// A byte-based ^CI set (0-27, 31-36) matches the printer only for plain ASCII; the first field with other
-    /// characters gives the label's one warning, at the ^CI line, naming the set.
-    /// </summary>
-    private void CheckCharacterSet(string data)
-    {
-        if (_partialWarned || _charSet is not { } set || CharacterSets.IsUnicode(set) || !CharacterSets.HasNonAscii(data)) return;
-        _partialWarned = true;
-        _warnings.Add(new(_charSetLine, Text.Get("Painter_CharSetPartial", set, CharacterSets.Describe(set) ?? "")));
+        _decoder ??= CharacterSets.DecoderFor(setting);
+        var text = _decoder.DecodeField(_data, _hexIndicator, _readAsWindows1252, keepLineBreaks: _fieldBlock is not null, out var sentAsUtf8);
+        // The warnings point at the field's text: the ^CI may have come in an earlier job.
+        if (sentAsUtf8 && !_sentAsUtf8Warned)
+        {
+            _sentAsUtf8Warned = true;
+            _warnings.Add(new(_dataLine, Text.Get("Painter_CharSetSentAsUtf8", set, CharacterSets.EncodingName(set))));
+        }
+        if (CharacterSets.IsTableDriven(set) && !_tableWarned)
+        {
+            _tableWarned = true;
+            _warnings.Add(new(_dataLine, Text.Get("Painter_CharSetTable", set, CharacterSets.Describe(set) ?? "")));
+        }
+        return text;
     }
 
     // ---- field clock --------------------------------------------------------------------------
@@ -685,10 +688,10 @@ internal sealed partial class LabelPainter : IDisposable
             return;
         }
 
-        // ^FH escapes are resolved once, here, so text and barcodes see the same characters. Under ^CI28 the escaped
-        // bytes are UTF-8, as on a printer.
-        var data = FieldData.Decode(_data, _hexIndicator, utf8: _charSet == CharacterSets.Utf8);
-        // The counter works on the field's final data: after ^FN, ^FE and ^FH, before text or barcode see it.
+        // ^FH escapes and the ^CI set are resolved once, here, on the merged data (^FN, ^FE): bytes become characters
+        // before anything counts or measures them.
+        var data = _hasData ? DecodeFieldData() : _data;
+        // The counter works on the field's final data: after ^FN, ^FE, ^FH and ^CI, before text or barcode see it.
         if (_hasData && _serial is { } serial)
         {
             if (_serialFieldCount++ < Serialization.MaxListedFields) _serialFields.Add((serial, data));
@@ -697,8 +700,8 @@ internal sealed partial class LabelPainter : IDisposable
         // The clock is filled in last, as a printer fills it when it builds the field. Counting comes first so the counter
         // works on the data as written: in ^SNLOT001-%H the counter is 001, never the hour the clock puts after it, and a
         // ^SF mask lines up with the characters the sender wrote.
+        // The clock writes characters (month names under ^SL, for example), so it comes after the set, never through it.
         if (_hasData && _clock is { } clock) data = ExpandClock(data, clock);
-        if (_hasData) CheckCharacterSet(data);
         if (_barcode is not null)
         {
             if (_hasData && !_barcode.Skip) DrawBarcode(data);

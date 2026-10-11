@@ -24,9 +24,21 @@ internal abstract class ZplFont : IDisposable
     /// <summary>Draws one line with its baseline at <paramref name="baselineY"/>.</summary>
     public abstract void Draw(SKCanvas canvas, string text, float x, float baselineY, SKPaint paint);
 
+    // Characters of the prepared text that are drawn from an installed Windows font, by code point, with that font.
+    // Null when there are none (almost every field), so plain text keeps the one-face path, unchanged.
+    private Dictionary<int, SKTypeface>? _fallback;
+
+    /// <summary>True when <see cref="Prepare"/> took some characters from an installed font.</summary>
+    protected bool HasFallback => _fallback is not null;
+
+    /// <summary>The installed typeface <paramref name="rune"/> is drawn with, or null for the font's own face.</summary>
+    protected SKTypeface? FallbackFace(Rune rune) =>
+        _fallback is not null && _fallback.TryGetValue(rune.Value, out var face) ? face : null;
+
     /// <summary>
-    /// The text as this font prints it. Characters the font has no glyph for become spaces, as the guide says a
-    /// printer prints unknown characters; <paramref name="missing"/> counts them so the painter can say so.
+    /// The text as this font prints it. A character the font has no glyph for is taken from an installed Windows font
+    /// that has it (see <see cref="FallbackFaces"/>); when none has, it becomes a space, as the guide says a printer
+    /// prints unknown characters, and <paramref name="missing"/> counts it so the painter can say so.
     /// </summary>
     public virtual string Prepare(string text, out int missing)
     {
@@ -35,12 +47,21 @@ internal abstract class ZplFont : IDisposable
         // Asking the typeface costs two allocations per character; a field repeats few distinct characters, so
         // each answer is remembered for the rest of this text (a 60000-character field went from 100 ms to a few).
         var known = new Dictionary<int, bool>();
+        var lookups = FallbackFaces.MaxLookupsPerText;
         Span<char> utf16 = stackalloc char[2];
         foreach (var rune in text.EnumerateRunes())
         {
             if (!known.TryGetValue(rune.Value, out var printable))
             {
-                printable = rune.Value == ' ' || (!Rune.IsControl(rune) && Face.GetGlyphs(rune.ToString())[0] != 0);
+                var control = Rune.IsControl(rune);
+                printable = rune.Value == ' ' || (!control && Face.GetGlyphs(rune.ToString())[0] != 0);
+                // Only characters the font lacks are looked up, within a budget per text; an answer already known costs nothing.
+                if (!printable && !control && (FallbackFaces.IsKnown(rune.Value) || lookups-- > 0)
+                    && FallbackFaces.For(rune.Value) is { } face)
+                {
+                    (_fallback ??= [])[rune.Value] = face;
+                    printable = true;
+                }
                 known[rune.Value] = printable;
             }
             if (printable) sb.Append(utf16[..rune.EncodeToUtf16(utf16)]);
@@ -64,6 +85,8 @@ internal sealed class CellFont : ZplFont
     private readonly int _magX, _magY;
     private readonly SKTypeface _face;
     private readonly SKFont _font;
+    // Fonts for characters drawn from installed faces (see ZplFont.Prepare), one per face, made when first drawn.
+    private Dictionary<SKTypeface, SKFont>? _fallbackFonts;
 
     /// <summary>Creates font <paramref name="spec"/> enlarged <paramref name="magX"/> x <paramref name="magY"/> times.</summary>
     public CellFont(CellFontSpec spec, int magX, int magY, SKTypeface face)
@@ -126,9 +149,31 @@ internal sealed class CellFont : ZplFont
             if (left + cellWidth < clip.Left) continue;
             canvas.Save();
             canvas.ClipRect(new SKRect(left, top, left + cellWidth, top + LineHeight), SKClipOperation.Intersect, antialias: false);
-            canvas.DrawText(rune.ToString(), left, baselineY, _font, paint);
+            var glyph = rune.ToString();
+            var font = HasFallback && FallbackFace(rune) is { } face ? FallbackFont(face, glyph, cellWidth) : _font;
+            canvas.DrawText(glyph, left, baselineY, font, paint);
             canvas.Restore();
         }
+    }
+
+    /// <summary>
+    /// The font that draws <paramref name="glyph"/> from an installed face in one cell: the cell font's size and
+    /// stretch, narrowed when the glyph would be wider than the cell (a Japanese character is about twice as wide as a
+    /// Latin one). The cell, and so every width and position on the line, stays the bitmap font's own.
+    /// </summary>
+    private SKFont FallbackFont(SKTypeface face, string glyph, int cellWidth)
+    {
+        _fallbackFonts ??= [];
+        if (!_fallbackFonts.TryGetValue(face, out var font))
+        {
+            font = new SKFont(face, _font.Size) { Edging = SKFontEdging.Alias };
+            _fallbackFonts[face] = font;
+        }
+        font.ScaleX = 1f;
+        using var measure = new SKPaint(font);
+        var width = measure.MeasureText(glyph);
+        font.ScaleX = width > 0 ? Math.Clamp(Math.Min(_font.ScaleX, cellWidth / width), 0.1f, 10f) : _font.ScaleX;
+        return font;
     }
 
     /// <inheritdoc />
@@ -136,7 +181,12 @@ internal sealed class CellFont : ZplFont
         base.Prepare(_spec.UppercaseOnly ? text.ToUpperInvariant() : text, out missing);
 
     /// <inheritdoc />
-    public override void Dispose() => _font.Dispose();
+    public override void Dispose()
+    {
+        _font.Dispose();
+        if (_fallbackFonts is not null)
+            foreach (var font in _fallbackFonts.Values) font.Dispose();
+    }
 
     private static int CountRunes(string text)
     {
@@ -154,6 +204,8 @@ internal sealed class ScalableFont : ZplFont
     // Set when the font is laid out like the printer's font 0 (see the constructor); null for a face's own layout.
     private readonly float? _capTop;
     private readonly int _height;
+    // Fonts for characters drawn from installed faces (see ZplFont.Prepare), one per face, made when first needed.
+    private Dictionary<SKTypeface, SKFont>? _fallbackFonts;
 
     /// <summary>
     /// Creates the font at <paramref name="height"/> dots; <paramref name="width"/> equal to the height keeps the face's
@@ -199,17 +251,78 @@ internal sealed class ScalableFont : ZplFont
     /// <inheritdoc />
     public override float Measure(string text)
     {
-        // SkiaSharp 2.88 has no string overload on SKFont.MeasureText; a paint built from the font does it.
-        using var paint = new SKPaint(_font);
-        return paint.MeasureText(text);
+        if (!HasFallback) return MeasureWith(_font, text);
+        var total = 0f;
+        foreach (var (run, font) in Runs(text)) total += MeasureWith(font, run);
+        return total;
     }
 
     /// <inheritdoc />
-    public override void Draw(SKCanvas canvas, string text, float x, float baselineY, SKPaint paint) =>
-        canvas.DrawText(text, x, baselineY, _font, paint);
+    public override void Draw(SKCanvas canvas, string text, float x, float baselineY, SKPaint paint)
+    {
+        if (!HasFallback)
+        {
+            canvas.DrawText(text, x, baselineY, _font, paint);
+            return;
+        }
+        // Each run starts where the one before it ended, on the same baseline, so a word mixing faces reads as one.
+        foreach (var (run, font) in Runs(text))
+        {
+            canvas.DrawText(run, x, baselineY, font, paint);
+            x += MeasureWith(font, run);
+        }
+    }
+
+    // SkiaSharp 2.88 has no string overload on SKFont.MeasureText; a paint built from the font does it.
+    private static float MeasureWith(SKFont font, string text)
+    {
+        using var paint = new SKPaint(font);
+        return paint.MeasureText(text);
+    }
+
+    /// <summary>
+    /// Splits <paramref name="text"/> into runs drawn with one font each: this font for its own characters, and the same
+    /// size and stretch in an installed face for characters taken from one. Measuring and drawing both use it, so ^FB
+    /// wrapping and centring see the widths that are drawn.
+    /// </summary>
+    private IEnumerable<(string Run, SKFont Font)> Runs(string text)
+    {
+        var run = new StringBuilder();
+        SKTypeface? current = null;
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var face = FallbackFace(rune);
+            if (face != current && run.Length > 0)
+            {
+                yield return (run.ToString(), FontFor(current));
+                run.Clear();
+            }
+            current = face;
+            run.Append(rune.ToString());
+        }
+        if (run.Length > 0) yield return (run.ToString(), FontFor(current));
+    }
+
+    /// <summary>This font for <paramref name="face"/> null, otherwise the same size and stretch in that installed face.</summary>
+    private SKFont FontFor(SKTypeface? face)
+    {
+        if (face is null) return _font;
+        _fallbackFonts ??= [];
+        if (!_fallbackFonts.TryGetValue(face, out var font))
+        {
+            font = new SKFont(face, _font.Size) { ScaleX = _font.ScaleX };
+            _fallbackFonts[face] = font;
+        }
+        return font;
+    }
 
     /// <inheritdoc />
-    public override void Dispose() => _font.Dispose();
+    public override void Dispose()
+    {
+        _font.Dispose();
+        if (_fallbackFonts is not null)
+            foreach (var font in _fallbackFonts.Values) font.Dispose();
+    }
 }
 
 /// <summary>Builds the font a ZPL font letter and size ask for.</summary>

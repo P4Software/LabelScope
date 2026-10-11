@@ -16,13 +16,6 @@ internal sealed class PaintContext(PrinterMemory memory, List<string> memoryNote
     public FontLibrary Fonts { get; } = fonts;
 
     /// <summary>
-    /// A ^CI sent outside a label (set number and its line), for the next label only; null when none is waiting. The
-    /// listener hands each label over with whatever came before its ^XA, so applying it to the next label alone gives
-    /// the same warnings whether a send is drawn label by label or as one job.
-    /// </summary>
-    public (int Set, int Line)? PendingCharacterSet { get; set; }
-
-    /// <summary>
     /// The moment this job is drawn at (<see cref="RenderOptions.Clock"/>, or the PC clock read once). One value for the
     /// whole job: every label and every serial image of a job shows the same time, as ^SLS and ^SLT both do when a job
     /// is drawn at one moment.

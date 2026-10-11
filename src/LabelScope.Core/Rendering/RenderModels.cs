@@ -13,7 +13,9 @@ public sealed record RenderOptions(int Dpi = 203, double LabelWidthMm = 101.6, d
     /// <summary>
     /// True when the job's bytes were not valid UTF-8 and were read as Windows-1252 instead (see
     /// <see cref="Listening.ZplStreamSplitter.Decode(byte[], int, int, out bool)"/>). A label that says its text is UTF-8 (^CI28) then gets a warning
-    /// that accented letters may be wrong. Set per job, from what the listener or Open file reported.
+    /// that accented letters may be wrong. Under a byte-based ^CI set the text is encoded again with this encoding to
+    /// recover the bytes the printer received (see <see cref="CharacterSets"/>). Set per job, from what the listener or
+    /// Open file reported.
     /// </summary>
     public bool TextReadAsWindows1252 { get; init; }
 

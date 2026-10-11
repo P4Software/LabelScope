@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Runtime.InteropServices;
 using LabelScope.Core.Rendering;
 
@@ -6,8 +7,8 @@ namespace LabelScope.Core.Memory;
 /// <summary>
 /// Label setup a real printer keeps from one job to the next: print width (^PW), label length (^LL), label home (^LH),
 /// print orientation (^PO), reverse-all (^LR), and the clock: the time set with ^ST, the ^SO2 / ^SO3 offsets and the
-/// ^SL language, which the guide says a printer keeps until they are changed or it is switched off; and ^MC, with the
-/// label ^MCN keeps as the background of the next one. Label programs often send these once, in a setup job of their own,
+/// ^SL language, which the guide says a printer keeps until they are changed or it is switched off; ^MC, with the
+/// label ^MCN keeps as the background of the next one; and the ^CI character set with its remapping. Label programs often send these once, in a setup job of their own,
 /// and the labels that follow rely on them; forgetting them would draw those labels on the wrong size.
 /// Kept until LabelScope closes or the user clears printer memory, as a printer keeps them until it is switched off.
 /// Safe to use from several threads.
@@ -43,9 +44,14 @@ public sealed class PrinterSetup
     /// Last ^MC: true for ^MCN (each finished label is kept as the background of the next one), false for ^MCY; null when
     /// none was sent, which is ^MCY, the power-up value.
     /// </param>
+    /// <param name="CharacterSet">
+    /// Last ^CI, with its remapping pairs; null when none was sent, and the text is then drawn as received (the power-up
+    /// set is a printer setting LabelScope cannot know). Set and pairs are one value, so a later ^CI without pairs
+    /// replaces an earlier remapping instead of keeping it.
+    /// </param>
     public sealed record Values(int? WidthDots, int? HeightDots, int? HomeX, int? HomeY, bool? Inverted, bool? ReverseAll,
                                 TimeSpan? ClockOffset = null, ClockShift? ClockSecondary = null, ClockShift? ClockThird = null,
-                                int? ClockLanguage = null, bool? KeepImage = null)
+                                int? ClockLanguage = null, bool? KeepImage = null, CharacterSetting? CharacterSet = null)
     {
         /// <summary>Nothing set yet.</summary>
         public static readonly Values None = new(null, null, null, null, null, null);
@@ -73,7 +79,8 @@ public sealed class PrinterSetup
                 changes.ClockSecondary ?? _values.ClockSecondary,
                 changes.ClockThird ?? _values.ClockThird,
                 changes.ClockLanguage ?? _values.ClockLanguage,
-                changes.KeepImage ?? _values.KeepImage);
+                changes.KeepImage ?? _values.KeepImage,
+                changes.CharacterSet ?? _values.CharacterSet);
         }
     }
 
@@ -97,6 +104,35 @@ public sealed class PrinterSetup
             _background = null;
         }
     }
+}
+
+/// <summary>
+/// A ^CI as a printer keeps it: the character set and its remapping pairs. Never changed once made.
+/// </summary>
+public sealed record CharacterSetting
+{
+    private static readonly IReadOnlyDictionary<char, char> NoRemap = FrozenDictionary<char, char>.Empty;
+
+    /// <summary>Creates a setting; <paramref name="remap"/> is copied, so later changes to it do not leak in.</summary>
+    /// <param name="set">The ^CI set number (0-36).</param>
+    /// <param name="remap">
+    /// Remapping pairs by byte value: when byte d (the key) arrives, the glyph at position s (the value) prints, as the
+    /// guide's example ^CI0,21,36 prints € for $. Used with sets 0-13 only.
+    /// </param>
+    public CharacterSetting(int set, IReadOnlyDictionary<char, char> remap)
+    {
+        Set = set;
+        Remap = remap.Count == 0 ? NoRemap : remap.ToFrozenDictionary();
+    }
+
+    /// <summary>The ^CI set number.</summary>
+    public int Set { get; }
+
+    /// <summary>Remapping pairs, destination byte to source position; empty when the ^CI had none.</summary>
+    public IReadOnlyDictionary<char, char> Remap { get; }
+
+    /// <summary>A set without remapping.</summary>
+    internal static CharacterSetting Plain(int set) => new(set, NoRemap);
 }
 
 /// <summary>

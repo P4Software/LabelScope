@@ -97,12 +97,9 @@ public sealed class ZplRenderer
 
                     default:
                         if (inLabel) block.Add(cmd);
-                        // ^CI before a label's ^XA is common (ZebraDesigner sends it there); it applies to that label.
-                        else if (cmd.Name == "^CI")
-                        {
-                            if (LabelPainter.CheckCharacterSetCommand(cmd, cmd.Args.Split(','), warnings) is { } set)
-                                context.PendingCharacterSet = (set, cmd.Line);
-                        }
+                        // ^CI before a label's ^XA is common (ZebraDesigner sends it there). It is printer state: it
+                        // applies to the labels that follow, in this job and later ones, until the next ^CI.
+                        else if (cmd.Name == "^CI") LabelPainter.SetCharacterSetSetting(cmd, context, warnings);
                         // ^ST sets the printer clock, which is printer state: setup jobs often send it on its own.
                         else if (cmd.Name == "^ST") LabelPainter.SetClock(cmd, context, warnings);
                         // ^SO and ^SL are clock settings a printer keeps, so they count before ^XA as well.
@@ -175,19 +172,18 @@ public sealed class ZplRenderer
             var setup = context.Memory.Setup;
             var mayKeep = setup.Current.KeepImage == true || expanded.Any(c => c.Name == "^MC");
             var before = serialBlock || mayKeep ? context.Memory.Fork() : null;
-            var characterSet = context.PendingCharacterSet;
             var first = LabelPainter.Paint(expanded, options, warnings, context, 0, out var serials);
             // A label without a serial field (almost every label) is one image whose Copies is ^PQ q, as always.
             var lastImage = 0L;
             if (serials is null || before is null)
                 labels.Add(first);
             else
-                lastImage = PaintSerialImages(expanded, options, warnings, labels, context.Fonts, context.Now, before, characterSet, first, serials);
+                lastImage = PaintSerialImages(expanded, options, warnings, labels, context.Fonts, context.Now, before, first, serials);
 
             // ^MC as it stands at the end of the label decides what the next label starts on. Labels that never met a
             // ^MCN (almost all) only read two values here.
             if (setup.Current.KeepImage == true && before is not null)
-                KeepImage(expanded, options, warnings, context, before, characterSet, lastImage);
+                KeepImage(expanded, options, warnings, context, before, lastImage);
             else if (setup.KeptBackground is not null)
                 setup.KeptBackground = null;
         }
@@ -204,7 +200,7 @@ public sealed class ZplRenderer
     /// </summary>
     /// <remarks>
     /// Each later image is drawn against its own copy of <paramref name="before"/>, the memory as it was before the
-    /// first image, with the same ^CI from before ^XA. A ~DG, ^ID or ^CW inside the label therefore acts at the same
+    /// first image, whose printer setup holds the ^CI in effect before ^XA. A ~DG, ^ID, ^CW or ^CI inside the label therefore acts at the same
     /// point on every image, while the real memory and printer setup are changed once, by the first image. The later
     /// images' warnings and memory notes are thrown away: they repeat the first image's line for line. Past
     /// <see cref="Serialization.MaxImages"/> values one warning gives the total and the last values, worked out without
@@ -212,7 +208,7 @@ public sealed class ZplRenderer
     /// </remarks>
     /// <returns>The value number of the last image drawn, which is the one ^MCN keeps for the next label.</returns>
     private static long PaintSerialImages(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, List<RenderedLabel> labels,
-                                          FontLibrary fonts, DateTimeOffset now, PrinterMemory before, (int Set, int Line)? characterSet, RenderedLabel first, SerialRun serials)
+                                          FontLibrary fonts, DateTimeOffset now, PrinterMemory before, RenderedLabel first, SerialRun serials)
     {
         var (quantity, replicates) = (serials.Quantity, serials.Replicates);
         var (_, distinct) = Serialization.Counts(quantity, replicates);
@@ -224,7 +220,7 @@ public sealed class ZplRenderer
         {
             scratch.Clear();
             // The same moment as the first image: a job is drawn at one time.
-            var copy = new PaintContext(before.Fork(), [], fonts) { PendingCharacterSet = characterSet, Now = now };
+            var copy = new PaintContext(before.Fork(), [], fonts) { Now = now };
             RenderedLabel image;
             try
             {
@@ -256,19 +252,19 @@ public sealed class ZplRenderer
     /// </summary>
     /// <remarks>
     /// The second paint follows the serial images' pattern: <paramref name="before"/> (memory as it was before the label,
-    /// used by no one else any more) with the same ^CI from before ^XA and the same moment, and a warnings list nobody
+    /// used by no one else any more, so its setup holds the ^CI from before ^XA) and the same moment, and a warnings list nobody
     /// reads. So a download, ^ID, ^CW or ^IS in the label acts on the copy, and every warning and memory note is given
     /// once, by the first paint. A failure here (for example no memory for a second 40-megapixel bitmap) costs only the
     /// background: the label is already drawn, so it gets its own warning, never "label not drawn", and nothing stale is
     /// left to draw under the next label.
     /// </remarks>
     private static void KeepImage(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, PaintContext context,
-                                  PrinterMemory before, (int Set, int Line)? characterSet, long copyIndex)
+                                  PrinterMemory before, long copyIndex)
     {
         var setup = context.Memory.Setup;
         try
         {
-            var copy = new PaintContext(before, [], context.Fonts) { PendingCharacterSet = characterSet, Now = context.Now };
+            var copy = new PaintContext(before, [], context.Fonts) { Now = context.Now };
             setup.KeptBackground = LabelPainter.PaintKeptImage(block, options, copy, copyIndex);
         }
         catch (Exception ex)
