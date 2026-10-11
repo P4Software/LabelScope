@@ -11,10 +11,11 @@ namespace LabelScope.Core.Fonts;
 internal static class FallbackFaces
 {
     /// <summary>
-    /// Most new characters one field may look up. A lookup costs about 15 microseconds, so a hostile field of 65536
-    /// different characters is held to a few milliseconds; the rest are treated as missing, as without a fallback.
+    /// Most new characters one label may look up (see <see cref="FallbackBudget"/>). A lookup costs about 15
+    /// microseconds, so a hostile label of thousands of fields full of different characters is held to about 15
+    /// milliseconds; the rest are treated as missing, as without a fallback.
     /// </summary>
-    public const int MaxLookupsPerText = 1024;
+    public const int MaxLookupsPerLabel = 1024;
 
     // Most characters remembered for the whole process; past it, answers are looked up again rather than kept, so a
     // stream of hostile text cannot grow the cache without end.
@@ -39,4 +40,16 @@ internal static class FallbackFaces
         if (Cache.Count < MaxCached) Cache.TryAdd(codePoint, face);
         return face;
     }
+}
+
+/// <summary>
+/// How many new fallback lookups are still allowed. The painter makes one per label and every field draws on it, so
+/// the cost stays bounded however many fields a label has. Used by one painter on one thread only.
+/// </summary>
+internal sealed class FallbackBudget
+{
+    private int _remaining = FallbackFaces.MaxLookupsPerLabel;
+
+    /// <summary>Takes one lookup; false when the budget is spent.</summary>
+    public bool TryTake() => _remaining > 0 && _remaining-- > 0;
 }

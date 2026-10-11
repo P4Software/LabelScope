@@ -93,6 +93,10 @@ internal sealed partial class LabelPainter : IDisposable
     private bool _readAsWindows1252;
     // Each ^CI warning is given at most once per label: one label with twenty accented fields is one problem.
     private bool _notUtf8Warned, _sentAsUtf8Warned, _tableWarned;
+    // Fallback font lookups left for this label (shared by all its fields), and whether its one warning about
+    // characters drawn from a Windows font was given.
+    private readonly FallbackBudget _fallbackBudget = new();
+    private bool _borrowedWarned;
 
     private sealed record FieldBlock(int Width, int MaxLines, int LineSpacing, char Justify, int Line);
 
@@ -450,6 +454,30 @@ internal sealed partial class LabelPainter : IDisposable
         _decoder = null;
     }
 
+    /// <summary>
+    /// True when the field being built is drawn in a downloaded font: ^A@ after a font file was named, or a letter that
+    /// ^CW points at a file. The same choice <see cref="ResolveFont"/> makes, read without building the font.
+    /// </summary>
+    private bool UsesDownloadedFont()
+    {
+        var letter = char.ToUpperInvariant(_fieldFont ?? _defaultFont);
+        return letter == '@' ? _lastFontFile is not null : _context.Memory.FontFor(letter) is not null;
+    }
+
+    /// <summary>
+    /// Of the <paramref name="borrowed"/> characters drawn from a Windows font, how many the printer's own font lacks.
+    /// A resident font carries every character of the single-byte set in effect (the guide draws the code page charts
+    /// in a resident font), so the box-drawing letters ^CI13 prints for UTF-8 text are not counted; anything else is.
+    /// </summary>
+    private int NotInPrinterFont(ZplFont font, string text, int borrowed)
+    {
+        if (_decoder is not { HasTable: true } decoder || UsesDownloadedFont()) return borrowed;
+        var lacking = 0;
+        foreach (var rune in text.EnumerateRunes())
+            if (font.IsBorrowed(rune) && !(rune.IsBmp && decoder.Prints((char)rune.Value))) lacking++;
+        return lacking;
+    }
+
     /// <summary>A ^CI outside any label: printer state, set straight away for the labels that follow.</summary>
     internal static void SetCharacterSetSetting(ZplCommand cmd, PaintContext context, List<RenderWarning> warnings)
     {
@@ -476,14 +504,19 @@ internal sealed partial class LabelPainter : IDisposable
         if (_barcode is not null) return FieldData.Decode(_data, _hexIndicator, utf8: set == CharacterSets.Utf8);
 
         _decoder ??= CharacterSets.DecoderFor(setting);
-        var text = _decoder.DecodeField(_data, _hexIndicator, _readAsWindows1252, keepLineBreaks: _fieldBlock is not null, out var sentAsUtf8);
+        // Only sets 0-2 print differently in a downloaded font (0x5C), so only they ask which font the field uses.
+        var downloadedFont = set <= 2 && UsesDownloadedFont();
+        var text = _decoder.DecodeField(_data, _hexIndicator, _readAsWindows1252, keepLineBreaks: _fieldBlock is not null,
+            downloadedFont, out var sentAsUtf8, out var highBytes);
         // The warnings point at the field's text: the ^CI may have come in an earlier job.
         if (sentAsUtf8 && !_sentAsUtf8Warned)
         {
             _sentAsUtf8Warned = true;
             _warnings.Add(new(_dataLine, Text.Get("Painter_CharSetSentAsUtf8", set, CharacterSets.EncodingName(set))));
         }
-        if (CharacterSets.IsTableDriven(set) && !_tableWarned)
+        // The stand-in encodings read plain ASCII as every table does (^CI26 is ASCII-transparent by the guide), so only
+        // bytes above 0x7F depend on the table the printer has loaded.
+        if (highBytes && CharacterSets.IsTableDriven(set) && !_tableWarned)
         {
             _tableWarned = true;
             _warnings.Add(new(_dataLine, Text.Get("Painter_CharSetTable", set, CharacterSets.Describe(set) ?? "")));
@@ -753,9 +786,16 @@ internal sealed partial class LabelPainter : IDisposable
 
         // Built for this field only and disposed with it: SKFont is not thread-safe and labels render concurrently.
         using var font = MakeFont(_dataLine);
-        var text = font.Prepare(data, out var missing);
+        var text = font.Prepare(data, _fallbackBudget, out var missing, out var borrowed);
         if (missing > 0)
             _warnings.Add(new(_dataLine, Text.Get("Painter_MissingGlyphs", missing)));
+        // Drawn from a Windows font so the user sees the text that arrived; a printer prints these only with a font
+        // that has them loaded. Once per label: twenty fields of Japanese are one thing to know.
+        if (borrowed > 0 && !_borrowedWarned && NotInPrinterFont(font, text, borrowed) is var lacking and > 0)
+        {
+            _borrowedWarned = true;
+            _warnings.Add(new(_dataLine, Text.Get("Painter_GlyphsFromWindowsFont", lacking)));
+        }
         using var paint = InkPaint();
         var lineHeight = font.LineHeight;
 

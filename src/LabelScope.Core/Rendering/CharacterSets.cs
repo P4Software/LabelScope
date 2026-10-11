@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Text;
 using LabelScope.Core.Barcodes;
@@ -236,24 +237,6 @@ internal static class CharacterSets
         int.TryParse(text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out value) && value is >= 0 and <= 255;
 
     /// <summary>
-    /// Applies remapping pairs to text that holds one byte per character (its code is the byte), in one pass: every
-    /// character that is a destination d in <paramref name="map"/> becomes its source s, so the glyph at position s
-    /// prints when byte d arrives. One pass means a swap never chains (d1 to s1, then s1 on to something else).
-    /// </summary>
-    public static string Remap(string text, IReadOnlyDictionary<char, char> map)
-    {
-        if (map.Count == 0) return text;
-        return string.Create(text.Length, (text, map), static (span, state) =>
-        {
-            for (var i = 0; i < span.Length; i++)
-            {
-                var c = state.text[i];
-                span[i] = state.map.TryGetValue(c, out var source) ? source : c;
-            }
-        });
-    }
-
-    /// <summary>
     /// Decodes <paramref name="fieldText"/> (^FD text, already characters) as a printer under <paramref name="set"/>
     /// would: encoded again with the encoding the job was read with, then decoded through the set. Under ^CI17 and
     /// 28-30 the text is returned as it is (see <see cref="CharacterDecoder"/>).
@@ -266,7 +249,8 @@ internal static class CharacterSets
     /// prints two or more wrong characters for each such letter.
     /// </param>
     public static string Decode(string fieldText, int set, bool readAsWindows1252, out bool sentAsUtf8Mojibake) =>
-        DecoderFor(CharacterSetting.Plain(set)).DecodeField(fieldText, null, readAsWindows1252, keepLineBreaks: false, out sentAsUtf8Mojibake);
+        DecoderFor(CharacterSetting.Plain(set)).DecodeField(fieldText, null, readAsWindows1252, keepLineBreaks: false,
+            downloadedFont: false, out sentAsUtf8Mojibake, out _);
 
     /// <summary>Decodes bytes (^FH escapes) through <paramref name="set"/>.</summary>
     public static string DecodeBytes(byte[] bytes, int set) => DecoderFor(CharacterSetting.Plain(set)).DecodeBytes(bytes);
@@ -375,8 +359,18 @@ internal sealed class CharacterDecoder
     private static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
     private static readonly Lazy<Encoding> Windows1252 = new(() => CharacterSets.CodePage(1252));
 
+    // Printable ASCII, the characters plain field text is made of.
+    private static readonly SearchValues<char> PrintableAscii = SearchValues.Create(
+        string.Concat(Enumerable.Range(0x20, 0x5F).Select(c => (char)c)));
+
     // The table of a single-byte set, with any remapping already applied; null for other sets.
     private readonly char[]? _table;
+    // The same for a field drawn in a downloaded font (^A@ or ^CW), where sets 0-2 print a backslash at 0x5C; null when
+    // that changes nothing (every set but 0-2).
+    private readonly char[]? _downloadedTable;
+    // The printable ASCII characters each table prints unchanged. Text made only of them comes out as it went in, so it
+    // is returned without encoding or decoding (ZebraDesigner sends a ^CI with every job, mostly with plain text).
+    private readonly SearchValues<char> _unchanged, _downloadedUnchanged;
     // The stand-in encoding of a table-driven (Asian) set; null for other sets.
     private readonly Encoding? _asian;
 
@@ -384,30 +378,57 @@ internal sealed class CharacterDecoder
     internal CharacterDecoder(CharacterSetting setting)
     {
         Set = setting.Set;
+        _unchanged = _downloadedUnchanged = PrintableAscii;
         if (CharacterSets.TableFor(Set) is { } table)
         {
-            if (setting.Remap.Count > 0)
+            _table = WithRemap(table, setting.Remap);
+            _unchanged = Unchanged(_table);
+            _downloadedUnchanged = _unchanged;
+            if (table[0x5C] == '\u00A2')
             {
-                // Remapping is a table of its own: byte d prints the glyph the set has at s. Built once here from the
-                // unchanged table, so the pairs never chain.
-                var remapped = (char[])table.Clone();
-                foreach (var (destination, source) in setting.Remap)
-                {
-                    // ReadCommand only makes byte values; a setting built elsewhere is held to them as well.
-                    if (destination < 256 && source < 256) remapped[destination] = table[source];
-                }
-                table = remapped;
+                // The guide's code page 850 chart: at 0x5C resident fonts print a cent sign, downloaded fonts a backslash.
+                var downloaded = (char[])table.Clone();
+                downloaded[0x5C] = '\\';
+                _downloadedTable = WithRemap(downloaded, setting.Remap);
+                _downloadedUnchanged = Unchanged(_downloadedTable);
             }
-            _table = table;
         }
         else if (CharacterSets.IsTableDriven(Set))
         {
+            // Every stand-in encoding reads bytes below 0x80 as ASCII (^CI26 is ASCII-transparent by the guide).
             _asian = CharacterSets.AsianEncoding(Set);
         }
     }
 
+    /// <summary>
+    /// Remapping as a table of its own: byte d prints the glyph the set has at s. Built once from the unchanged table,
+    /// so the pairs never chain.
+    /// </summary>
+    private static char[] WithRemap(char[] table, IReadOnlyDictionary<char, char> remap)
+    {
+        if (remap.Count == 0) return table;
+        var remapped = (char[])table.Clone();
+        foreach (var (destination, source) in remap)
+        {
+            // ReadCommand only makes byte values; a setting built elsewhere is held to them as well.
+            if (destination < 256 && source < 256) remapped[destination] = table[source];
+        }
+        return remapped;
+    }
+
+    /// <summary>The printable ASCII characters <paramref name="table"/> prints as themselves.</summary>
+    private static SearchValues<char> Unchanged(char[] table) =>
+        SearchValues.Create(string.Concat(Enumerable.Range(0x20, 0x5F).Where(c => table[c] == c).Select(c => (char)c)));
+
     /// <summary>The ^CI set.</summary>
     public int Set { get; }
+
+    /// <summary>True for a single-byte set, which decodes through a table of 256 characters.</summary>
+    public bool HasTable => _table is not null;
+
+    /// <summary>True when this set's table (either font variant) prints <paramref name="c"/> for some byte.</summary>
+    public bool Prints(char c) =>
+        _table is not null && (Array.IndexOf(_table, c) >= 0 || (_downloadedTable is not null && Array.IndexOf(_downloadedTable, c) >= 0));
 
     /// <summary>
     /// Decodes a text field's raw data, ^FH escapes included, as a printer under this set does.
@@ -428,23 +449,37 @@ internal sealed class CharacterDecoder
     /// True for a ^FB field: its "\&amp;" line breaks are kept as written. A printer finds them in the bytes, before the
     /// glyph table; Labelary breaks the line under ^CI0 as well, where 0x5C alone prints a cent sign.
     /// </param>
+    /// <param name="downloadedFont">
+    /// True when the field is drawn in a downloaded font (^A@ with a file, or a letter ^CW points at a file): under sets
+    /// 0-2 it prints a backslash at 0x5C, where the resident fonts print a cent sign.
+    /// </param>
     /// <param name="sentAsUtf8">True when the text was UTF-8 with non-ASCII characters while this set does not read UTF-8.</param>
-    public string DecodeField(string raw, char? hexIndicator, bool readAsWindows1252, bool keepLineBreaks, out bool sentAsUtf8)
+    /// <param name="highBytes">True when bytes above 0x7F went through the set (the only bytes a table-driven set's table decides).</param>
+    public string DecodeField(string raw, char? hexIndicator, bool readAsWindows1252, bool keepLineBreaks, bool downloadedFont,
+                              out bool sentAsUtf8, out bool highBytes)
     {
         sentAsUtf8 = false;
+        highBytes = false;
         if (CharacterSets.IsUnicode(Set)) return FieldData.Decode(raw, hexIndicator, DecodeBytes);
+
+        // Plain text the set prints unchanged needs no work at all: the usual label under ZebraDesigner's ^CI.
+        var table = downloadedFont && _downloadedTable is not null ? _downloadedTable : _table;
+        var unchanged = downloadedFont ? _downloadedUnchanged : _unchanged;
+        if ((hexIndicator is not { } indicator || raw.IndexOf(indicator) < 0) && raw.AsSpan().IndexOfAnyExcept(unchanged) < 0)
+            return raw;
 
         var encoding = readAsWindows1252 ? Windows1252.Value : Utf8;
         var bytes = FieldData.ToBytes(raw, hexIndicator, encoding, out var textHasNonAscii);
         // Text read as Windows-1252 is the sender's own bytes, one per character; only UTF-8 makes several bytes of one letter.
         sentAsUtf8 = textHasNonAscii && !readAsWindows1252;
-        return _table is not null ? FromTable(bytes, keepLineBreaks) : DecodeBytes(bytes);
+        highBytes = bytes.AsSpan().IndexOfAnyInRange((byte)0x80, (byte)0xFF) >= 0;
+        return table is not null ? FromTable(table, bytes, keepLineBreaks) : DecodeBytes(bytes);
     }
 
     /// <summary>Decodes bytes through this set: ^FH escape runs under the Unicode sets, or a whole field otherwise.</summary>
     public string DecodeBytes(byte[] bytes)
     {
-        if (_table is not null) return FromTable(bytes, keepLineBreaks: false);
+        if (_table is not null) return FromTable(_table, bytes, keepLineBreaks: false);
         if (_asian is not null) return _asian.GetString(bytes);
         return Set switch
         {
@@ -456,9 +491,8 @@ internal sealed class CharacterDecoder
         };
     }
 
-    private string FromTable(byte[] bytes, bool keepLineBreaks)
+    private static string FromTable(char[] table, byte[] bytes, bool keepLineBreaks)
     {
-        var table = _table!;
         return string.Create(bytes.Length, (bytes, table, keepLineBreaks), static (span, state) =>
         {
             var (b, t, keep) = state;

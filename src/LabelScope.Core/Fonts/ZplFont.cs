@@ -28,47 +28,68 @@ internal abstract class ZplFont : IDisposable
     // Null when there are none (almost every field), so plain text keeps the one-face path, unchanged.
     private Dictionary<int, SKTypeface>? _fallback;
 
-    /// <summary>True when <see cref="Prepare"/> took some characters from an installed font.</summary>
+    /// <summary>True when <see cref="Prepare(string, FallbackBudget, out int, out int)"/> took some characters from an installed font.</summary>
     protected bool HasFallback => _fallback is not null;
+
+    /// <summary>True when the last prepared text draws <paramref name="rune"/> from an installed Windows font.</summary>
+    public bool IsBorrowed(Rune rune) => FallbackFace(rune) is not null;
 
     /// <summary>The installed typeface <paramref name="rune"/> is drawn with, or null for the font's own face.</summary>
     protected SKTypeface? FallbackFace(Rune rune) =>
         _fallback is not null && _fallback.TryGetValue(rune.Value, out var face) ? face : null;
 
     /// <summary>
-    /// The text as this font prints it. A character the font has no glyph for is taken from an installed Windows font
-    /// that has it (see <see cref="FallbackFaces"/>); when none has, it becomes a space, as the guide says a printer
-    /// prints unknown characters, and <paramref name="missing"/> counts it so the painter can say so.
+    /// The text as this font prints it, with a lookup budget of its own (see the overload taking a
+    /// <see cref="FallbackBudget"/>, which the painter uses).
     /// </summary>
-    public virtual string Prepare(string text, out int missing)
+    public string Prepare(string text, out int missing) => Prepare(text, new FallbackBudget(), out missing, out _);
+
+    /// <summary>
+    /// The text as this font prints it. A character the font has no glyph for is taken from an installed Windows font
+    /// that has it (see <see cref="FallbackFaces"/>), and <paramref name="borrowed"/> counts it, because a printer
+    /// prints it only with a font that has it loaded. When no installed font has it, it becomes a space, as the guide
+    /// says a printer prints unknown characters, and <paramref name="missing"/> counts it. The painter warns about both.
+    /// </summary>
+    /// <param name="text">The field text.</param>
+    /// <param name="budget">New fallback lookups still allowed; shared by every field of a label.</param>
+    /// <param name="missing">Characters printed as spaces.</param>
+    /// <param name="borrowed">Characters drawn from an installed Windows font.</param>
+    public virtual string Prepare(string text, FallbackBudget budget, out int missing, out int borrowed)
     {
         missing = 0;
+        borrowed = 0;
         var sb = new StringBuilder(text.Length);
         // Asking the typeface costs two allocations per character; a field repeats few distinct characters, so
         // each answer is remembered for the rest of this text (a 60000-character field went from 100 ms to a few).
-        var known = new Dictionary<int, bool>();
-        var lookups = FallbackFaces.MaxLookupsPerText;
+        var known = new Dictionary<int, Glyph>();
         Span<char> utf16 = stackalloc char[2];
         foreach (var rune in text.EnumerateRunes())
         {
-            if (!known.TryGetValue(rune.Value, out var printable))
+            if (!known.TryGetValue(rune.Value, out var glyph))
             {
                 var control = Rune.IsControl(rune);
-                printable = rune.Value == ' ' || (!control && Face.GetGlyphs(rune.ToString())[0] != 0);
-                // Only characters the font lacks are looked up, within a budget per text; an answer already known costs nothing.
-                if (!printable && !control && (FallbackFaces.IsKnown(rune.Value) || lookups-- > 0)
+                glyph = rune.Value == ' ' || (!control && Face.GetGlyphs(rune.ToString())[0] != 0) ? Glyph.Own : Glyph.None;
+                // Only characters the font lacks are looked up, within the label's budget; an answer already known costs nothing.
+                if (glyph == Glyph.None && !control && (FallbackFaces.IsKnown(rune.Value) || budget.TryTake())
                     && FallbackFaces.For(rune.Value) is { } face)
                 {
                     (_fallback ??= [])[rune.Value] = face;
-                    printable = true;
+                    glyph = Glyph.Borrowed;
                 }
-                known[rune.Value] = printable;
+                known[rune.Value] = glyph;
             }
-            if (printable) sb.Append(utf16[..rune.EncodeToUtf16(utf16)]);
-            else { sb.Append(' '); missing++; }
+            switch (glyph)
+            {
+                case Glyph.None: sb.Append(' '); missing++; break;
+                case Glyph.Borrowed: sb.Append(utf16[..rune.EncodeToUtf16(utf16)]); borrowed++; break;
+                default: sb.Append(utf16[..rune.EncodeToUtf16(utf16)]); break;
+            }
         }
         return sb.ToString();
     }
+
+    /// <summary>Where a character's glyph comes from.</summary>
+    private enum Glyph : byte { None, Own, Borrowed }
 
     /// <inheritdoc />
     public abstract void Dispose();
@@ -177,8 +198,8 @@ internal sealed class CellFont : ZplFont
     }
 
     /// <inheritdoc />
-    public override string Prepare(string text, out int missing) =>
-        base.Prepare(_spec.UppercaseOnly ? text.ToUpperInvariant() : text, out missing);
+    public override string Prepare(string text, FallbackBudget budget, out int missing, out int borrowed) =>
+        base.Prepare(_spec.UppercaseOnly ? text.ToUpperInvariant() : text, budget, out missing, out borrowed);
 
     /// <inheritdoc />
     public override void Dispose()
