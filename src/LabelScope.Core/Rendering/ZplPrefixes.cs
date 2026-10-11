@@ -72,9 +72,10 @@ public readonly record struct ZplPrefixes(char Format = '^', char Control = '~',
     }
 
     /// <summary>
-    /// True when reading <paramref name="text"/> from the power-up characters leaves them changed at some point (a change
-    /// back to the defaults, such as the <c>~CC^~CT~~CD,</c> many label programs start with, does not count). Reads the
-    /// change commands exactly as <see cref="ZplParser"/> does, so a refused change does not count either.
+    /// True when reading <paramref name="text"/> from the power-up characters leaves them changed at some point, or meets a
+    /// refused change. A change back to the defaults, such as the <c>~CC^~CT~~CD,</c> many label programs start with, does
+    /// not count. A refused one does: its character is swallowed, and if the formatter trimmed that character (a space)
+    /// away, the next prefix would become the change's character and the command after it would be lost.
     /// </summary>
     internal static bool AnyChangeIn(string text)
     {
@@ -85,8 +86,8 @@ public readonly record struct ZplPrefixes(char Format = '^', char Control = '~',
             var marker = text.AsSpan(i).IndexOfAny(p.Format, p.Control);
             if (marker < 0) return false;
             i += marker;
-            if (!TryReadChange(text, i, p, out var next, out var resume, out _, out _)) { i++; continue; }
-            if (next != Default) return true;
+            if (!TryReadChange(text, i, p, out var next, out var resume, out _, out var refused)) { i++; continue; }
+            if (refused || next != Default) return true;
             p = next;
             i = resume;
         }
