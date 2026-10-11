@@ -147,14 +147,17 @@ public sealed class ZplRenderer
     }
 
     /// <summary>
-    /// Paints one block. A failure inside Skia (for example, not enough memory for a very large label)
-    /// becomes a warning, so one bad label cannot take the whole render down.
+    /// Paints one block. A ^DF block is stored as a format instead and adds no label; any other block has its ^XF
+    /// recalls replaced by the stored commands first (see <see cref="StoredFormats"/>). A failure inside Skia (for
+    /// example, not enough memory for a very large label) becomes a warning, so one bad label cannot take the whole
+    /// render down.
     /// </summary>
     private static void PaintSafely(List<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, List<RenderedLabel> labels, PaintContext context)
     {
         try
         {
-            labels.Add(LabelPainter.Paint(block, options, warnings, context));
+            if (StoredFormats.TryStore(block, context, warnings)) return;
+            labels.Add(LabelPainter.Paint(StoredFormats.Expand(block, context, warnings), options, warnings, context));
         }
         catch (Exception ex)
         {

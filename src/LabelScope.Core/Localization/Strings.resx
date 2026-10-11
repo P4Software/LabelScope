@@ -338,4 +338,16 @@
   <data name="Jobs_LoadNewer" xml:space="preserve"><value>The saved jobs in {0} were written by a newer version of LabelScope and cannot be read by this one. LabelScope started with an empty list. Install the newer version to see those jobs again.</value></data>
   <data name="Jobs_SaveRefusedNewer" xml:space="preserve"><value>The job list was not saved, because {0} was written by a newer version of LabelScope (file version {1}) and saving would erase those jobs. Install the newer version, or move the file elsewhere if you no longer need those jobs.</value></data>
   <data name="Jobs_SaveRefusedLoadFailed" xml:space="preserve"><value>The job list was not saved, because {0} could not be opened at start and saving now would erase the jobs kept in it. Close any program that may be using the file, then restart LabelScope; the kept jobs come back and saving works again.</value></data>
+  <data name="Memory_OneFormat" xml:space="preserve"><value>1 format</value></data>
+  <data name="Memory_Formats" xml:space="preserve"><value>{0} formats</value></data>
+  <data name="Memory_ObjectTooLarge_format" xml:space="preserve"><value>This format is {0}, larger than the {1} LabelScope keeps; it was not stored. Make the format shorter.</value></data>
+  <data name="Storage_StoredFormat" xml:space="preserve"><value>Stored the format {0} in LabelScope's printer memory. A label recalls it with ^XF{0}.</value></data>
+  <data name="Format_NotFound" xml:space="preserve"><value>^XF {0}: no format with this name is in LabelScope's printer memory (searched {1}), so that part of the label was left out. Send the label that stores it with ^DF first, or check the name.</value></data>
+  <data name="Format_RecallsItself" xml:space="preserve"><value>^XF {0}: the format recalls itself, so the inner recall was left out. Remove the ^XF{0} from the stored format.</value></data>
+  <data name="Format_TooDeep" xml:space="preserve"><value>^XF {0}: formats are recalled inside each other more than {1} levels deep, so this recall was left out. Recall fewer formats inside formats.</value></data>
+  <data name="Format_TooLarge" xml:space="preserve"><value>The recalled formats add up to more than {0} commands, so the rest were left out. Recall fewer formats in this label.</value></data>
+  <data name="Painter_FnNoData" xml:space="preserve"><value>These field numbers got no data, so their fields drew nothing: {0}. Give each one data with ^FN and ^FD after the field that uses it, for example after the ^XF that recalls the format.</value></data>
+  <data name="Painter_FnBadNumber" xml:space="preserve"><value>^FN{0}: a field number is a whole number from 0 to 9999, so this field was drawn as a field without a number. Correct the number.</value></data>
+  <data name="Painter_FeBadNumber" xml:space="preserve"><value>^FE: the reference {0} uses a number LabelScope cannot read (too large or not a whole number), so nothing was inserted for it. Correct the reference in the ^FD.</value></data>
+  <data name="Painter_FeNoData" xml:space="preserve"><value>^FE: the reference {0} points at field number {1}, but no field before it gives that number data, so nothing was inserted. Put the ^FN field with its ^FD before this field.</value></data>
 </root>

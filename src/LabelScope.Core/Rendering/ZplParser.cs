@@ -93,8 +93,8 @@ public static class ZplParser
             }
 
             var commandName = name.ToString();
-            // Field data may legitimately start with spaces; other commands never do.
-            var text = commandName == "^FD" ? args.ToString() : args.ToString().Trim();
+            // Field data (^FD, and ^FV, its variable twin) may legitimately start with spaces; other commands never do.
+            var text = commandName is "^FD" or "^FV" ? args.ToString() : args.ToString().Trim();
 
             commands.Add(new ZplCommand(commandName, text, startLine));
             i = j;

@@ -51,7 +51,7 @@ public sealed class PrinterMemory
     /// </summary>
     public event EventHandler? Changed;
 
-    /// <summary>How many graphics, fonts and ^CW font letters are kept and how many bytes the graphics and fonts use.</summary>
+    /// <summary>How many graphics, fonts, stored formats and ^CW font letters are kept and how many bytes the stored objects use.</summary>
     public MemorySummary Summary
     {
         get
@@ -60,7 +60,9 @@ public sealed class PrinterMemory
             lock (_gate)
             {
                 var fonts = _items.Values.Count(v => v.Item is StoredFont);
-                return new MemorySummary(_items.Count - fonts, fonts, _bytes, _fontIds.Count);
+                // Formats are counted on their own: counted as graphics, a ^DF would show up as one more picture.
+                var formats = _items.Values.Count(v => v.Item is StoredFormat);
+                return new MemorySummary(_items.Count - fonts - formats, fonts, _bytes, _fontIds.Count, formats);
             }
         }
     }
@@ -211,21 +213,23 @@ public sealed class PrinterMemory
 /// <param name="Fonts">Number of stored fonts.</param>
 /// <param name="TotalBytes">Bytes used by the stored graphics and fonts.</param>
 /// <param name="FontLetters">Number of font letters given a font file with ^CW (they use no bytes of their own).</param>
-public sealed record MemorySummary(int Graphics, int Fonts, long TotalBytes, int FontLetters = 0)
+/// <param name="Formats">Number of label formats stored with ^DF.</param>
+public sealed record MemorySummary(int Graphics, int Fonts, long TotalBytes, int FontLetters = 0, int Formats = 0)
 {
     /// <summary>True when nothing is stored and no font letter is assigned.</summary>
-    public bool IsEmpty => Graphics + Fonts + FontLetters == 0;
+    public bool IsEmpty => Graphics + Fonts + Formats + FontLetters == 0;
 
-    /// <summary>Plain text for the status bar: "empty", "2 font letters" or "3 graphics, 1 font, 420 KB, 2 font letters".</summary>
+    /// <summary>Plain text for the status bar: "empty", "2 font letters" or "3 graphics, 1 font, 1 format, 420 KB, 2 font letters".</summary>
     public string Describe()
     {
         if (IsEmpty) return Text.Get("Memory_Empty");
         var parts = new List<string>();
         if (Graphics > 0) parts.Add(Graphics == 1 ? Text.Get("Memory_OneGraphic") : Text.Get("Memory_Graphics", Graphics));
         if (Fonts > 0) parts.Add(Fonts == 1 ? Text.Get("Memory_OneFont") : Text.Get("Memory_Fonts", Fonts));
+        if (Formats > 0) parts.Add(Formats == 1 ? Text.Get("Memory_OneFormat") : Text.Get("Memory_Formats", Formats));
         // The size belongs to the stored objects only: with nothing but font letters it would read "1 KB" (the
         // smallest size FormatBytes shows), which is not true.
-        if (Graphics + Fonts > 0) parts.Add(PrinterMemory.FormatBytes(TotalBytes));
+        if (Graphics + Fonts + Formats > 0) parts.Add(PrinterMemory.FormatBytes(TotalBytes));
         if (FontLetters > 0) parts.Add(FontLetters == 1 ? Text.Get("Memory_OneFontLetter") : Text.Get("Memory_FontLetters", FontLetters));
         return string.Join(", ", parts);
     }

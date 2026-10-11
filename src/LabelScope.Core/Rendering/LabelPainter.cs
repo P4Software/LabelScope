@@ -107,6 +107,8 @@ internal sealed partial class LabelPainter : IDisposable
             context.PendingCharacterSet = null;
             painter.UseCharacterSet(pending.Set, pending.Line);
         }
+        // Which field gets the data of which ^FN number, decided once before drawing (see PlanFieldNumbers).
+        painter._fieldPlans = PlanFieldNumbers(block, warnings);
         foreach (var cmd in block) painter.Handle(cmd);
         painter.SaveImageIfAsked();
 
@@ -208,7 +210,10 @@ internal sealed partial class LabelPainter : IDisposable
             case "^CF": SetDefaultFont(cmd, a); break;
             case "^A": SetFieldFont(cmd, a); break;
             case "^FB": _fieldBlock = new FieldBlock(Math.Clamp(Int(a, 0, 0), 0, MaxDots), Math.Clamp(Int(a, 1, 1), 1, MaxFieldBlockLines), Math.Clamp(Int(a, 2, 0), -MaxDots, MaxDots), Justify(a), cmd.Line); break;
-            case "^FD": _data = cmd.Args; _hasData = true; _dataLine = cmd.Line; break;
+            // ^FV is variable data: it draws exactly like ^FD (it only differs under ^MCN, which keeps the label).
+            case "^FD": case "^FV": _data = cmd.Args; _hasData = true; _dataLine = cmd.Line; break;
+            case "^FN": _fieldNumberLine = cmd.Line; break; // the number itself was read by PlanFieldNumbers
+            case "^FE": break; // concatenation was resolved by PlanFieldNumbers
             case "^FS": EndField(); break;
             case "^GB": DrawBox(cmd, a); break;
             case "^XG": RecallGraphic(cmd, a, scalable: true); break;
@@ -344,6 +349,22 @@ internal sealed partial class LabelPainter : IDisposable
 
     private void EndField()
     {
+        // A field that only supplied data for numbered fields drawn elsewhere is not drawn itself; a numbered field
+        // that waited for data takes it here, with the supplier's ^FH, as a printer fills a recalled format.
+        var plan = NextFieldPlan();
+        if (plan is { Skip: true })
+        {
+            ClearField();
+            return;
+        }
+        if (plan is { Data: { } planned })
+        {
+            if (!_hasData && _fieldNumberLine > 0) _dataLine = _fieldNumberLine;
+            _data = planned;
+            _hasData = true;
+            _hexIndicator = plan.Value.HexIndicator;
+        }
+
         // ^FH escapes are resolved once, here, so text and barcodes see the same characters. Under ^CI28 the escaped
         // bytes are UTF-8, as on a printer.
         var data = FieldData.Decode(_data, _hexIndicator, utf8: _charSet == CharacterSets.Utf8);
@@ -359,10 +380,17 @@ internal sealed partial class LabelPainter : IDisposable
             _data = data;
             DrawText();
         }
+        ClearField();
+    }
+
+    /// <summary>Forgets everything that belongs to one field only, ready for the next one.</summary>
+    private void ClearField()
+    {
         _data = ""; _hasData = false; _reverse = false;
         _fontHeight = null; _fontWidth = null; _fieldFont = null; _fieldBlock = null; _textOrientation = null;
         _barcode = null; _hexIndicator = null; // both apply to one field only
         _originLine = 0;
+        _fieldNumberLine = 0;
     }
 
     private void DrawText()

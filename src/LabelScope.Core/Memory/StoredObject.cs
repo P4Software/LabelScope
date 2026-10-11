@@ -1,4 +1,5 @@
 using LabelScope.Core.Graphics;
+using LabelScope.Core.Rendering;
 using SkiaSharp;
 
 namespace LabelScope.Core.Memory;
@@ -68,4 +69,24 @@ internal sealed class StoredFont : StoredObject
             return null;
         }
     }
+}
+
+/// <summary>
+/// A label format stored with ^DF: the commands that followed the ^DF, kept as parsed commands so ^XF can insert them
+/// into a later label without reading the text again. A printer keeps the format as text and reads it at print time;
+/// the parsed commands give the same picture.
+/// </summary>
+internal sealed class StoredFormat(IReadOnlyList<ZplCommand> commands) : StoredObject
+{
+    /// <summary>The stored commands, in order, with the lines they had in the job that stored them.</summary>
+    public IReadOnlyList<ZplCommand> Commands { get; } = commands;
+
+    /// <summary>
+    /// Roughly the text the format occupies: every name and argument, plus 16 bytes per command for its bookkeeping,
+    /// so a format of a million empty commands still counts against the memory limit.
+    /// </summary>
+    public override long SizeInBytes { get; } = commands.Sum(c => (long)c.Name.Length + c.Args.Length + 16);
+
+    /// <inheritdoc />
+    public override string Kind => "format";
 }

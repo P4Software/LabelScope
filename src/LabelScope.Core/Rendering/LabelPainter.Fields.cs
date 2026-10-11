@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using LabelScope.Core.Fonts;
 using SkiaSharp;
 
@@ -151,4 +153,273 @@ internal sealed partial class LabelPainter
             return kind == FieldKind.Barcode ? Text.Get("Field_BarcodePartlyOffLabel") : Text.Get("Field_PartlyOffLabel");
         return null;
     }
+
+    // ---- field numbers (^FN) and concatenation (^FE) ----------------------------------------------
+
+    /// <summary>Highest field number ^FN accepts (the guide: 0 to 9999).</summary>
+    private const int MaxFieldNumber = 9999;
+
+    /// <summary>Most field numbers listed in the "got no data" warning; the rest are shown as "…".</summary>
+    private const int MaxListedNumbers = 10;
+
+    /// <summary>Longest reference quoted in a ^FE warning.</summary>
+    private const int MaxShownReference = 40;
+
+    /// <summary>What <see cref="PlanFieldNumbers"/> decided for one field.</summary>
+    /// <param name="Data">Data the field draws instead of its own ^FD; null to keep its own.</param>
+    /// <param name="HexIndicator">The ^FH indicator that goes with <paramref name="Data"/> (the supplier's).</param>
+    /// <param name="Skip">True when the field only supplied data for numbered fields and is not drawn itself.</param>
+    private readonly record struct FieldPlan(string? Data, char? HexIndicator, bool Skip);
+
+    // Decisions per field, keyed by the field's position (0 = the field ended by the first ^FS); null when the label
+    // has no ^FN or ^FE at all, which is almost every label.
+    private Dictionary<int, FieldPlan>? _fieldPlans;
+
+    // Position of the field being built: how many ^FS came before it.
+    private int _fieldIndex;
+
+    // Line of the ^FN of the field being built (0 = none), where a field that takes recalled data is reported.
+    private int _fieldNumberLine;
+
+    /// <summary>The plan for the field that is ending now, if any; moves on to the next field.</summary>
+    private FieldPlan? NextFieldPlan()
+    {
+        var index = _fieldIndex++;
+        return _fieldPlans is not null && _fieldPlans.TryGetValue(index, out var plan) ? plan : null;
+    }
+
+    /// <summary>
+    /// Reads the label once, before drawing, to decide where ^FN data goes. A field is everything up to its ^FS.
+    /// A field with ^FNn and no data waits for data. A later field with ^FNn and ^FD (or ^FV) fills every field
+    /// still waiting for n and is then not drawn itself, which is how the ^FN..^FD..^FS lines of a label that recalls
+    /// a format work. When no field is waiting it is drawn like any field, so a plain label that happens to number its
+    /// fields still prints. A field still waiting at the end draws nothing, with one warning for the label.
+    /// </summary>
+    /// <remarks>
+    /// This order (only fields before the supplier are filled; a second supplier finds nothing waiting and is drawn)
+    /// follows how other ZPL viewers behave, because the guide does not say. ^FE references are resolved here as well, from
+    /// the data numbered fields gave before the field.
+    /// </remarks>
+    private static Dictionary<int, FieldPlan>? PlanFieldNumbers(IReadOnlyList<ZplCommand> block, List<RenderWarning> warnings)
+    {
+        if (!block.Any(c => c.Name is "^FN" or "^FE")) return null;
+
+        var plans = new Dictionary<int, FieldPlan>();
+        var known = new Dictionary<int, string>();
+        // Fields waiting for data, per number, with the line of the first one (for the warning).
+        var waiting = new Dictionary<int, (int Line, List<int> Fields)>();
+        var badNumberWarned = false;
+
+        var field = 0;
+        int? number = null;
+        var numberLine = 0;
+        string? data = null;
+        char? hex = null, delimiter = null;
+        var concatenated = false;
+
+        foreach (var cmd in block)
+        {
+            switch (cmd.Name)
+            {
+                case "^FN":
+                    number = ReadFieldNumber(cmd, warnings, ref badNumberWarned);
+                    numberLine = cmd.Line;
+                    break;
+                case "^FH":
+                    // The same reading as the painter's ^FH, so the supplier's escapes decode the same way.
+                    var a = cmd.Args.Split(',');
+                    hex = a[0].Length > 0 ? a[0][0] : '_';
+                    break;
+                case "^FE":
+                    delimiter = cmd.Args.Length > 0 ? cmd.Args[0] : '#';
+                    break;
+                case "^FD":
+                case "^FV":
+                    // ^FE applies to the next ^FD only.
+                    concatenated = delimiter is not null;
+                    data = delimiter is { } d ? Concatenate(cmd, d, known, warnings) : cmd.Args;
+                    delimiter = null;
+                    break;
+                case "^FS":
+                    if (number is { } n)
+                    {
+                        if (data is null)
+                        {
+                            if (!waiting.TryGetValue(n, out var w)) waiting[n] = w = (numberLine, []);
+                            w.Fields.Add(field);
+                        }
+                        else
+                        {
+                            known[n] = data;
+                            if (waiting.Remove(n, out var w))
+                            {
+                                foreach (var target in w.Fields) plans[target] = new FieldPlan(data, hex, false);
+                                plans[field] = new FieldPlan(null, null, true);
+                            }
+                            else if (concatenated)
+                            {
+                                plans[field] = new FieldPlan(data, hex, false);
+                            }
+                        }
+                    }
+                    else if (concatenated && data is not null)
+                    {
+                        plans[field] = new FieldPlan(data, hex, false);
+                    }
+                    field++;
+                    number = null; data = null; hex = null; delimiter = null; concatenated = false;
+                    break;
+            }
+        }
+
+        if (waiting.Count > 0)
+        {
+            // One warning per label, however many numbers wait: a label of 10 000 empty fields is one problem.
+            var ordered = waiting.OrderBy(kv => kv.Value.Line).ThenBy(kv => kv.Key).ToList();
+            var shown = string.Join(", ", ordered.Take(MaxListedNumbers).Select(kv => kv.Key.ToString(CultureInfo.InvariantCulture)));
+            if (ordered.Count > MaxListedNumbers) shown += ", …";
+            warnings.Add(new(ordered[0].Value.Line, Text.Get("Painter_FnNoData", shown)));
+        }
+        return plans;
+    }
+
+    /// <summary>
+    /// The number of ^FN#"prompt" (0 when none is given). The prompt is only shown by keypads, never printed. A number
+    /// outside 0 to 9999 gives null, so the field is drawn as an unnumbered one; the first such number in a label is
+    /// warned about.
+    /// </summary>
+    private static int? ReadFieldNumber(ZplCommand cmd, List<RenderWarning> warnings, ref bool warned)
+    {
+        var quote = cmd.Args.IndexOf('"');
+        var text = (quote >= 0 ? cmd.Args[..quote] : cmd.Args).Trim();
+        if (text.Length == 0) return 0;
+        if (int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n <= MaxFieldNumber) return n;
+        if (!warned)
+        {
+            warned = true;
+            warnings.Add(new(cmd.Line, Text.Get("Painter_FnBadNumber", Clip(text, 20))));
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// ^FE: the ^FD text with every <c>#n#</c> replaced by the data of field n, and every <c>#n,f,x,y#</c> or
+    /// <c>#n,b,x,y#</c> by part of it (y characters from position x, counted from the start or from the end).
+    /// Text between delimiters that is not a reference stays as it is. The result is cut just past
+    /// <see cref="MaxTextFieldCharacters"/>, so many references to long data cannot build a huge string; DrawText then
+    /// says the text was too long. At most one warning per field.
+    /// </summary>
+    private static string Concatenate(ZplCommand cmd, char delimiter, Dictionary<int, string> known, List<RenderWarning> warnings)
+    {
+        var raw = cmd.Args;
+        var result = new StringBuilder();
+        var warned = false;
+        void Warn(string message)
+        {
+            if (warned) return;
+            warned = true;
+            warnings.Add(new(cmd.Line, message));
+        }
+
+        var i = 0;
+        while (i < raw.Length && result.Length <= MaxTextFieldCharacters)
+        {
+            if (raw[i] != delimiter)
+            {
+                result.Append(raw[i++]);
+                continue;
+            }
+            var close = raw.IndexOf(delimiter, i + 1);
+            if (close < 0)
+            {
+                result.Append(raw, i, raw.Length - i);
+                break;
+            }
+            var inner = raw.Substring(i + 1, close - i - 1);
+            var shown = Clip(delimiter + inner + delimiter, MaxShownReference);
+            switch (ReadReference(inner, out var number, out var backward, out var position, out var count))
+            {
+                case ReferenceShape.NotAReference:
+                    // A lone delimiter in ordinary text ("Item #5"): kept, and the search goes on after it.
+                    result.Append(raw[i++]);
+                    continue;
+                case ReferenceShape.BadNumber:
+                    Warn(Text.Get("Painter_FeBadNumber", shown));
+                    break;
+                case var shape:
+                    if (!known.TryGetValue(number, out var value))
+                        Warn(Text.Get("Painter_FeNoData", shown, number));
+                    else if (shape == ReferenceShape.Whole)
+                        AppendCapped(result, value, 0, value.Length);
+                    else
+                        AppendPart(result, value, backward, position, count);
+                    break;
+            }
+            i = close + 1;
+        }
+        if (result.Length > MaxTextFieldCharacters + 1) result.Length = MaxTextFieldCharacters + 1;
+        return result.ToString();
+    }
+
+    /// <summary>Appends the part of field data a <c>f|b,x,y</c> reference asks for.</summary>
+    private static void AppendPart(StringBuilder result, string value, bool backward, int position, int count)
+    {
+        // The guide: a position of 0 or less means the insertion is ignored; a count of 0 or less inserts nothing.
+        if (position <= 0 || count <= 0 || position > value.Length) return;
+        int start, length;
+        if (backward)
+        {
+            // Position 1 is the last character; the part ends there and reaches back count characters.
+            var end = value.Length - position + 1;
+            start = Math.Max(0, end - count);
+            length = end - start;
+        }
+        else
+        {
+            start = position - 1;
+            length = Math.Min(count, value.Length - start);
+        }
+        AppendCapped(result, value, start, length);
+    }
+
+    /// <summary>
+    /// Appends part of <paramref name="value"/>, never more than the cap can still take, so many references to 64 K of
+    /// data stay cheap.
+    /// </summary>
+    private static void AppendCapped(StringBuilder result, string value, int start, int length)
+    {
+        var room = MaxTextFieldCharacters + 1 - result.Length;
+        if (room > 0) result.Append(value, start, Math.Min(length, room));
+    }
+
+    /// <summary>What the text between two ^FE delimiters is.</summary>
+    private enum ReferenceShape { NotAReference, BadNumber, Whole, Part }
+
+    /// <summary>
+    /// Reads <c>n</c> or <c>n,f|b,x,y</c>. Anything else is not a reference. A reference whose numbers are too large
+    /// (a field number above 9999, a position that is not a whole number LabelScope can hold) is a bad number.
+    /// </summary>
+    private static ReferenceShape ReadReference(string inner, out int number, out bool backward, out int position, out int count)
+    {
+        number = 0; backward = false; position = 0; count = 0;
+        var parts = inner.Split(',');
+        if (parts.Length is not (1 or 4) || !IsDigits(parts[0].Trim())) return ReferenceShape.NotAReference;
+        if (parts.Length == 4)
+        {
+            var direction = parts[1].Trim().ToUpperInvariant();
+            if (direction is not ("F" or "B") || !IsInteger(parts[2].Trim()) || !IsInteger(parts[3].Trim()))
+                return ReferenceShape.NotAReference;
+            backward = direction == "B";
+            if (!int.TryParse(parts[2].Trim(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out position) ||
+                !int.TryParse(parts[3].Trim(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out count))
+                return ReferenceShape.BadNumber;
+        }
+        if (!int.TryParse(parts[0].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out number) || number > MaxFieldNumber)
+            return ReferenceShape.BadNumber;
+        return parts.Length == 1 ? ReferenceShape.Whole : ReferenceShape.Part;
+    }
+
+    private static bool IsDigits(string s) => s.Length > 0 && s.All(char.IsAsciiDigit);
+
+    private static bool IsInteger(string s) => IsDigits(s.StartsWith('-') || s.StartsWith('+') ? s[1..] : s);
 }
