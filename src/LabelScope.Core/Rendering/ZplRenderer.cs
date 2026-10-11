@@ -159,14 +159,20 @@ public sealed class ZplRenderer
         {
             if (StoredFormats.TryStore(block, context, warnings)) return;
             var expanded = StoredFormats.Expand(block, context, warnings);
-            var first = LabelPainter.Paint(expanded, options, warnings, context, 0, null, out var serials);
+            // A label with ^SN or ^SF may need more images. They must see printer memory exactly as the first image saw
+            // it at every command, so a copy is taken before the first image changes anything. Only such labels pay
+            // for the copy; every other label takes the same path as before.
+            var serialBlock = expanded.Any(c => c.Name is "^SN" or "^SF");
+            var before = serialBlock ? context.Memory.Fork() : null;
+            var characterSet = context.PendingCharacterSet;
+            var first = LabelPainter.Paint(expanded, options, warnings, context, 0, out var serials);
             // A label without a serial field (almost every label) is one image whose Copies is ^PQ q, as always.
-            if (serials is null)
+            if (serials is null || before is null)
             {
                 labels.Add(first);
                 return;
             }
-            PaintSerialImages(expanded, options, warnings, labels, context, first, serials);
+            PaintSerialImages(expanded, options, warnings, labels, context.Fonts, before, characterSet, first, serials);
         }
         catch (Exception ex)
         {
@@ -177,12 +183,18 @@ public sealed class ZplRenderer
     /// <summary>
     /// A label with ^SN or ^SF: one image per distinct value, each with Copies set to how often that value prints
     /// (^PQ r, the last value what is left of q). The same expanded block is painted again, so a ^XF is not recalled
-    /// twice. The warnings of the later images are thrown away, because they repeat the first image's warnings line
-    /// for line. Past <see cref="Serialization.MaxImages"/> values one warning gives the total and the last value,
-    /// worked out without drawing it.
+    /// twice.
     /// </summary>
+    /// <remarks>
+    /// Each later image is drawn against its own copy of <paramref name="before"/>, the memory as it was before the
+    /// first image, with the same ^CI from before ^XA. A ~DG, ^ID or ^CW inside the label therefore acts at the same
+    /// point on every image, while the real memory and printer setup are changed once, by the first image. The later
+    /// images' warnings and memory notes are thrown away: they repeat the first image's line for line. Past
+    /// <see cref="Serialization.MaxImages"/> values one warning gives the total and the last values, worked out without
+    /// drawing them. A later image that fails ends the run with a warning; the images already drawn are kept.
+    /// </remarks>
     private static void PaintSerialImages(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, List<RenderedLabel> labels,
-                                          PaintContext context, RenderedLabel first, SerialRun serials)
+                                          FontLibrary fonts, PrinterMemory before, (int Set, int Line)? characterSet, RenderedLabel first, SerialRun serials)
     {
         var (quantity, replicates) = (serials.Quantity, serials.Replicates);
         var (_, distinct) = Serialization.Counts(quantity, replicates);
@@ -193,15 +205,27 @@ public sealed class ZplRenderer
         for (long i = 1; i < images; i++)
         {
             scratch.Clear();
-            var image = LabelPainter.Paint(block, options, scratch, context, i, serials, out _);
+            var copy = new PaintContext(before.Fork(), [], fonts) { PendingCharacterSet = characterSet };
+            RenderedLabel image;
+            try
+            {
+                image = LabelPainter.Paint(block, options, scratch, copy, i, out _);
+            }
+            catch (Exception ex)
+            {
+                // The images drawn so far are right and stay; only the rest is missing.
+                warnings.Add(new(block.Count > 0 ? block[0].Line : 1, Text.Get("Render_SerialStopped",
+                    i, images.ToString(CultureInfo.InvariantCulture), ex.Message)));
+                return;
+            }
             labels.Add(image with { Copies = Serialization.CopiesOf(i, quantity, replicates) });
         }
 
         if (distinct > Serialization.MaxImages)
         {
-            var last = Serialization.Shown(serials.FirstSpec.Apply(serials.FirstData, distinct - 1));
-            warnings.Add(new(serials.FirstSpec.Line, Text.Get("Render_SerialCapped",
-                distinct.ToString(CultureInfo.InvariantCulture), quantity.ToString(CultureInfo.InvariantCulture), Serialization.MaxImages, last)));
+            warnings.Add(new(serials.Fields[0].Spec.Line, Text.Get("Render_SerialCapped",
+                distinct.ToString(CultureInfo.InvariantCulture), quantity.ToString(CultureInfo.InvariantCulture),
+                Serialization.MaxImages, serials.ValuesAt(distinct - 1))));
         }
     }
 }

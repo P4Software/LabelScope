@@ -1,5 +1,4 @@
 using System.Globalization;
-using LabelScope.Core.Memory;
 
 namespace LabelScope.Core.Rendering;
 
@@ -30,17 +29,26 @@ internal sealed record SfSpec(string Mask, string Increment, int Line) : SerialS
 }
 
 /// <summary>
-/// What the first image of a label with serial fields hands to <see cref="ZplRenderer"/>, so it can draw the
-/// following values from the same block with the same starting state, and work out the last value without drawing it.
+/// What the first image of a label with serial fields hands to <see cref="ZplRenderer"/>, so it can tell how many
+/// images to draw and work out the last values without drawing them.
 /// </summary>
-/// <param name="Setup">Printer setup as it was before the first image: every image starts from it, not from what the first image left.</param>
-/// <param name="CharacterSet">The ^CI sent before ^XA that the first image used up (null when none).</param>
 /// <param name="Quantity">^PQ q: labels printed in all, replicates included.</param>
 /// <param name="Replicates">^PQ r: prints of each value (0 counts as 1).</param>
-/// <param name="FirstSpec">The counter of the first serial field drawn, named in the "more than 100 values" warning.</param>
-/// <param name="FirstData">That field's data before counting (after ^FN, ^FE and ^FH).</param>
-internal sealed record SerialRun(PrinterSetup.Values Setup, (int Set, int Line)? CharacterSet, long Quantity, long Replicates,
-                                 SerialSpec FirstSpec, string FirstData);
+/// <param name="Fields">The serial fields drawn, in order: counter and data before counting (after ^FN, ^FE and ^FH).
+/// At most <see cref="Serialization.MaxListedFields"/>.</param>
+/// <param name="FieldCount">How many serial fields were drawn in all (may be more than <paramref name="Fields"/> holds).</param>
+internal sealed record SerialRun(long Quantity, long Replicates, IReadOnlyList<(SerialSpec Spec, string Data)> Fields, int FieldCount)
+{
+    /// <summary>
+    /// What the counting fields read on the label with value number <paramref name="index"/>, for a warning: each value
+    /// cut to 40 characters, joined with commas, and "…" when the label has more fields than are kept.
+    /// </summary>
+    public string ValuesAt(long index)
+    {
+        var shown = string.Join(", ", Fields.Select(f => Serialization.Shown(f.Spec.Apply(f.Data, index))));
+        return FieldCount > Fields.Count ? shown + ", …" : shown;
+    }
+}
 
 /// <summary>
 /// The counting rules of ^SN and ^SF. Pure functions of the data and the value number, so a redraw gives the same
@@ -54,6 +62,9 @@ internal static class Serialization
     /// </summary>
     public const int MaxImages = 100;
 
+    /// <summary>Most serial fields whose last value a warning lists; a label may have 100 or more.</summary>
+    public const int MaxListedFields = 5;
+
     /// <summary>The guide: "only the 12 right-most integers can be indexed".</summary>
     private const int MaxSnDigits = 12;
 
@@ -65,7 +76,8 @@ internal static class Serialization
     /// right-most run of digits in the data itself (its right-most 12 digits), because ^SN's v is the field data and
     /// a recalled ^FN field brings its own. The counter keeps its width: it wraps past 999 and below 000 (as other ZPL viewers
     /// draw it; the guide does not say), and with <paramref name="zeros"/> false the leading zeros print as spaces,
-    /// already on the first label. Data without digits prints unchanged.
+    /// already on the first label. With <paramref name="zeros"/> false the spaces just before the digits count as width
+    /// too, as the guide says, so "  9" counts on to " 10". Data without digits prints unchanged.
     /// </summary>
     public static string ApplySn(string data, long step, bool zeros, long index)
     {
@@ -76,11 +88,16 @@ internal static class Serialization
         var start = end;
         while (start > 0 && end - start < MaxSnDigits && char.IsAsciiDigit(data[start - 1])) start--;
 
+        var digitsStart = start;
+        // z=N: the guide counts the spaces in front of the digits as part of the counter, so it can grow into them.
+        if (!zeros)
+            while (start > 0 && end - start < MaxSnDigits && data[start - 1] == ' ') start--;
+
         var width = end - start;
         // 10^12 times 10^12 still fits Int128, so no step or index (both reduced first) can overflow.
         var modulus = Int128.One;
         for (var i = 0; i < width; i++) modulus *= 10;
-        var value = Int128.Parse(data.AsSpan(start, width), NumberStyles.None, CultureInfo.InvariantCulture);
+        var value = Int128.Parse(data.AsSpan(digitsStart, end - digitsStart), NumberStyles.None, CultureInfo.InvariantCulture);
         var offset = (Int128)step % modulus * ((Int128)index % modulus) % modulus;
         value = ((value + offset) % modulus + modulus) % modulus;
 

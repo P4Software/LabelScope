@@ -200,7 +200,9 @@ internal sealed partial class LabelPainter
     /// follows how other ZPL viewers behave, because the guide does not say. ^FE references are resolved here as well, from
     /// the data numbered fields gave before the field.
     /// </remarks>
-    private static Dictionary<int, FieldPlan>? PlanFieldNumbers(IReadOnlyList<ZplCommand> block, List<RenderWarning> warnings)
+    /// <param name="copyIndex">The serial value this image draws: a ^FE reference to a numbered ^SN field sees the counted
+    /// value of this image, not the start value.</param>
+    private static Dictionary<int, FieldPlan>? PlanFieldNumbers(IReadOnlyList<ZplCommand> block, List<RenderWarning> warnings, long copyIndex)
     {
         if (!block.Any(c => c.Name is "^FN" or "^FE")) return null;
         // Only the painter warns about ^SN; this scan reads it again silently.
@@ -262,7 +264,9 @@ internal sealed partial class LabelPainter
                         }
                         else
                         {
-                            known[n] = data;
+                            // ^FE sees what the field prints on this image. The counter runs on the data before ^FH
+                            // decoding here (the painter counts after it); ^SN data rarely carries ^FH escapes.
+                            known[n] = serial is { } counted ? counted.Apply(data, copyIndex) : data;
                             if (waiting.Remove(n, out var w))
                             {
                                 foreach (var target in w.Fields) plans[target] = new FieldPlan(data, hex, false, serial);

@@ -97,6 +97,25 @@ public sealed class PrinterMemory
     }
 
     /// <summary>
+    /// A private copy of this memory as it is now: the same objects, ^CW letters and printer setup, with nothing
+    /// listening to it. The later images of a serial label are each drawn against a copy taken before the first image,
+    /// so a download, ^ID or ^CW inside the label happens at the same point on every image while the real memory is
+    /// changed once only. Stored objects are shared, not copied: they never change after they are stored.
+    /// </summary>
+    internal PrinterMemory Fork()
+    {
+        var copy = new PrinterMemory(MaxBytes, MaxObjects);
+        lock (_gate)
+        {
+            foreach (var (key, value) in _items) copy._items.Add(key, value);
+            foreach (var (id, file) in _fontIds) copy._fontIds.Add(id, file);
+            copy._bytes = _bytes;
+        }
+        copy.Setup.Apply(Setup.Current);
+        return copy;
+    }
+
+    /// <summary>
     /// Finds an object. With a drive only that drive is searched, as a printer does; a same-named object on another
     /// drive is reported in <paramref name="elsewhere"/> so the warning can mention it. Without a drive R:, E:, B:,
     /// A: are searched in that order, then any other drive letter a sender used.
