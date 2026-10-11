@@ -193,7 +193,8 @@ public sealed class PrinterMemory
 
     /// <summary>
     /// Empties the memory and forgets every ^CW font letter, the label setup and the ^MCN background (the window's
-    /// "Clear printer memory" button).
+    /// "Clear printer memory" button). A redraw also calls it on its own memory where the jobs' printer epoch changes
+    /// (<see cref="EpochReplay"/>), to repeat the user's clears.
     /// </summary>
     public void Clear()
     {

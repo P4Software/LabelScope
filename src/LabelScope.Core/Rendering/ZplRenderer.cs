@@ -229,16 +229,17 @@ public sealed class ZplRenderer
             var before = serialBlock || mayKeep ? context.Memory.Fork() : null;
             var first = LabelPainter.Paint(expanded, options, warnings, context, 0, out var serials);
             // A label without a serial field (almost every label) is one image whose Copies is ^PQ q, as always.
-            var lastImage = 0L;
+            // The serial value the ^MCN background shows: the last one the printer prints (0 without serial fields).
+            var keptValue = 0L;
             if (serials is null || before is null)
                 labels.Add(first);
             else
-                lastImage = PaintSerialImages(expanded, options, warnings, labels, context, before, first, serials);
+                keptValue = PaintSerialImages(expanded, options, warnings, labels, context, before, first, serials);
 
             // ^MC as it stands at the end of the label decides what the next label starts on. Labels that never met a
             // ^MCN (almost all) only read two values here.
             if (setup.Current.KeepImage == true && before is not null)
-                KeepImage(expanded, options, warnings, context, before, lastImage);
+                KeepImage(expanded, options, warnings, context, before, keptValue);
             else if (setup.KeptBackground is not null)
                 setup.KeptBackground = null;
         }
@@ -319,8 +320,9 @@ public sealed class ZplRenderer
 
     /// <summary>
     /// ^MCN: keeps the label just drawn, painted again without its ^FV fields, as the background of the next label. A
-    /// printer prints the images of a serial label in order, so the last image drawn is the one kept (its ^FD and ^SN
-    /// fields with their last values).
+    /// printer prints the values of a serial label in order, so the background shows the last value it prints (its ^FD
+    /// and ^SN fields with their last values), even when LabelScope drew fewer images than the printer prints: the
+    /// background is painted for that value directly.
     /// </summary>
     /// <remarks>
     /// The second paint follows the serial images' pattern: <paramref name="before"/> (memory as it was before the label,

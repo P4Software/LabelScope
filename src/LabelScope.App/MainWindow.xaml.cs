@@ -292,13 +292,15 @@ public partial class MainWindow : Window
             // labels must not be able to hold many extra copies in memory at once.
             string formatted;
             RenderResult result;
-            // Read once, before deciding the join and drawing, so the job's epoch, the join and the drawing agree. A
-            // Clear that lands while the label is being drawn is a race this does not close: the label keeps the epoch
-            // it started in, which at worst makes its redraw differ from what was shown live.
-            var epoch = _epoch.Current;
+            Guid epoch;
             _renderGate.Wait();
             try
             {
+                // Read once, inside the gate (a backlog can make the wait long, and a Clear may happen during it), and
+                // before deciding the join and drawing, so the job's epoch, the join and the drawing agree. A Clear that
+                // lands while the label is being drawn is a race this does not close: the label keeps the epoch it
+                // started in, which at worst makes its redraw differ from what was shown live.
+                epoch = _epoch.Current;
                 formatted = ZplFormatter.Format(received.Zpl);
                 // The clock fields (^FC) show the time the job arrived, so a redraw shows the same time. Whether the
                 // label joins the open job of its connection is decided first: a joining label is drawn at that job's
