@@ -109,7 +109,13 @@ internal sealed partial class LabelPainter : IDisposable
         }
         // Which field gets the data of which ^FN number, decided once before drawing (see PlanFieldNumbers).
         painter._fieldPlans = PlanFieldNumbers(block, warnings);
-        foreach (var cmd in block) painter.Handle(cmd);
+        // The plan is keyed by the position of each field's ^FS in this very list, and the painter is told that
+        // position here: the scan and the drawing read the same list, so they cannot disagree about which field is which.
+        for (var i = 0; i < block.Count; i++)
+        {
+            painter._commandIndex = i;
+            painter.Handle(block[i]);
+        }
         painter.SaveImageIfAsked();
 
         // What this label set is kept for the jobs that follow. Only what the ZPL itself sent is kept: the loaded
@@ -351,7 +357,7 @@ internal sealed partial class LabelPainter : IDisposable
     {
         // A field that only supplied data for numbered fields drawn elsewhere is not drawn itself; a numbered field
         // that waited for data takes it here, with the supplier's ^FH, as a printer fills a recalled format.
-        var plan = NextFieldPlan();
+        var plan = FieldPlanHere();
         if (plan is { Skip: true })
         {
             ClearField();

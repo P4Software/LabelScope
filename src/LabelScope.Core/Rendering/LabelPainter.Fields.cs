@@ -171,22 +171,19 @@ internal sealed partial class LabelPainter
     /// <param name="Skip">True when the field only supplied data for numbered fields and is not drawn itself.</param>
     private readonly record struct FieldPlan(string? Data, char? HexIndicator, bool Skip);
 
-    // Decisions per field, keyed by the field's position (0 = the field ended by the first ^FS); null when the label
-    // has no ^FN or ^FE at all, which is almost every label.
+    // Decisions per field, keyed by the position of the field's ^FS in the painted block; null when the label has no
+    // ^FN or ^FE at all, which is almost every label.
     private Dictionary<int, FieldPlan>? _fieldPlans;
 
-    // Position of the field being built: how many ^FS came before it.
-    private int _fieldIndex;
+    // Position in the painted block of the command being handled, set by Paint before each command.
+    private int _commandIndex;
 
     // Line of the ^FN of the field being built (0 = none), where a field that takes recalled data is reported.
     private int _fieldNumberLine;
 
-    /// <summary>The plan for the field that is ending now, if any; moves on to the next field.</summary>
-    private FieldPlan? NextFieldPlan()
-    {
-        var index = _fieldIndex++;
-        return _fieldPlans is not null && _fieldPlans.TryGetValue(index, out var plan) ? plan : null;
-    }
+    /// <summary>The plan for the field the current ^FS ends, if any.</summary>
+    private FieldPlan? FieldPlanHere() =>
+        _fieldPlans is not null && _fieldPlans.TryGetValue(_commandIndex, out var plan) ? plan : null;
 
     /// <summary>
     /// Reads the label once, before drawing, to decide where ^FN data goes. A field is everything up to its ^FS.
@@ -210,15 +207,15 @@ internal sealed partial class LabelPainter
         var waiting = new Dictionary<int, (int Line, List<int> Fields)>();
         var badNumberWarned = false;
 
-        var field = 0;
         int? number = null;
         var numberLine = 0;
         string? data = null;
         char? hex = null, delimiter = null;
         var concatenated = false;
 
-        foreach (var cmd in block)
+        for (var index = 0; index < block.Count; index++)
         {
+            var cmd = block[index];
             switch (cmd.Name)
             {
                 case "^FN":
@@ -241,6 +238,8 @@ internal sealed partial class LabelPainter
                     delimiter = null;
                     break;
                 case "^FS":
+                    // A field is known by the position of its ^FS, the same key the painter looks up.
+                    var field = index;
                     if (number is { } n)
                     {
                         if (data is null)
@@ -266,7 +265,6 @@ internal sealed partial class LabelPainter
                     {
                         plans[field] = new FieldPlan(data, hex, false);
                     }
-                    field++;
                     number = null; data = null; hex = null; delimiter = null; concatenated = false;
                     break;
             }

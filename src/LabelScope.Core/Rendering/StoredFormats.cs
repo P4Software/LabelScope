@@ -12,8 +12,9 @@ internal static class StoredFormats
     internal const int MaxDepth = 8;
 
     /// <summary>
-    /// Most commands one label may hold after every ^XF is replaced. Without it, a format that recalls another one
-    /// forty times, six levels deep, would ask for billions of commands. No real label comes near this number.
+    /// Most commands one expansion may visit, recalls included. Without it, a format that recalls another one forty
+    /// times, seven levels deep, would ask for billions of commands, or billions of recalls when the last format draws
+    /// nothing. No real label comes near this number.
     /// </summary>
     internal const int MaxExpandedCommands = 100_000;
 
@@ -74,6 +75,12 @@ internal static class StoredFormats
         // Recall warnings already given: a label that recalls one missing format a thousand times hears it once.
         private readonly HashSet<string> _warned = new(StringComparer.Ordinal);
         private bool _full;
+        // Commands visited so far, ^XF included, counted against MaxExpandedCommands: every step of the work is
+        // counted, so neither long formats nor formats made only of recalls can run without end.
+        private int _visited;
+        // ^XF arguments already looked up, and names already reported missing (see Look and Recall).
+        private readonly Dictionary<string, (ObjectName Name, StoredFormat? Format)> _lookups = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _missing = new(StringComparer.Ordinal);
 
         /// <summary>The expanded commands.</summary>
         public List<ZplCommand> Result { get; } = [];
@@ -88,15 +95,15 @@ internal static class StoredFormats
             foreach (var cmd in commands)
             {
                 if (_full) return;
+                if (++_visited > MaxExpandedCommands)
+                {
+                    // One warning, then nothing more is done: every loop of the recursion stops at once on _full.
+                    _full = true;
+                    warnings.Add(new(line ?? cmd.Line, Text.Get("Format_TooLarge", MaxExpandedCommands)));
+                    return;
+                }
                 if (cmd.Name != "^XF")
                 {
-                    if (Result.Count >= MaxExpandedCommands)
-                    {
-                        // One warning, then nothing more is added: the loops above stop at once on _full.
-                        _full = true;
-                        warnings.Add(new(line ?? cmd.Line, Text.Get("Format_TooLarge", MaxExpandedCommands)));
-                        return;
-                    }
                     Result.Add(line is { } l ? cmd with { Line = l } : cmd);
                     continue;
                 }
@@ -108,11 +115,12 @@ internal static class StoredFormats
         private void Recall(ZplCommand xf, int line, int depth)
         {
             if (_full) return;
-            // Without a drive the format is searched on R:, E:, B:, A: in turn, as the guide says for ^XF.
-            var name = ObjectName.Parse(xf.Args.Split(',')[0], "ZPL", null) with { Extension = "ZPL" };
+            var (name, format) = Look(xf.Args);
             var shown = (name.Drive is null ? name.OnDrive('R') : name).Display;
-            if (memory.Find(name, out _) is not StoredFormat format)
+            if (format is null)
             {
+                // Checked before the message is built: a fan-out may meet the same missing name 100 000 times.
+                if (!_missing.Add(name.Key)) return;
                 var searched = name.Drive is { } d ? $"{d}:" : string.Join(", ", ObjectName.SearchOrder.Select(c => $"{c}:"));
                 Warn(line, Text.Get("Format_NotFound", shown, searched));
                 return;
@@ -130,6 +138,20 @@ internal static class StoredFormats
             _active.Add(format);
             Add(format.Commands, line, depth + 1);
             _active.RemoveAt(_active.Count - 1);
+        }
+
+        /// <summary>
+        /// The name an ^XF argument gives and the format it finds, looked up once per distinct argument: memory does
+        /// not change while one label is expanded, and a fan-out repeats the same few recalls many thousand times.
+        /// </summary>
+        private (ObjectName Name, StoredFormat? Format) Look(string args)
+        {
+            if (_lookups.TryGetValue(args, out var hit)) return hit;
+            // Without a drive the format is searched on R:, E:, B:, A: in turn, as the guide says for ^XF.
+            var name = ObjectName.Parse(args.Split(',')[0], "ZPL", null) with { Extension = "ZPL" };
+            hit = (name, memory.Find(name, out _) as StoredFormat);
+            _lookups[args] = hit;
+            return hit;
         }
 
         /// <summary>Adds a recall warning unless the same one was already given for this label.</summary>
