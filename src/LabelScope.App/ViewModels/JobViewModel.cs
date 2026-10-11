@@ -118,11 +118,12 @@ public sealed class JobViewModel : INotifyPropertyChanged
         {
             var result = Job.Result;
             if (result.Labels.Count > 0) return PlaceholderKind.None;
-            // Without any ^XA the data holds no label; a download (~DG, ~DY) is then a "stored in memory" job, which
-            // is a success. With a ^XA the label exists but could not be drawn.
+            // A download (~DG, ~DY) outside any label, or a ^DF label that stores a format, prints nothing on a printer
+            // either: a "stored in memory" job, which is a success. Otherwise, with a ^XA the label exists but could not
+            // be drawn, and without one the data holds no label.
+            if (result.OnlyStored) return PlaceholderKind.StoredOnly;
             var hasStart = Job.Zpl.Contains("^XA", StringComparison.OrdinalIgnoreCase);
-            if (hasStart) return PlaceholderKind.NotDrawn;
-            return result.MemoryNotes.Count > 0 ? PlaceholderKind.StoredOnly : PlaceholderKind.NoLabel;
+            return hasStart ? PlaceholderKind.NotDrawn : PlaceholderKind.NoLabel;
         }
     }
 

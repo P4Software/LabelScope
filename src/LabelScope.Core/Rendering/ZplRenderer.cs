@@ -65,6 +65,16 @@ public sealed class ZplRenderer
         // Line of the command being handled, for the last-resort warning below.
         var line = 1;
 
+        // ^XA..^XZ blocks met, and how many of them were ^DF blocks that stored a format instead of drawing. The window
+        // uses them to show a job made only of ^DF labels as "stored in memory", not as a label that could not be drawn.
+        var blocks = 0;
+        var formatBlocks = 0;
+        void PaintBlock()
+        {
+            blocks++;
+            if (PaintSafely(block, options, warnings, labels, context)) formatBlocks++;
+        }
+
         try
         {
             // The prefixes and delimiter are printer state: this job is read with what the last one left set, and the
@@ -101,7 +111,7 @@ public sealed class ZplRenderer
                         if (inLabel)
                         {
                             warnings.Add(new(cmd.Line, Text.Get("Render_XaBeforeXz")));
-                            PaintSafely(block, options, warnings, labels, context);
+                            PaintBlock();
                             block.Clear();
                         }
                         inLabel = true;
@@ -110,7 +120,7 @@ public sealed class ZplRenderer
                     case "^XZ":
                         if (inLabel)
                         {
-                            PaintSafely(block, options, warnings, labels, context);
+                            PaintBlock();
                             block.Clear();
                             inLabel = false;
                         }
@@ -142,7 +152,7 @@ public sealed class ZplRenderer
             if (inLabel)
             {
                 warnings.Add(new(block.Count > 0 ? block[^1].Line : 1, Text.Get("Render_NoXz")));
-                PaintSafely(block, options, warnings, labels, context);
+                PaintBlock();
             }
 
             // A job written with ^ that arrives after an earlier job changed the format prefix reads as plain text, so
@@ -162,7 +172,7 @@ public sealed class ZplRenderer
             warnings.Add(new(line, Text.Get("Render_StoppedAtLine", line)));
         }
 
-        return new RenderResult(labels, warnings) { MemoryNotes = notes };
+        return new RenderResult(labels, warnings) { MemoryNotes = notes, LabelBlocks = blocks, StoredFormatBlocks = formatBlocks };
     }
 
     /// <summary>
@@ -201,11 +211,12 @@ public sealed class ZplRenderer
     /// example, not enough memory for a very large label) becomes a warning, so one bad label cannot take the whole
     /// render down.
     /// </summary>
-    private static void PaintSafely(List<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, List<RenderedLabel> labels, PaintContext context)
+    /// <returns>True when the block was a ^DF block (stored, or refused with a warning) and so drew no label.</returns>
+    private static bool PaintSafely(List<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, List<RenderedLabel> labels, PaintContext context)
     {
         try
         {
-            if (StoredFormats.TryStore(block, context, warnings)) return;
+            if (StoredFormats.TryStore(block, context, warnings)) return true;
             var expanded = StoredFormats.Expand(block, context, warnings);
             // A label with ^SN or ^SF may need more images. They must see printer memory exactly as the first image saw
             // it at every command, so a copy is taken before the first image changes anything. Only such labels pay
@@ -235,6 +246,7 @@ public sealed class ZplRenderer
         {
             warnings.Add(new(block.Count > 0 ? block[0].Line : 1, Text.Get("Render_LabelNotDrawn", ex.Message)));
         }
+        return false;
     }
 
     /// <summary>

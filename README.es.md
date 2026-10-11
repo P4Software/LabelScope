@@ -25,7 +25,7 @@
   &nbsp;·&nbsp;
   <a href="https://github.com/P4Software/LabelScope/releases/latest">Todas las versiones</a>
   <br>
-  <sub>Versión 0.4.1 · Windows 10 u 11 de 64 bits · gratis · no hacen falta permisos de administrador para instalar</sub>
+  <sub>Versión 0.5.0 · Windows 10 u 11 de 64 bits · gratis · no hacen falta permisos de administrador para instalar</sub>
 </p>
 
 ---
@@ -154,33 +154,36 @@ LabelScope dibuja lo que entiende y **le avisa de todo lo demás**. El objetivo 
 | Grupo | Comandos |
 |---|---|
 | Etiqueta y campos | `^XA ^XZ ^PW ^LL ^LH ^LR ^PO ^PQ ^FO ^FT ^FD ^FS ^FW ^FH ^FB ^FR ^FX ^CF` |
-| Juegos de caracteres | `^CI`: `^CI28` (UTF-8) y los otros juegos Unicode 29 y 30 se dibujan como los imprime una impresora. `^CI0` a `^CI27` y 31 a 36 son exactos para texto ASCII simple |
+| Juegos de caracteres | `^CI`: todos los juegos de caracteres, decodificados como lo hace la impresora, con reasignación. El juego sigue vigente para las etiquetas siguientes, como en una impresora |
 | Texto y fuentes | `^A` con las fuentes `0`, `A` a `H` y `P` a `V`; `^A@` y `^CW` con sus propias fuentes |
 | Formas | `^GB ^GC ^GD` |
 | Códigos de barras | `^BY ^BC ^B3 ^BL ^BA ^BE ^BU ^B8 ^B9 ^B2 ^BK ^B1 ^BM ^BQ ^BX ^B7`: Code 128, Code 39, LOGMARS, Code 93, EAN-13, UPC-A, EAN-8, UPC-E, Interleaved 2 of 5, Codabar, Code 11, MSI, QR Code, Data Matrix, PDF417 |
 | Gráficos | `^GF` (hexadecimal ASCII, compresión Zebra, Z64, B64), `~DG ~DY ^XG ^IM ^IL ^IS ^ID ~DN` |
+| Formatos almacenados | `^DF ^XF ^FN ^FE ^FV`: guarde una etiqueta una vez y complete sus campos numerados desde etiquetas posteriores |
+| Números de serie | `^SN ^SF` con `^PQ`: cada copia se dibuja con su propio número, hasta 100 por etiqueta |
+| Campos de fecha y hora | `^FC ^SO ^SL ^ST`: fechas y horas como las imprime la impresora, en el momento en que llegó el trabajo |
+| Fondo conservado | `^MC`: con `^MCN` una etiqueta se conserva como fondo de la siguiente |
+| Caracteres de comando cambiados | `^CC ^CD ^CT ~CC ~CD ~CT`: etiquetas que usan otro carácter en lugar de `^`, `~` o la coma |
 
 **Todavía no.** Estos muestran un aviso y se omiten, y son los primeros de la fila para la próxima versión:
 
-- Formatos almacenados y contadores: `^DF` / `^XF`, `^SN`, `^FV`.
-- Juegos de caracteres: las letras acentuadas y otras letras no ASCII en las páginas de códigos de un byte (`^CI0` a `^CI27`, 31 a 36, como CP850) todavía se están completando. Una etiqueta así muestra un aviso que nombra el juego.
 - Códigos de barras: `^BI ^BJ ^BP ^BS ^B5 ^BZ ^BR ^BD ^B0 ^BO ^B4 ^BB ^BT ^BF` (industrial 2 of 5, Plessey, complementos, códigos postales, GS1 DataBar, MaxiCode, Aztec, Code 49, CODABLOCK, TLC39, MicroPDF417).
 - Gráficos: datos binarios (`^GF` y `~DY` formato B), la compresión AR de Zebra (formato C), fuentes de mapa de bits descargables (`~DB`). `~EG` muestra un aviso; use `^ID`.
 
-Algunos comandos que cambian el comportamiento de la impresora pero no la imagen (`^MN ^MM ^MD ^MT ^PR ^JU`) se ignoran sin aviso.
+Algunos comandos que cambian el comportamiento de la impresora pero no la imagen (`^MN ^MM ^MD ^MT ^PR ^JU ^KD`) se ignoran sin aviso.
 
 ### Límites que conviene conocer
 
 - **Las fuentes son aproximadas en forma y exactas en tamaño.** Las fuentes propias de Zebra tienen licencia y no se pueden distribuir, así que LabelScope dibuja las fuentes A a H con los tamaños de celda de Zebra, y la fuente 0 y P a V con Noto Sans ExtraCondensed Bold colocada y dimensionada como la fuente 0 de Zebra. Las mayúsculas empiezan en la línea de `^FO` y tienen la misma altura que en una impresora, y el largo de las líneas queda dentro de un 2 % aproximadamente. La forma de las letras es distinta. Las fuentes OCR E y H se dibujan con una fuente sencilla de ancho fijo. Los caracteres que una fuente no tiene se imprimen como espacios, con un aviso. LabelScope es una herramienta de vista previa, no un reemplazo exacto al píxel de una impresora.
 - **Los códigos de barras y los gráficos se dibujan según las reglas publicadas y todavía no se han comparado con una impresora Zebra real.** Se decodifican correctamente con un decodificador independiente, pero pueden variar pequeños detalles: el margen en blanco alrededor de un símbolo, el tamaño elegido para PDF417 cuando la etiqueta no indica columnas ni filas, o el tamaño de los dígitos bajo EAN/UPC. En PDF417 la altura de fila (`h`) se toma en puntos; una impresora puede multiplicarla por el ancho de módulo. Pruebe siempre a escanear una etiqueta importante en su impresora real.
-- **La memoria de impresora dura mientras LabelScope está abierto.** Los gráficos y fuentes enviados con `~DG`, `~DY` o `^IS`, y las letras de fuente asignadas con `^CW`, se conservan, como en la unidad R: de una impresora, hasta que cierre LabelScope o pulse **Borrar memoria de impresora** (en el menú **...**), hasta 64 MB o 1000 objetos. Una etiqueta que usa un gráfico que LabelScope nunca recibió se dibuja sin él, con un aviso que nombra el archivo.
+- **La memoria de impresora dura mientras LabelScope está abierto.** Los gráficos y fuentes enviados con `~DG`, `~DY` o `^IS`, las letras de fuente asignadas con `^CW` y los formatos guardados con `^DF` se conservan, como en la unidad R: de una impresora, hasta que cierre LabelScope o pulse **Borrar memoria de impresora** (en el menú **...**), hasta 64 MB o 1000 objetos. Una etiqueta que usa un gráfico o un formato que LabelScope nunca recibió se dibuja sin él, con un aviso que nombra el archivo. Borrar memoria de impresora también olvida la configuración que se conserva de trabajos anteriores: tamaño de etiqueta, `^CI`, ajustes del reloj, el fondo de `^MCN` y los caracteres de comando cambiados.
 - **El tamaño de la etiqueta viene del ZPL.** El ancho es `^PW` y el largo es `^LL`, de la propia etiqueta o de un trabajo anterior; los programas de etiquetas suelen enviarlos una vez en un trabajo de configuración, y LabelScope los conserva (con `^LH`, `^PO` y `^LR`) como lo hace una impresora. Cuando el ZPL nunca da un tamaño, LabelScope usa la etiqueta cargada en Configurar impresora o elegida en la lista de tamaños de la barra de herramientas (4 x 6 pulg. a 203 ppp al principio). El tamaño está limitado a 8000 puntos por lado y 40 millones de puntos en total, con un aviso.
-- **`^BY`, `^FW` y `^CF` se aplican a una sola etiqueta.** Cada etiqueta empieza con los ajustes de impresora iniciales, así que repita el comando en cada etiqueta que lo necesite.
-- **Datos gráficos binarios y separación de trabajos.** LabelScope separa un envío en cada `^XZ`, incluso dentro de datos gráficos binarios. Por ahora, envíe los gráficos en hexadecimal ASCII o Z64.
+- **`^BY`, `^FW` y `^CF` se aplican a una sola etiqueta.** Cada etiqueta empieza sin ellos, así que repita el comando en cada etiqueta que lo necesite.
+- **Datos gráficos binarios.** Un envío que lleva un `^GF` o `~DY` binario se mantiene entero, pero el gráfico todavía no se dibuja. Por ahora, envíe los gráficos en hexadecimal ASCII o Z64.
 - **`^GF` se pinta donde está escrito.** Un `^FR` escrito después de `^GF` en el mismo campo no lo invierte; ponga `^FR` antes de `^GF`.
 - **No se verifica el valor de comprobación de los gráficos Z64 y B64.** Zebra no publica el método. Los datos Z64 se siguen comprobando con la suma de verificación de su propia compresión y con su tamaño.
 - **Detalles de los códigos de barras.** Data Matrix con calidad 0 a 140 se dibuja como el tipo moderno ECC 200, con un aviso. Los identificadores de aplicación GS1 en el modo D de Code 128 no se validan. Los datos QR con letras acentuadas se envían como Latin-1 cuando todos los caracteres caben, mientras que una impresora configurada en UTF-8 envía UTF-8; ambos se escanean, pero los bytes leídos pueden diferir.
-- **Codificación del texto.** Cada etiqueta se lee primero como UTF-8 y, si no es UTF-8 válido, como Windows-1252. Las etiquetas con `^CI28` dibujan las letras acentuadas exactamente. Con un juego `^CI` de un byte, el texto ASCII simple es exacto; otras letras pueden diferir de la impresora y la etiqueta lo indica con un aviso. Una etiqueta que anuncia `^CI28` pero no envía UTF-8 también recibe un aviso.
+- **Codificación del texto.** Cada etiqueta se lee primero como UTF-8 y, si no es UTF-8 válido, como Windows-1252. Luego `^CI` decodifica el texto como lo hace la impresora: `^CI28` como UTF-8 y un juego de un byte, como `^CI13`, con su página de códigos, códigos `^FH` incluidos. El texto enviado en UTF-8 con un juego de un byte sale con letras equivocadas, como en una impresora, con un aviso que dice qué cambiar. Una etiqueta sin `^CI`, ni en ella ni en un trabajo anterior, se dibuja tal como llegó, porque no se puede saber con qué juego arranca la impresora. Una etiqueta que anuncia `^CI28` pero no envía UTF-8 también recibe un aviso.
 - **Velocidad.** Las etiquetas habituales aparecen al instante, y un envío de 5000 etiquetas se dibuja en unos 16 segundos. Una etiqueta que coloca decenas de gráficos de tamaño completo puede tardar varios segundos. Un campo de texto de más de 65536 caracteres se corta, con un aviso. Una sola etiqueta de más de 16 MB sin `^XZ` se descarta, con un mensaje.
 - **Las esquinas redondeadas de `^GB` se dibujan rectas**, con un aviso.
 
@@ -292,7 +295,10 @@ assets/                 Logotipo, icono y capturas de pantalla
 - [x] **0.3.0** Gráficos, imágenes y fuentes propias; instalador firmado
 - [x] **0.4.0** Ventana nueva, pestaña Campos, aviso en rojo para códigos de barras que no se podrán escanear, interfaz completa en español, Configurar impresora, conservar trabajos
 - [x] **0.4.1** Portugués (Brasil) y francés
-- [ ] **0.5** ZPL completo: las páginas de códigos `^CI` restantes, `^DF` / `^XF`, `^SN`, `^FV`, los códigos de barras restantes, gráficos binarios
+- [x] **0.5.0** Todos los juegos de caracteres `^CI`, formatos almacenados, números de serie, campos de fecha y hora, fondo conservado, caracteres de comando cambiados
+- [ ] **0.6.0** Los códigos de barras restantes
+- [ ] **0.7.0** Gráficos binarios y los comandos de gráficos y diseño restantes
+- [ ] **0.8.0** Respuestas a las consultas de estado de la impresora
 - [ ] Comparación de códigos de barras y gráficos con una impresora Zebra real
 - [ ] Opcional: guardar automáticamente cada etiqueta recibida en archivos PDF o de imagen
 

@@ -94,6 +94,8 @@ public sealed class JobAssembler
             [.. before.Warnings, .. result.Warnings.Select(w => w with { Line = w.Line + offset })])
         {
             MemoryNotes = [.. before.MemoryNotes, .. result.MemoryNotes],
+            LabelBlocks = before.LabelBlocks + result.LabelBlocks,
+            StoredFormatBlocks = before.StoredFormatBlocks + result.StoredFormatBlocks,
         };
 
         var job = new LabelJob

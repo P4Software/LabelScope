@@ -32,7 +32,7 @@
   <data name="Ui_CopyOriginal" xml:space="preserve"><value>Copiar ZPL original</value></data>
   <data name="Ui_CopyOriginalTip" xml:space="preserve"><value>Copia el ZPL exactamente como se recibió</value></data>
   <data name="Ui_ClearMemory" xml:space="preserve"><value>Borrar memoria de impresora</value></data>
-  <data name="Ui_ClearMemoryTip" xml:space="preserve"><value>Borra los gráficos y fuentes que LabelScope guarda de las descargas ~DG, ~DY e ^IS, y las letras de fuente asignadas con ^CW</value></data>
+  <data name="Ui_ClearMemoryTip" xml:space="preserve"><value>Borra todo lo que LabelScope guarda en su memoria de impresora: gráficos y fuentes de las descargas ~DG, ~DY e ^IS, letras de fuente de ^CW, formatos guardados con ^DF y la configuración de etiqueta que se conserva entre trabajos</value></data>
   <data name="Ui_LightGrid" xml:space="preserve"><value>Cuadrícula ligera (10 mm)</value></data>
   <data name="Ui_StackedLayout" xml:space="preserve"><value>Vista apilada</value></data>
   <data name="Ui_OpenLog" xml:space="preserve"><value>Abrir carpeta de registros</value></data>
@@ -135,11 +135,15 @@ Windows le pedirá permiso una vez. ¿Desea continuar?</value></data>
   <data name="Ui_ClearJobsAsk" xml:space="preserve"><value>¿Quitar los {0} trabajos de la lista?
 
 Solo se vacía la lista. Los gráficos y fuentes de la memoria de la impresora se conservan.</value></data>
-  <data name="Ui_ClearMemoryAsk" xml:space="preserve"><value>¿Borrar todo lo que LabelScope guarda en su memoria de impresora (gráficos y fuentes descargados, y letras de fuente asignadas con ^CW)?
+  <data name="Ui_ClearMemoryAsk" xml:space="preserve"><value>¿Borrar todo lo que LabelScope guarda en su memoria de impresora?
 
-Las etiquetas que usan esos gráficos, fuentes o letras de fuente mostrarán una advertencia hasta que se vuelva a enviar la descarga o el ^CW.</value></data>
+• Gráficos y fuentes descargados, y letras de fuente asignadas con ^CW
+• Formatos guardados con ^DF
+• La configuración de etiqueta que se conserva de trabajos anteriores: tamaño y origen de la etiqueta, juego de caracteres (^CI), ajustes del reloj, el fondo que guarda ^MCN y los caracteres de comando cambiados (^CC, ^CD, ^CT)
+
+Las etiquetas que usan un gráfico, una fuente o un formato borrado mostrarán una advertencia hasta que se vuelva a enviar.</value></data>
   <data name="Ui_MemoryCleared" xml:space="preserve"><value>Se borró la memoria de impresora de LabelScope.</value></data>
-  <data name="Ui_MemoryTip" xml:space="preserve"><value>Memoria de impresora: {0}. Los gráficos y fuentes enviados con ~DG, ~DY o ^IS, y las letras de fuente asignadas con ^CW, se guardan aquí hasta que se cierre LabelScope o elija Borrar memoria de impresora.</value></data>
+  <data name="Ui_MemoryTip" xml:space="preserve"><value>Memoria de impresora: {0}. Los gráficos y fuentes enviados con ~DG, ~DY o ^IS, las letras de fuente asignadas con ^CW, los formatos guardados con ^DF y la configuración de etiqueta de trabajos anteriores se guardan aquí hasta que se cierre LabelScope o elija Borrar memoria de impresora.</value></data>
   <data name="Ui_OpenPathFailed" xml:space="preserve"><value>Windows no pudo abrir {0}. Ábralo usted mismo en el Explorador de archivos.</value></data>
   <data name="Ui_UpdateAvailable" xml:space="preserve"><value>Hay una nueva versión de LabelScope ({0}). Elija “Actualizar a {0}” en la barra de herramientas para instalarla.</value></data>
   <data name="Ui_UpToDate" xml:space="preserve"><value>Ya tiene la versión más reciente ({0}).</value></data>

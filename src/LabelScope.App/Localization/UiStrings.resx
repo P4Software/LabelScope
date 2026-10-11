@@ -32,7 +32,7 @@
   <data name="Ui_CopyOriginal" xml:space="preserve"><value>Copy original ZPL</value></data>
   <data name="Ui_CopyOriginalTip" xml:space="preserve"><value>Copies the ZPL exactly as it was received</value></data>
   <data name="Ui_ClearMemory" xml:space="preserve"><value>Clear printer memory</value></data>
-  <data name="Ui_ClearMemoryTip" xml:space="preserve"><value>Deletes the graphics and fonts that LabelScope keeps from ~DG, ~DY and ^IS downloads, and the font letters set with ^CW</value></data>
+  <data name="Ui_ClearMemoryTip" xml:space="preserve"><value>Deletes everything LabelScope keeps in its printer memory: graphics and fonts from ~DG, ~DY and ^IS downloads, ^CW font letters, formats stored with ^DF, and the label setup kept between jobs</value></data>
   <data name="Ui_LightGrid" xml:space="preserve"><value>Light grid (10 mm)</value></data>
   <data name="Ui_StackedLayout" xml:space="preserve"><value>Stacked layout</value></data>
   <data name="Ui_OpenLog" xml:space="preserve"><value>Open log folder</value></data>
@@ -135,11 +135,15 @@ Windows will ask for permission once. Continue?</value></data>
   <data name="Ui_ClearJobsAsk" xml:space="preserve"><value>Remove all {0} jobs from the list?
 
 This only clears the list. Graphics and fonts in printer memory are kept.</value></data>
-  <data name="Ui_ClearMemoryAsk" xml:space="preserve"><value>Delete everything LabelScope keeps in its printer memory (downloaded graphics and fonts, and font letters set with ^CW)?
+  <data name="Ui_ClearMemoryAsk" xml:space="preserve"><value>Delete everything LabelScope keeps in its printer memory?
 
-Labels that use these graphics, fonts or font letters will show a warning until the download or ^CW is sent again.</value></data>
+• Downloaded graphics and fonts, and font letters set with ^CW
+• Formats stored with ^DF
+• The label setup kept from earlier jobs: label size and home, character set (^CI), clock settings, the background kept by ^MCN, and changed command characters (^CC, ^CD, ^CT)
+
+Labels that use a deleted graphic, font or format will show a warning until it is sent again.</value></data>
   <data name="Ui_MemoryCleared" xml:space="preserve"><value>LabelScope's printer memory was cleared.</value></data>
-  <data name="Ui_MemoryTip" xml:space="preserve"><value>Printer memory: {0}. Graphics and fonts sent with ~DG, ~DY or ^IS, and font letters set with ^CW, are kept here until LabelScope closes or you choose Clear printer memory.</value></data>
+  <data name="Ui_MemoryTip" xml:space="preserve"><value>Printer memory: {0}. Graphics and fonts sent with ~DG, ~DY or ^IS, font letters set with ^CW, formats stored with ^DF and the label setup of earlier jobs are kept here until LabelScope closes or you choose Clear printer memory.</value></data>
   <data name="Ui_OpenPathFailed" xml:space="preserve"><value>Windows could not open {0}. Open it yourself in File Explorer.</value></data>
   <data name="Ui_UpdateAvailable" xml:space="preserve"><value>A new version of LabelScope is available ({0}). Choose “Update to {0}” in the toolbar to install it.</value></data>
   <data name="Ui_UpToDate" xml:space="preserve"><value>You have the newest version ({0}).</value></data>

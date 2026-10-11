@@ -57,4 +57,19 @@ public sealed record RenderResult(IReadOnlyList<RenderedLabel> Labels, IReadOnly
 {
     /// <summary>What this ZPL stored in or deleted from printer memory, in plain language; empty when nothing.</summary>
     public IReadOnlyList<string> MemoryNotes { get; init; } = [];
+
+    /// <summary>Number of ^XA..^XZ blocks read, whether they drew a label, stored a format or failed.</summary>
+    public int LabelBlocks { get; init; }
+
+    /// <summary>
+    /// Number of those blocks that held a ^DF and so stored a format instead of drawing. When it equals
+    /// <see cref="LabelBlocks"/> and nothing was drawn, the job only stored things in printer memory.
+    /// </summary>
+    public int StoredFormatBlocks { get; init; }
+
+    /// <summary>
+    /// True when the job drew nothing and only stored in or deleted from printer memory: downloads outside any label
+    /// and ^DF labels, which a printer does not print either. A success, not a label that could not be drawn.
+    /// </summary>
+    public bool OnlyStored => Labels.Count == 0 && MemoryNotes.Count > 0 && StoredFormatBlocks == LabelBlocks;
 }

@@ -32,7 +32,7 @@
   <data name="Ui_CopyOriginal" xml:space="preserve"><value>Copier le ZPL d'origine</value></data>
   <data name="Ui_CopyOriginalTip" xml:space="preserve"><value>Copie le ZPL exactement tel qu'il a été reçu</value></data>
   <data name="Ui_ClearMemory" xml:space="preserve"><value>Vider la mémoire de l'imprimante</value></data>
-  <data name="Ui_ClearMemoryTip" xml:space="preserve"><value>Supprime les graphiques et les polices que LabelScope garde des téléchargements ~DG, ~DY et ^IS, ainsi que les lettres de police définies avec ^CW</value></data>
+  <data name="Ui_ClearMemoryTip" xml:space="preserve"><value>Supprime tout ce que LabelScope garde dans sa mémoire d'imprimante : graphiques et polices des téléchargements ~DG, ~DY et ^IS, lettres de police de ^CW, formats stockés avec ^DF et configuration d'étiquette gardée d'un travail à l'autre</value></data>
   <data name="Ui_LightGrid" xml:space="preserve"><value>Grille légère (10 mm)</value></data>
   <data name="Ui_StackedLayout" xml:space="preserve"><value>Disposition empilée</value></data>
   <data name="Ui_OpenLog" xml:space="preserve"><value>Ouvrir le dossier des journaux</value></data>
@@ -135,11 +135,15 @@ Windows demandera une autorisation une seule fois. Continuer?</value></data>
   <data name="Ui_ClearJobsAsk" xml:space="preserve"><value>Retirer les {0} travaux de la liste?
 
 Seule la liste est effacée. Les graphiques et les polices dans la mémoire de l'imprimante sont conservés.</value></data>
-  <data name="Ui_ClearMemoryAsk" xml:space="preserve"><value>Supprimer tout ce que LabelScope garde dans sa mémoire d'imprimante (graphiques et polices téléchargés, et lettres de police définies avec ^CW)?
+  <data name="Ui_ClearMemoryAsk" xml:space="preserve"><value>Supprimer tout ce que LabelScope garde dans sa mémoire d'imprimante?
 
-Les étiquettes qui utilisent ces graphiques, polices ou lettres de police afficheront un avertissement jusqu'à ce que le téléchargement ou le ^CW soit envoyé de nouveau.</value></data>
+• Graphiques et polices téléchargés, et lettres de police définies avec ^CW
+• Formats stockés avec ^DF
+• Configuration d'étiquette gardée des travaux précédents : taille et origine de l'étiquette, jeu de caractères (^CI), réglages de l'horloge, fond gardé par ^MCN et caractères de commande modifiés (^CC, ^CD, ^CT)
+
+Les étiquettes qui utilisent un graphique, une police ou un format supprimé afficheront un avertissement jusqu'à ce qu'il soit envoyé de nouveau.</value></data>
   <data name="Ui_MemoryCleared" xml:space="preserve"><value>La mémoire d'imprimante de LabelScope a été vidée.</value></data>
-  <data name="Ui_MemoryTip" xml:space="preserve"><value>Mémoire de l'imprimante : {0}. Les graphiques et les polices envoyés avec ~DG, ~DY ou ^IS, ainsi que les lettres de police définies avec ^CW, sont gardés ici jusqu'à la fermeture de LabelScope ou jusqu'à ce que vous choisissiez Vider la mémoire de l'imprimante.</value></data>
+  <data name="Ui_MemoryTip" xml:space="preserve"><value>Mémoire de l'imprimante : {0}. Les graphiques et les polices envoyés avec ~DG, ~DY ou ^IS, les lettres de police définies avec ^CW, les formats stockés avec ^DF et la configuration d'étiquette des travaux précédents sont gardés ici jusqu'à la fermeture de LabelScope ou jusqu'à ce que vous choisissiez Vider la mémoire de l'imprimante.</value></data>
   <data name="Ui_OpenPathFailed" xml:space="preserve"><value>Windows n'a pas pu ouvrir {0}. Ouvrez-le vous-même dans l'Explorateur de fichiers.</value></data>
   <data name="Ui_UpdateAvailable" xml:space="preserve"><value>Une nouvelle version de LabelScope est disponible ({0}). Choisissez « Mettre à jour vers {0} » dans la barre d'outils pour l'installer.</value></data>
   <data name="Ui_UpToDate" xml:space="preserve"><value>Vous avez la version la plus récente ({0}).</value></data>

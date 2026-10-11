@@ -25,7 +25,7 @@
   &nbsp;·&nbsp;
   <a href="https://github.com/P4Software/LabelScope/releases/latest">All releases</a>
   <br>
-  <sub>Version 0.4.1 · Windows 10 or 11, 64-bit · free · no administrator rights needed to install</sub>
+  <sub>Version 0.5.0 · Windows 10 or 11, 64-bit · free · no administrator rights needed to install</sub>
 </p>
 
 ---
@@ -164,33 +164,36 @@ LabelScope draws what it understands and **tells you about everything else**. Th
 | Group | Commands |
 |---|---|
 | Label and fields | `^XA ^XZ ^PW ^LL ^LH ^LR ^PO ^PQ ^FO ^FT ^FD ^FS ^FW ^FH ^FB ^FR ^FX ^CF` |
-| Character sets | `^CI`: `^CI28` (UTF-8) and the other Unicode sets 29 and 30 are drawn as a printer prints them. `^CI0` to `^CI27` and 31 to 36 are exact for plain ASCII text |
+| Character sets | `^CI`: every character set, as the printer decodes it, with remapping. The set stays in force for later labels, as on a printer |
 | Text and fonts | `^A` with fonts `0`, `A` to `H` and `P` to `V`; `^A@` and `^CW` with your own fonts |
 | Shapes | `^GB ^GC ^GD` |
 | Barcodes | `^BY ^BC ^B3 ^BL ^BA ^BE ^BU ^B8 ^B9 ^B2 ^BK ^B1 ^BM ^BQ ^BX ^B7`: Code 128, Code 39, LOGMARS, Code 93, EAN-13, UPC-A, EAN-8, UPC-E, Interleaved 2 of 5, Codabar, Code 11, MSI, QR Code, Data Matrix, PDF417 |
 | Graphics | `^GF` (ASCII hex, Zebra compression, Z64, B64), `~DG ~DY ^XG ^IM ^IL ^IS ^ID ~DN` |
+| Stored formats | `^DF ^XF ^FN ^FE ^FV`: store a label once, then fill in its numbered fields from later labels |
+| Serial numbers | `^SN ^SF` with `^PQ`: each copy drawn with its own number, up to 100 per label |
+| Date and time fields | `^FC ^SO ^SL ^ST`: dates and times as the printer prints them, at the moment the job arrived |
+| Kept background | `^MC`: with `^MCN` a label is kept as the background of the next one |
+| Changed command characters | `^CC ^CD ^CT ~CC ~CD ~CT`: labels that use another character instead of `^`, `~` or the comma |
 
 **Not yet.** These show a warning and are skipped, and they are first in line for the next release:
 
-- Stored formats and counters: `^DF` / `^XF`, `^SN`, `^FV`.
-- Character sets: accented and other non-ASCII letters in the byte-based code pages (`^CI0` to `^CI27`, 31 to 36, such as CP850) are still being completed. Such a label shows one warning naming the set.
 - Barcodes: `^BI ^BJ ^BP ^BS ^B5 ^BZ ^BR ^BD ^B0 ^BO ^B4 ^BB ^BT ^BF` (industrial 2 of 5, Plessey, add-ons, postal codes, GS1 DataBar, MaxiCode, Aztec, Code 49, CODABLOCK, TLC39, MicroPDF417).
 - Graphics: binary data (`^GF` and `~DY` format B), Zebra's AR compression (format C), downloadable bitmap fonts (`~DB`). `~EG` shows a warning; use `^ID`.
 
-A few commands that change printer behaviour but not the picture (`^MN ^MM ^MD ^MT ^PR ^JU`) are ignored without a warning.
+A few commands that change printer behaviour but not the picture (`^MN ^MM ^MD ^MT ^PR ^JU ^KD`) are ignored without a warning.
 
 ### Limits worth knowing
 
 - **Fonts are approximate in shape, exact in size.** Zebra's own fonts are licensed and cannot be shipped, so LabelScope draws fonts A to H with Zebra's cell sizes, and font 0 and P to V with Noto Sans ExtraCondensed Bold placed and sized like Zebra's font 0. Capitals start on the `^FO` line and are as tall as on a printer, and line lengths land within about 2%. The letter shapes differ. The OCR fonts E and H are drawn in a plain fixed-width font. Characters a font does not have print as spaces, with a warning. LabelScope is a preview tool, not a pixel-exact replacement for a printer.
 - **Barcodes and graphics are drawn from the published rules and have not yet been compared with a real Zebra printer.** They decode correctly with an independent decoder, but small details may differ: the quiet space around a symbol, the size picked for PDF417 when a label gives no columns and rows, or the digit size under EAN/UPC. For PDF417 the row height (`h`) is taken in dots; a printer may multiply it by the module width. Always scan-test an important label on your real printer.
-- **Printer memory lasts while LabelScope runs.** Graphics and fonts sent with `~DG`, `~DY` or `^IS`, and font letters set with `^CW`, are kept, like a printer's R: drive, until you close LabelScope or press **Clear printer memory** (in the **...** menu), up to 64 MB or 1000 objects. A label that uses a graphic LabelScope never received is drawn without it, with a warning naming the file.
+- **Printer memory lasts while LabelScope runs.** Graphics and fonts sent with `~DG`, `~DY` or `^IS`, font letters set with `^CW` and formats stored with `^DF` are kept, like a printer's R: drive, until you close LabelScope or press **Clear printer memory** (in the **...** menu), up to 64 MB or 1000 objects. A label that uses a graphic or format LabelScope never received is drawn without it, with a warning naming the file. Clear printer memory also forgets the setup kept from earlier jobs: label size, `^CI`, clock settings, the `^MCN` background and changed command characters.
 - **Label size comes from the ZPL.** Width is `^PW` and length is `^LL`, from the label itself or from an earlier job; label programs often send them once in a setup job, and LabelScope keeps them (with `^LH`, `^PO` and `^LR`) as a printer does. When the ZPL never gives a size, LabelScope uses the label loaded in Printer setup or chosen in the toolbar size list (4 x 6 in at 203 dpi to start with). Size is capped at 8000 dots per side and 40 million dots in total, with a warning.
-- **`^BY`, `^FW` and `^CF` apply to one label only.** Every label starts with fresh printer settings, so repeat the command in each label that needs it.
-- **Binary graphic data and job splitting.** LabelScope splits a send at every `^XZ`, even inside binary graphic data. Send graphics as ASCII hex or Z64 for now.
+- **`^BY`, `^FW` and `^CF` apply to one label only.** Each label starts without them, so repeat the command in each label that needs it.
+- **Binary graphic data.** A send that carries a binary `^GF` or `~DY` stays in one piece, but the graphic itself is not drawn yet. Send graphics as ASCII hex or Z64 for now.
 - **`^GF` is painted where it is written.** A `^FR` written after `^GF` in the same field does not invert it; put `^FR` before `^GF`.
 - **The check value of Z64 and B64 graphics is not verified.** Zebra does not publish the method. Z64 data is still checked by its own compression checksum and its size.
 - **Barcode details.** Data Matrix with quality 0 to 140 is drawn as the modern ECC 200 type, with a warning. GS1 application identifiers in Code 128 mode D are not validated. QR data with accented letters is sent as Latin-1 when every character fits, where a printer set to UTF-8 sends UTF-8; both scan, but the scanned bytes can differ.
-- **Text encoding.** Each label is read as UTF-8 first, then as Windows-1252 if it is not valid UTF-8. Labels with `^CI28` draw accented letters exactly. With a byte-based `^CI` set, plain ASCII text is exact; other letters may differ from the printer and the label says so with one warning. A label that announces `^CI28` but does not send UTF-8 gets a warning too.
+- **Text encoding.** Each label is read as UTF-8 first, then as Windows-1252 if it is not valid UTF-8. `^CI` then decodes the text as the printer does: `^CI28` as UTF-8, a byte-based set such as `^CI13` through its code page, `^FH` codes included. Text sent as UTF-8 under a byte-based set comes out as wrong letters, as on a printer, with one warning that says what to change. A label with no `^CI`, in it or in an earlier job, is drawn as received, because the printer's own starting set cannot be known. A label that announces `^CI28` but does not send UTF-8 gets a warning too.
 - **Speed.** Everyday labels appear at once, and one send of 5000 labels is drawn in about 16 seconds. A label that places dozens of full-size graphics can take several seconds. A text field longer than 65536 characters is cut, with a warning. A single label larger than 16 MB without `^XZ` is discarded, with a message.
 - **Rounded corners on `^GB` are drawn square**, with a warning.
 
@@ -302,7 +305,10 @@ assets/                 Logo, icon and screenshots
 - [x] **0.3.0** Graphics, images and custom fonts; signed installer
 - [x] **0.4.0** New window, Fields tab, red warning for barcodes that will not scan, full Spanish interface, Printer setup, keep jobs
 - [x] **0.4.1** Portuguese (Brazil) and French
-- [ ] **0.5** Complete ZPL: the remaining `^CI` code pages, `^DF` / `^XF`, `^SN`, `^FV`, the remaining barcodes, binary graphics
+- [x] **0.5.0** Every `^CI` character set, stored formats, serial numbers, date and time fields, kept background, changed command characters
+- [ ] **0.6.0** The remaining barcodes
+- [ ] **0.7.0** Binary graphics and the remaining graphics and layout commands
+- [ ] **0.8.0** Answers to printer status requests
 - [ ] Comparison of barcodes and graphics with a real Zebra printer
 - [ ] Optional: save every received label automatically to PDF or image files
 
