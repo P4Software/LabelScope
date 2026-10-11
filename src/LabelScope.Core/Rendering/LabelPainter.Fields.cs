@@ -169,7 +169,8 @@ internal sealed partial class LabelPainter
     /// <param name="Data">Data the field draws instead of its own ^FD; null to keep its own.</param>
     /// <param name="HexIndicator">The ^FH indicator that goes with <paramref name="Data"/> (the supplier's).</param>
     /// <param name="Skip">True when the field only supplied data for numbered fields and is not drawn itself.</param>
-    private readonly record struct FieldPlan(string? Data, char? HexIndicator, bool Skip);
+    /// <param name="Serial">The supplier's ^SN or ^SF, which counts the data it gave; null to keep the field's own.</param>
+    private readonly record struct FieldPlan(string? Data, char? HexIndicator, bool Skip, SerialSpec? Serial = null);
 
     // Decisions per field, keyed by the position of the field's ^FS in the painted block; null when the label has no
     // ^FN or ^FE at all, which is almost every label.
@@ -200,6 +201,8 @@ internal sealed partial class LabelPainter
     private static Dictionary<int, FieldPlan>? PlanFieldNumbers(IReadOnlyList<ZplCommand> block, List<RenderWarning> warnings)
     {
         if (!block.Any(c => c.Name is "^FN" or "^FE")) return null;
+        // Only the painter warns about ^SN and ^SF; this scan reads them again silently.
+        const List<RenderWarning>? silent = null;
 
         var plans = new Dictionary<int, FieldPlan>();
         var known = new Dictionary<int, string>();
@@ -212,6 +215,7 @@ internal sealed partial class LabelPainter
         string? data = null;
         char? hex = null, delimiter = null;
         var concatenated = false;
+        SerialSpec? serial = null;
 
         for (var index = 0; index < block.Count; index++)
         {
@@ -236,6 +240,16 @@ internal sealed partial class LabelPainter
                     concatenated = delimiter is not null;
                     data = delimiter is { } d ? Concatenate(cmd, d, known, warnings) : cmd.Args;
                     delimiter = null;
+                    if (serial is SnSpec) serial = null; // as in the painter: ^FD replaces the ^SN data and its counter
+                    break;
+                case "^SN":
+                    // ^SN is data too, so a numbered ^SN field supplies its number rather than waiting for data.
+                    (data, var sn) = Serialization.ReadSn(cmd, silent);
+                    serial = sn;
+                    concatenated = false;
+                    break;
+                case "^SF":
+                    if (Serialization.ReadSf(cmd, silent) is { } sf) serial = sf;
                     break;
                 case "^FS":
                     // A field is known by the position of its ^FS, the same key the painter looks up.
@@ -252,7 +266,7 @@ internal sealed partial class LabelPainter
                             known[n] = data;
                             if (waiting.Remove(n, out var w))
                             {
-                                foreach (var target in w.Fields) plans[target] = new FieldPlan(data, hex, false);
+                                foreach (var target in w.Fields) plans[target] = new FieldPlan(data, hex, false, serial);
                                 plans[field] = new FieldPlan(null, null, true);
                             }
                             else if (concatenated)
@@ -265,7 +279,7 @@ internal sealed partial class LabelPainter
                     {
                         plans[field] = new FieldPlan(data, hex, false);
                     }
-                    number = null; data = null; hex = null; delimiter = null; concatenated = false;
+                    number = null; data = null; hex = null; delimiter = null; concatenated = false; serial = null;
                     break;
             }
         }

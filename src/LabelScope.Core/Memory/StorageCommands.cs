@@ -9,6 +9,12 @@ namespace LabelScope.Core.Memory;
 /// </summary>
 internal static class StorageCommands
 {
+    /// <summary>
+    /// True when <paramref name="cmd"/> is one of the commands <see cref="TryHandle"/> handles, without doing anything.
+    /// The later images of a serial label use it to pass over downloads the first image already made.
+    /// </summary>
+    public static bool IsStorage(ZplCommand cmd) => cmd.Name is "~DG" or "~DY" or "^ID" or "~EG" or "^CW" or "~DN";
+
     /// <summary>Handles <paramref name="cmd"/> when it is a storage command; returns false for any other command.</summary>
     public static bool TryHandle(ZplCommand cmd, PaintContext context, List<RenderWarning> warnings)
     {

@@ -350,4 +350,7 @@
   <data name="Painter_FnBadNumber" xml:space="preserve"><value>^FN{0}: a field number is a whole number from 0 to 9999, so this field was drawn as a field without a number. Correct the number.</value></data>
   <data name="Painter_FeBadNumber" xml:space="preserve"><value>^FE: the reference {0} uses a number LabelScope cannot read (too large or not a whole number), so nothing was inserted for it. Correct the reference in the ^FD.</value></data>
   <data name="Painter_FeNoData" xml:space="preserve"><value>^FE: the reference {0} points at field number {1}, but no field before it gives that number data, so nothing was inserted. Put the ^FN field with its ^FD before this field.</value></data>
+  <data name="Painter_SnBadIncrement" xml:space="preserve"><value>^SN: the increment "{0}" is not a whole number of up to 12 digits, so LabelScope counts by 1 instead. Correct the increment (a minus sign in front counts down).</value></data>
+  <data name="Painter_SfNoMask" xml:space="preserve"><value>^SF has no mask, so this field prints the same on every label. Give a mask such as ^SFdddd,1: one letter for each character at the end of the data that should count.</value></data>
+  <data name="Render_SerialCapped" xml:space="preserve"><value>This label counts through {0} different values ({1} labels with ^PQ). LabelScope draws only the first {2}; the last value would be {3}. To see a later value, start the counter there in ^SN or ^FD.</value></data>
 </root>

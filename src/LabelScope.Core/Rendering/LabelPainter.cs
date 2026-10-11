@@ -41,6 +41,16 @@ internal sealed partial class LabelPainter : IDisposable
     private char _defaultFont = 'A';
     private int _defaultHeight = 9, _defaultWidth = 0;
     private int _copies = 1;
+    // ^PQ r: prints of each serial value (0 means once).
+    private int _replicates;
+
+    // Serial numbers (^SN, ^SF). The value number this image draws (0 = first), whether it is a later image of the
+    // same label (see Paint), the counter of the field being built, and the first serial field drawn, which tells
+    // the renderer the label needs more than one image.
+    private long _copyIndex;
+    private bool _repeat;
+    private SerialSpec? _serial;
+    private (SerialSpec Spec, string Data)? _firstSerial;
     // Whether this label sent ^LH or ^LR, so only what it set is kept for the next job.
     private bool _homeSet, _reverseAllSet;
 
@@ -91,9 +101,21 @@ internal sealed partial class LabelPainter : IDisposable
     /// Paints one label block and returns its image. The size comes from ^PW and ^LL in this label, or from an earlier
     /// job (a printer keeps them); a side the ZPL never gave is the loaded label from <paramref name="options"/>.
     /// </summary>
-    public static RenderedLabel Paint(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, PaintContext context)
+    public static RenderedLabel Paint(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, PaintContext context) =>
+        Paint(block, options, warnings, context, 0, null, out _);
+
+    /// <summary>
+    /// Paints one image of a label block. <paramref name="copyIndex"/> is the serial value number (0 = the first).
+    /// The first image (<paramref name="repeat"/> null) acts on the printer as usual and, when the label has a serial
+    /// field, returns in <paramref name="serials"/> what the later images need. A later image (<paramref name="repeat"/>
+    /// given) starts from the same printer setup and ^CI as the first and changes nothing outside its own picture:
+    /// downloads, ^IS and the printer setup were already handled once by the first image.
+    /// </summary>
+    internal static RenderedLabel Paint(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, PaintContext context,
+                                        long copyIndex, SerialRun? repeat, out SerialRun? serials)
     {
-        var setup = context.Memory.Setup.Current;
+        serials = null;
+        var setup = repeat?.Setup ?? context.Memory.Setup.Current;
         var (width, height, widthFromZpl, heightFromZpl, sentWidth, sentHeight) = ResolveSize(block, setup, options, warnings);
         // Only the last ^PO counts, wherever it appears; without one the last job's ^PO still applies.
         var po = block.LastOrDefault(c => c.Name == "^PO");
@@ -101,12 +123,13 @@ internal sealed partial class LabelPainter : IDisposable
 
         using var painter = new LabelPainter(width, height, options.Dpi, warnings, inverted, context, setup);
         painter._readAsWindows1252 = options.TextReadAsWindows1252;
-        // A ^CI sent just before this label's ^XA applies to it, and to it only (see PaintContext).
-        if (context.PendingCharacterSet is { } pending)
-        {
-            context.PendingCharacterSet = null;
-            painter.UseCharacterSet(pending.Set, pending.Line);
-        }
+        painter._copyIndex = copyIndex;
+        painter._repeat = repeat is not null;
+        // A ^CI sent just before this label's ^XA applies to it, and to it only (see PaintContext). The first image uses
+        // it up; the later images of the same label get it from the run, or they would decode ^FH text differently.
+        var pending = repeat is not null ? repeat.CharacterSet : context.PendingCharacterSet;
+        if (repeat is null) context.PendingCharacterSet = null;
+        if (pending is { } set) painter.UseCharacterSet(set.Set, set.Line);
         // Which field gets the data of which ^FN number, decided once before drawing (see PlanFieldNumbers).
         painter._fieldPlans = PlanFieldNumbers(block, warnings);
         // The plan is keyed by the position of each field's ^FS in this very list, and the painter is told that
@@ -116,7 +139,12 @@ internal sealed partial class LabelPainter : IDisposable
             painter._commandIndex = i;
             painter.Handle(block[i]);
         }
+        // A later serial image only draws: the first one already stored the label (^IS) and kept its setup.
+        if (repeat is not null) return painter.ToResult(widthFromZpl, heightFromZpl, options.Dpi);
         painter.SaveImageIfAsked();
+
+        if (painter._firstSerial is { } first)
+            serials = new SerialRun(setup, pending, painter._copies, painter._replicates, first.Spec, first.Data);
 
         // What this label set is kept for the jobs that follow. Only what the ZPL itself sent is kept: the loaded
         // label is a setting, so a later change of it in Printer setup must still take effect.
@@ -200,8 +228,10 @@ internal sealed partial class LabelPainter : IDisposable
         // of compressed hex in which ',' is a fill character, not a separator.
         if (cmd.Name == "^GF") { DrawGraphicField(cmd); return; }
 
-        // Downloads and deletions act on printer memory wherever they appear, inside a label as well as outside.
-        if (StorageCommands.TryHandle(cmd, _context, _warnings)) return;
+        // Downloads and deletions act on printer memory wherever they appear, inside a label as well as outside. A later
+        // serial image skips them: the first image already did them, and doing them again would repeat memory notes or
+        // delete (^ID) what the label itself recalls.
+        if (_repeat ? StorageCommands.IsStorage(cmd) : StorageCommands.TryHandle(cmd, _context, _warnings)) return;
 
         var a = Split(cmd.Args);
         switch (cmd.Name)
@@ -212,12 +242,25 @@ internal sealed partial class LabelPainter : IDisposable
             case "^FT": _x = Offset(_homeX, Coord(a, 0)); _y = Offset(_homeY, Coord(a, 1)); _baseline = true; _originLine = cmd.Line; break;
             case "^FR": _reverse = true; break;
             case "^LR": _reverseAll = a.Length > 0 && a[0].Trim().StartsWith("Y", StringComparison.OrdinalIgnoreCase); _reverseAllSet = true; break;
-            case "^PQ": _copies = Math.Clamp(Int(a, 0, 1), 1, MaxCopies); break;
+            case "^PQ":
+                _copies = Math.Clamp(Int(a, 0, 1), 1, MaxCopies);
+                _replicates = Math.Clamp(Int(a, 2, 0), 0, MaxCopies);
+                break;
+            // ^SN carries the field data itself, like ^FD; ^SF counts whatever data the field ends up with.
+            case "^SN":
+                (_data, _serial) = Serialization.ReadSn(cmd, _warnings);
+                _hasData = true;
+                _dataLine = cmd.Line;
+                break;
+            case "^SF":
+                if (Serialization.ReadSf(cmd, _warnings) is { } sf) _serial = sf;
+                break;
             case "^CF": SetDefaultFont(cmd, a); break;
             case "^A": SetFieldFont(cmd, a); break;
             case "^FB": _fieldBlock = new FieldBlock(Math.Clamp(Int(a, 0, 0), 0, MaxDots), Math.Clamp(Int(a, 1, 1), 1, MaxFieldBlockLines), Math.Clamp(Int(a, 2, 0), -MaxDots, MaxDots), Justify(a), cmd.Line); break;
             // ^FV is variable data: it draws exactly like ^FD (it only differs under ^MCN, which keeps the label).
-            case "^FD": case "^FV": _data = cmd.Args; _hasData = true; _dataLine = cmd.Line; break;
+            // A ^FD after ^SN replaces the ^SN data and its counter with it (other ZPL viewers draw it so; the guide is silent).
+            case "^FD": case "^FV": _data = cmd.Args; _hasData = true; _dataLine = cmd.Line; if (_serial is SnSpec) _serial = null; break;
             case "^FN": _fieldNumberLine = cmd.Line; break; // the number itself was read by PlanFieldNumbers
             case "^FE": break; // concatenation was resolved by PlanFieldNumbers
             case "^FS": EndField(); break;
@@ -369,11 +412,19 @@ internal sealed partial class LabelPainter : IDisposable
             _data = planned;
             _hasData = true;
             _hexIndicator = plan.Value.HexIndicator;
+            // A supplier that counts (^SN or ^SF on its line) brings its counter along; otherwise the field's own applies.
+            if (plan.Value.Serial is { } supplied) _serial = supplied;
         }
 
         // ^FH escapes are resolved once, here, so text and barcodes see the same characters. Under ^CI28 the escaped
         // bytes are UTF-8, as on a printer.
         var data = FieldData.Decode(_data, _hexIndicator, utf8: _charSet == CharacterSets.Utf8);
+        // The counter works on the field's final data: after ^FN, ^FE and ^FH, before text or barcode see it.
+        if (_hasData && _serial is { } serial)
+        {
+            _firstSerial ??= (serial, data);
+            data = serial.Apply(data, _copyIndex);
+        }
         if (_hasData) CheckCharacterSet(data);
         if (_barcode is not null)
         {
@@ -394,7 +445,7 @@ internal sealed partial class LabelPainter : IDisposable
     {
         _data = ""; _hasData = false; _reverse = false;
         _fontHeight = null; _fontWidth = null; _fieldFont = null; _fieldBlock = null; _textOrientation = null;
-        _barcode = null; _hexIndicator = null; // both apply to one field only
+        _barcode = null; _hexIndicator = null; _serial = null; // all three apply to one field only
         _originLine = 0;
         _fieldNumberLine = 0;
     }

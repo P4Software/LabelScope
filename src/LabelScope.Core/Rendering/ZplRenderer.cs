@@ -1,3 +1,4 @@
+using System.Globalization;
 using LabelScope.Core.Fonts;
 using LabelScope.Core.Memory;
 
@@ -157,11 +158,50 @@ public sealed class ZplRenderer
         try
         {
             if (StoredFormats.TryStore(block, context, warnings)) return;
-            labels.Add(LabelPainter.Paint(StoredFormats.Expand(block, context, warnings), options, warnings, context));
+            var expanded = StoredFormats.Expand(block, context, warnings);
+            var first = LabelPainter.Paint(expanded, options, warnings, context, 0, null, out var serials);
+            // A label without a serial field (almost every label) is one image whose Copies is ^PQ q, as always.
+            if (serials is null)
+            {
+                labels.Add(first);
+                return;
+            }
+            PaintSerialImages(expanded, options, warnings, labels, context, first, serials);
         }
         catch (Exception ex)
         {
             warnings.Add(new(block.Count > 0 ? block[0].Line : 1, Text.Get("Render_LabelNotDrawn", ex.Message)));
+        }
+    }
+
+    /// <summary>
+    /// A label with ^SN or ^SF: one image per distinct value, each with Copies set to how often that value prints
+    /// (^PQ r, the last value what is left of q). The same expanded block is painted again, so a ^XF is not recalled
+    /// twice. The warnings of the later images are thrown away, because they repeat the first image's warnings line
+    /// for line. Past <see cref="Serialization.MaxImages"/> values one warning gives the total and the last value,
+    /// worked out without drawing it.
+    /// </summary>
+    private static void PaintSerialImages(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, List<RenderedLabel> labels,
+                                          PaintContext context, RenderedLabel first, SerialRun serials)
+    {
+        var (quantity, replicates) = (serials.Quantity, serials.Replicates);
+        var (_, distinct) = Serialization.Counts(quantity, replicates);
+        labels.Add(first with { Copies = Serialization.CopiesOf(0, quantity, replicates) });
+
+        var images = Math.Min(distinct, Serialization.MaxImages);
+        var scratch = new List<RenderWarning>();
+        for (long i = 1; i < images; i++)
+        {
+            scratch.Clear();
+            var image = LabelPainter.Paint(block, options, scratch, context, i, serials, out _);
+            labels.Add(image with { Copies = Serialization.CopiesOf(i, quantity, replicates) });
+        }
+
+        if (distinct > Serialization.MaxImages)
+        {
+            var last = Serialization.Shown(serials.FirstSpec.Apply(serials.FirstData, distinct - 1));
+            warnings.Add(new(serials.FirstSpec.Line, Text.Get("Render_SerialCapped",
+                distinct.ToString(CultureInfo.InvariantCulture), quantity.ToString(CultureInfo.InvariantCulture), Serialization.MaxImages, last)));
         }
     }
 }

@@ -350,4 +350,7 @@
   <data name="Painter_FnBadNumber" xml:space="preserve"><value>^FN{0}: um número de campo é um número inteiro de 0 a 9999, então este campo foi desenhado como um campo sem número. Corrija o número.</value></data>
   <data name="Painter_FeBadNumber" xml:space="preserve"><value>^FE: a referência {0} usa um número que o LabelScope não consegue ler (grande demais ou não inteiro), então nada foi inserido no lugar dela. Corrija a referência no ^FD.</value></data>
   <data name="Painter_FeNoData" xml:space="preserve"><value>^FE: a referência {0} aponta para o número de campo {1}, mas nenhum campo anterior dá dados a esse número, então nada foi inserido. Coloque o campo ^FN com seu ^FD antes deste campo.</value></data>
+  <data name="Painter_SnBadIncrement" xml:space="preserve"><value>^SN: o incremento "{0}" não é um número inteiro de até 12 dígitos, então o LabelScope conta de 1 em 1. Corrija o incremento (um sinal de menos na frente conta para trás).</value></data>
+  <data name="Painter_SfNoMask" xml:space="preserve"><value>^SF não tem máscara, então este campo imprime o mesmo em todas as etiquetas. Use uma máscara como ^SFdddd,1: uma letra para cada caractere no fim dos dados que deve contar.</value></data>
+  <data name="Render_SerialCapped" xml:space="preserve"><value>Esta etiqueta conta {0} valores diferentes ({1} etiquetas com ^PQ). O LabelScope desenha só os primeiros {2}; o último valor seria {3}. Para ver um valor posterior, comece o contador nesse valor no ^SN ou no ^FD.</value></data>
 </root>
