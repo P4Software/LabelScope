@@ -385,7 +385,8 @@ internal sealed partial class LabelPainter : IDisposable
             case "^PO": break; // already applied in Paint
             case "^BY": SetBarDefaults(cmd, a); break;
             case "^FW": _fieldOrientation = a.Length > 0 && a[0].Length > 0 ? FieldPlacement.Normalize(a[0][0]) : 'N'; break;
-            case "^FH": _hexIndicator = a.Length > 0 && a[0].Length > 0 ? a[0][0] : '_'; break;
+            // The parser hands ^FH its one parameter only, so a comma made ordinary by ^CD can be the indicator.
+            case "^FH": _hexIndicator = cmd.Args.Length > 0 ? cmd.Args[0] : '_'; break;
             default:
                 if (TryStartBarcode(cmd, a)) break;
                 if (!SilentCommands.IsSilent(cmd.Name, cmd.Args))

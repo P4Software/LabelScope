@@ -67,11 +67,30 @@ public sealed class ZplRenderer
 
         try
         {
-            foreach (var cmd in ZplParser.Parse(zpl ?? ""))
+            // The prefixes and delimiter are printer state: this job is read with what the last one left set, and the
+            // next job with what this one leaves. The parser applies the changes itself, in stream order.
+            var setup = Memory.Setup;
+            var start = setup.Current.Prefixes ?? ZplPrefixes.Default;
+            var refused = new List<ZplCommand>();
+            var commands = ZplParser.Parse(zpl ?? "", start, out var end, refused);
+            if (end != start) setup.Apply(PrinterSetup.Values.None with { Prefixes = end });
+            var nextRefused = 0;
+
+            foreach (var cmd in commands)
             {
                 line = cmd.Line;
                 switch (cmd.Name)
                 {
+                    case "^CC" or "^CD" or "^CT" or "~CC" or "~CD" or "~CT":
+                        // Already applied by the parser; only a refused change has something to say. The refused list is
+                        // in stream order, so one index walks it.
+                        if (nextRefused < refused.Count && ReferenceEquals(refused[nextRefused], cmd))
+                        {
+                            nextRefused++;
+                            warnings.Add(new(cmd.Line, Text.Get("Render_PrefixRefused", cmd.Name, ShownCharacter(cmd.Args))));
+                        }
+                        break;
+
                     case "^XA":
                         if (inLabel)
                         {
@@ -119,6 +138,14 @@ public sealed class ZplRenderer
                 warnings.Add(new(block.Count > 0 ? block[^1].Line : 1, Text.Get("Render_NoXz")));
                 PaintSafely(block, options, warnings, labels, context);
             }
+
+            // A job written with ^ that arrives after an earlier job changed the format prefix reads as plain text, so
+            // nothing at all is drawn. A printer would print nothing either, but the user deserves to know why.
+            if (start.Format != '^' && labels.Count == 0 && !commands.Any(c => c.Name == "^XA")
+                && (zpl ?? "").Contains("^XA", StringComparison.OrdinalIgnoreCase))
+            {
+                warnings.Add(new(1, Text.Get("Render_PrefixStillChanged", start.Format.ToString(), start.Control.ToString())));
+            }
         }
         catch (Exception)
         {
@@ -130,6 +157,17 @@ public sealed class ZplRenderer
         }
 
         return new RenderResult(labels, warnings) { MemoryNotes = notes };
+    }
+
+    /// <summary>
+    /// A refused prefix character as a warning shows it: the character itself when it can be seen, otherwise its Unicode
+    /// number (a space or a control character would be invisible in the message).
+    /// </summary>
+    private static string ShownCharacter(string value)
+    {
+        if (value.Length == 0) return "";
+        var c = value[0];
+        return char.IsWhiteSpace(c) || char.IsControl(c) ? $"U+{(int)c:X4}" : $"'{c}'";
     }
 
     /// <summary>

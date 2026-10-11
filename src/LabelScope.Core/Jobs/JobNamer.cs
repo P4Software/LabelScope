@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text.RegularExpressions;
+using LabelScope.Core.Rendering;
 
 namespace LabelScope.Core.Jobs;
 
@@ -36,6 +37,9 @@ public static partial class JobNamer
     public static string NameFromZpl(string? zpl)
     {
         if (string.IsNullOrEmpty(zpl)) return "";
+        // After ^CC or ^CT the patterns below would look for the wrong prefix; the parser follows the change. Only such
+        // texts pay for a full parse: the patterns stay the fast path for every other job.
+        if (ZplPrefixes.AnyChangeIn(zpl)) return NameFromCommands(ZplParser.Parse(zpl, ZplPrefixes.Default, out _));
         var firstField = FirstFieldPattern().Match(zpl);
         var fieldStart = firstField.Success ? firstField.Index : int.MaxValue;
 
@@ -47,6 +51,22 @@ public static partial class JobNamer
         // An empty ^FD (a blank field) says nothing about the job, so the next one is tried.
         for (var d = DataPattern().Match(zpl); d.Success; d = d.NextMatch())
             if (Clean(d.Groups[1].Value) is { Length: > 0 } data) return data;
+        return "";
+    }
+
+    /// <summary>
+    /// <see cref="NameFromZpl"/> for a text that changes its prefixes, read from its parsed commands with the same rules:
+    /// the first non-empty ^FX before the first field, otherwise the first non-empty ^FD.
+    /// </summary>
+    private static string NameFromCommands(IReadOnlyList<ZplCommand> commands)
+    {
+        foreach (var cmd in commands)
+        {
+            if (cmd.Name is "^FO" or "^FT" or "^FD") break;
+            if (cmd.Name == "^FX" && Clean(cmd.Args) is { Length: > 0 } comment) return comment;
+        }
+        foreach (var cmd in commands)
+            if (cmd.Name == "^FD" && Clean(cmd.Args) is { Length: > 0 } data) return data;
         return "";
     }
 

@@ -21,7 +21,14 @@ internal static class BinaryDownloads
     /// Binary data almost always is, because it is not valid UTF-8; a payload that happens to be valid UTF-8 can be
     /// mis-counted until the splitter is byte-aware (planned for a later release).
     /// </summary>
-    public static bool TryMeasure(string text, int afterName, string name, out int dataStart, out long dataLength)
+    public static bool TryMeasure(string text, int afterName, string name, out int dataStart, out long dataLength) =>
+        TryMeasure(text, afterName, name, ZplPrefixes.Default, out dataStart, out dataLength);
+
+    /// <summary>
+    /// As <see cref="TryMeasure(string, int, string, out int, out long)"/>, reading the header with the prefixes and
+    /// delimiter in <paramref name="prefixes"/> (after ^CC, ^CT or ^CD); <paramref name="name"/> uses the standard prefixes.
+    /// </summary>
+    public static bool TryMeasure(string text, int afterName, string name, ZplPrefixes prefixes, out int dataStart, out long dataLength)
     {
         dataStart = 0;
         dataLength = 0;
@@ -34,15 +41,16 @@ internal static class BinaryDownloads
         };
         if (commas == 0) return false;
 
+        var (formatPrefix, controlPrefix, delimiter) = prefixes.OrDefault();
         var fields = new List<string>();
         var current = new StringBuilder();
         var k = afterName;
         for (; k < text.Length && k - afterName < MaxHeaderChars; k++)
         {
             var c = text[k];
-            if (c is '^' or '~') return false;          // the header ended before all its parameters
-            if (c is '\r' or '\n') continue;            // line breaks are not part of a parameter
-            if (c != ',') { current.Append(c); continue; }
+            if (c == formatPrefix || c == controlPrefix) return false; // the header ended before all its parameters
+            if (c is '\r' or '\n') continue;                            // line breaks are not part of a parameter
+            if (c != delimiter) { current.Append(c); continue; }
             fields.Add(current.ToString());
             current.Clear();
             if (fields.Count == commas) break;
@@ -60,15 +68,22 @@ internal static class BinaryDownloads
         return true;
     }
 
-    /// <summary>True when <paramref name="text"/> holds at least one binary download header.</summary>
+    /// <summary>
+    /// True when <paramref name="text"/>, read with the power-up prefixes, holds at least one binary download header. A
+    /// text that changes its prefixes or delimiter (see <see cref="ZplPrefixes.AnyChangeIn"/>) must be treated as if it
+    /// held one: under other characters its headers are not found here.
+    /// </summary>
     public static bool ContainsAny(string text)
     {
         for (var i = 0; i + 3 <= text.Length; i++)
         {
             var c = text[i];
             if (c != '^' && c != '~') continue;
-            var name = new string([c, char.ToUpperInvariant(text[i + 1]), char.ToUpperInvariant(text[i + 2])]);
-            if (name is "^GF" or "~DY" && TryMeasure(text, i + 3, name, out _, out _)) return true;
+            // Compared letter by letter: this runs over every job, and a string per prefix would cost an allocation each.
+            var b = char.ToUpperInvariant(text[i + 1]);
+            var d = char.ToUpperInvariant(text[i + 2]);
+            var name = c == '^' && b == 'G' && d == 'F' ? "^GF" : c == '~' && b == 'D' && d == 'Y' ? "~DY" : null;
+            if (name is not null && TryMeasure(text, i + 3, name, out _, out _)) return true;
         }
         return false;
     }

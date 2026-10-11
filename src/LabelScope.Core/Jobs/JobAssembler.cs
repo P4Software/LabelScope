@@ -14,8 +14,9 @@ namespace LabelScope.Core.Jobs;
 /// printer-memory commands (a ~DG download, an ^ID delete) and cost time that grows with every label. Line numbers
 /// refer to the formatted ZPL shown in the ZPL tab. The formatter starts afresh after a ^XZ, so formatting the joined
 /// text gives the two formatted parts joined by the blank line it puts between labels; that is checked cheaply at the
-/// boundary (the job's formatted text ends with ^XZ, the new label's starts with a command, neither holds a binary
-/// download, which is shown unformatted). Anything else starts a new job instead.
+/// boundary (the job's formatted text ends with ^XZ, the new label's starts with a command, and neither is a text the
+/// formatter leaves unformatted: a binary download, or a changed command prefix or delimiter, see
+/// <see cref="ZplFormatter.LeavesAsIs"/>). Anything else starts a new job instead.
 /// </para>
 /// <para>
 /// Cost and memory are bounded: a job takes at most <see cref="MaxLabelsPerJob"/> labels and
@@ -46,7 +47,8 @@ public sealed class JobAssembler
 
     // What is kept per connection: the job and the facts about its formatted text needed for the next append. The
     // formatted text itself is not kept (it can be a megabyte per connection).
-    private sealed record Open(LabelJob Job, int FormattedLines, bool EndsWithLabelEnd, bool HasBinary, int Part);
+    // Unformatted: the job's text is one the formatter leaves as it is (ZplFormatter.LeavesAsIs), so nothing may join it.
+    private sealed record Open(LabelJob Job, int FormattedLines, bool EndsWithLabelEnd, bool Unformatted, int Part);
 
     private readonly object _lock = new();
     private readonly Dictionary<long, Open> _open = new();
@@ -139,7 +141,7 @@ public sealed class JobAssembler
         var previous = open.Job;
         if (previous.LabelCount >= MaxLabelsPerJob || (long)previous.Zpl.Length + zpl.Length + 1 > MaxCharsPerJob) return false;
         // The boundary check described in the remarks: only then is the line shift right.
-        if (open.HasBinary || BinaryDownloads.ContainsAny(zpl) || !open.EndsWithLabelEnd || !StartsWithCommand(formatted)) return false;
+        if (open.Unformatted || ZplFormatter.LeavesAsIs(zpl) || !open.EndsWithLabelEnd || !StartsWithCommand(formatted)) return false;
         return previous.ReadAsWindows1252 == readAsWindows1252;
     }
 
@@ -201,7 +203,7 @@ public sealed class JobAssembler
         ArgumentNullException.ThrowIfNull(job);
         ArgumentNullException.ThrowIfNull(formatted);
         if (connectionId == 0) return;
-        var entry = new Open(job, CountLines(formatted), EndsWithLabelEnd(formatted), BinaryDownloads.ContainsAny(job.Zpl), Math.Max(1, part));
+        var entry = new Open(job, CountLines(formatted), EndsWithLabelEnd(formatted), ZplFormatter.LeavesAsIs(job.Zpl), Math.Max(1, part));
         lock (_lock)
         {
             if (!_open.ContainsKey(connectionId))

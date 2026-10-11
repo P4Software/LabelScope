@@ -8,7 +8,8 @@ namespace LabelScope.Core.Memory;
 /// Label setup a real printer keeps from one job to the next: print width (^PW), label length (^LL), label home (^LH),
 /// print orientation (^PO), reverse-all (^LR), and the clock: the time set with ^ST, the ^SO2 / ^SO3 offsets and the
 /// ^SL language, which the guide says a printer keeps until they are changed or it is switched off; ^MC, with the
-/// label ^MCN keeps as the background of the next one; and the ^CI character set with its remapping. Label programs often send these once, in a setup job of their own,
+/// label ^MCN keeps as the background of the next one; the ^CI character set with its remapping; and the command
+/// prefixes and delimiter (^CC, ^CT, ^CD). Label programs often send these once, in a setup job of their own,
 /// and the labels that follow rely on them; forgetting them would draw those labels on the wrong size.
 /// Kept until LabelScope closes or the user clears printer memory, as a printer keeps them until it is switched off.
 /// Safe to use from several threads.
@@ -49,9 +50,14 @@ public sealed class PrinterSetup
     /// set is a printer setting LabelScope cannot know). Set and pairs are one value, so a later ^CI without pairs
     /// replaces an earlier remapping instead of keeping it.
     /// </param>
+    /// <param name="Prefixes">
+    /// The format and control prefixes and the delimiter in force at the end of the last job (^CC, ^CT, ^CD and their ~
+    /// forms); null when none was changed, which is ^, ~ and the comma. The next job is read with them.
+    /// </param>
     public sealed record Values(int? WidthDots, int? HeightDots, int? HomeX, int? HomeY, bool? Inverted, bool? ReverseAll,
                                 TimeSpan? ClockOffset = null, ClockShift? ClockSecondary = null, ClockShift? ClockThird = null,
-                                int? ClockLanguage = null, bool? KeepImage = null, CharacterSetting? CharacterSet = null)
+                                int? ClockLanguage = null, bool? KeepImage = null, CharacterSetting? CharacterSet = null,
+                                ZplPrefixes? Prefixes = null)
     {
         /// <summary>Nothing set yet.</summary>
         public static readonly Values None = new(null, null, null, null, null, null);
@@ -80,7 +86,8 @@ public sealed class PrinterSetup
                 changes.ClockThird ?? _values.ClockThird,
                 changes.ClockLanguage ?? _values.ClockLanguage,
                 changes.KeepImage ?? _values.KeepImage,
-                changes.CharacterSet ?? _values.CharacterSet);
+                changes.CharacterSet ?? _values.CharacterSet,
+                changes.Prefixes ?? _values.Prefixes);
         }
     }
 

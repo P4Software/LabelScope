@@ -10,8 +10,8 @@ internal static class SilentCommands
 {
     // Commands whose every value is about the printer mechanics, memory or comments, never the drawn label.
     // Deliberately NOT here (each can change the picture or how the rest of the job is read, see IsSilent):
-    // ^PM (mirror), ^JM (half density doubles the format),
-    // ~CC / ~CD / ~CT (they change the command prefix and delimiter characters).
+    // ^PM (mirror), ^JM (half density doubles the format).
+    // ^CC / ^CD / ^CT and their ~ forms are not here: the parser applies them and the renderer warns about a refused one.
     // ^CI and ^MC are not here either: the painter and the renderer handle them themselves (CharacterSets, and the ^MCN
     // background in ZplRenderer.PaintSafely).
     private static readonly HashSet<string> Always = new()
@@ -39,10 +39,6 @@ internal static class SilentCommands
             // Orientation and reverse print are handled inside a label; outside one the "off" value is a no-op,
             // while ^POI / ^LRY would be lost, so those keep their warning.
             "^PO" or "^LR" => a.Length == 0 || char.ToUpperInvariant(a[0]) == 'N',
-            // Control, delimiter and format prefix characters: only the defaults keep the rest of the job readable.
-            "~CC" => a.Length == 0 || a == "^",
-            "~CD" => a.Length == 0 || a == ",",
-            "~CT" => a.Length == 0 || a == "~",
             _ => false,
         };
     }

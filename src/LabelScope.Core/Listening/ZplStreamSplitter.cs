@@ -1,4 +1,5 @@
 using System.Text;
+using LabelScope.Core.Rendering;
 
 namespace LabelScope.Core.Listening;
 
@@ -13,12 +14,22 @@ public sealed record DecodedZpl(string Text, bool ReadAsWindows1252);
 /// arrive in several chunks, so the splitter keeps the unfinished part between calls.
 /// </summary>
 /// <remarks>
+/// <para>
+/// The splitter follows ^CC, ^CT and ^CD (and their ~ forms) the way <see cref="ZplParser"/> reads them: after
+/// <c>~CC/</c> a label ends at <c>/XZ</c>. Every byte is read once, with a small reading state that survives between
+/// chunks, so a command cut by a chunk boundary is still seen and the cost stays linear however small the chunks are.
+/// The characters are kept for this connection only: another connection starts from the defaults (a label that never
+/// ends is still delivered when its connection closes, so nothing is lost). Only printable ASCII is accepted as a new
+/// character (<see cref="ZplPrefixes.TryChange"/>), so the bytes read here and the characters the parser reads agree.
+/// </para>
+/// <para>
 /// The end marker is searched as plain ASCII bytes, which is safe in UTF-8 and in the Windows code pages
 /// alike (no multi-byte UTF-8 character contains the bytes of <c>^</c>, <c>X</c> or <c>Z</c>). Each finished
 /// label is then decoded as a whole: strictly as UTF-8 first, and as Windows-1252 when that fails. Many label
 /// programs and the Windows text-only printer driver send Windows-1252 text (for example "Año" as the single
 /// byte 0xF1), which is not valid UTF-8. Decoding a whole label at once also means a character cut by a chunk
 /// boundary needs no special handling.
+/// </para>
 /// </remarks>
 public sealed class ZplStreamSplitter
 {
@@ -40,9 +51,29 @@ public sealed class ZplStreamSplitter
     private byte[] _bytes = new byte[4096];
     private int _length;
 
-    // Everything before this index was already searched. We back up 2 bytes on the next
-    // search so a marker split as "^X" | "Z" across chunks is still found.
+    // Everything before this index was already read; the reading state below says where in a command it stopped.
     private int _scanned;
+
+    // The prefixes and delimiter in force on this connection, changed by ^CC, ^CT and ^CD.
+    private ZplPrefixes _prefixes = ZplPrefixes.Default;
+
+    // Where reading stopped inside a command when the last chunk ended, so nothing is read twice.
+    private Reading _reading;
+    private bool _formatMarker;   // the command being named started with the format prefix
+    private bool _hasFirstLetter;
+    private byte _firstLetter;
+    private char _changeKind;     // 'C', 'T' or 'D' while waiting for a change command's character
+
+    /// <summary>What the splitter was in the middle of when the last chunk ended.</summary>
+    private enum Reading
+    {
+        /// <summary>Between commands, or inside a command's parameters.</summary>
+        Text,
+        /// <summary>Right after a prefix: reading the command's name.</summary>
+        Name,
+        /// <summary>After ^CC, ^CT or ^CD: waiting for the new character.</summary>
+        ChangeCharacter,
+    }
 
     private static Encoding CreateWindows1252()
     {
@@ -75,22 +106,14 @@ public sealed class ZplStreamSplitter
         var completed = new List<DecodedZpl>();
         var start = 0;
 
-        // Only the newly added data is scanned; the back-up covers a marker split across chunks.
-        var i = Math.Max(0, _scanned - 2);
-        while (i + 3 <= _length)
+        // Only the newly added data is read; the reading state carries a command cut by the chunk boundary.
+        var i = _scanned;
+        while (i < _length)
         {
-            if (IsEndMarkerAt(i))
-            {
-                var end = i + 3;
-                // Strings are built only for completed labels, not for the pending data.
-                completed.Add(Decode(start, end - start));
-                start = end;
-                i = end;
-            }
-            else
-            {
-                i++;
-            }
+            if (!Step(ref i)) continue;
+            // Strings are built only for completed labels, not for the pending data.
+            completed.Add(Decode(start, i - start));
+            start = i;
         }
 
         // Remove consumed data once per call (not once per label), so the next label starts at 0.
@@ -104,9 +127,11 @@ public sealed class ZplStreamSplitter
 
         if (_length > MaxPendingChars)
         {
-            // Without a cap a connection that never sends ^XZ would grow memory forever.
+            // Without a cap a connection that never sends ^XZ would grow memory forever. The prefixes are printer
+            // state and stay; a command cut off with the discarded data is forgotten with it.
             _length = 0;
             _scanned = 0;
+            _reading = Reading.Text;
             throw new ZplTooLargeException();
         }
 
@@ -125,6 +150,7 @@ public sealed class ZplStreamSplitter
         var rest = Decode(0, _length);
         _length = 0;
         _scanned = 0;
+        _reading = Reading.Text;
         return rest.Text.Length == 0 ? null : rest;
     }
 
@@ -132,7 +158,7 @@ public sealed class ZplStreamSplitter
     {
         var text = Decode(_bytes, start, count, out var windows1252);
         // A leading byte order mark would otherwise show up as an invisible character in the ZPL.
-        return new DecodedZpl(text.Trim().Trim('\uFEFF').Trim(), windows1252);
+        return new DecodedZpl(text.Trim().Trim('﻿').Trim(), windows1252);
     }
 
     /// <summary>
@@ -167,10 +193,84 @@ public sealed class ZplStreamSplitter
         Array.Resize(ref _bytes, size);
     }
 
-    // Case-insensitive match of "^XZ" at index i, done byte by byte so no string is allocated.
-    // The caller guarantees i + 3 <= _length.
-    private bool IsEndMarkerAt(int i) =>
-        _bytes[i] == (byte)'^'
-        && (_bytes[i + 1] | 0x20) == 'x'
-        && (_bytes[i + 2] | 0x20) == 'z';
+    /// <summary>
+    /// Reads from <paramref name="i"/> and moves it on: past many bytes at once between commands, otherwise past at most
+    /// one byte. A prefix that cuts a name short, or a refused prefix character, is left where it is, so the next step
+    /// reads it as a new command, as the parser does. Returns true when a label ended just before the new
+    /// <paramref name="i"/>. Names are read like the parser reads them: line breaks inside are skipped, case is
+    /// ignored, and ^A has a single letter.
+    /// </summary>
+    private bool Step(ref int i)
+    {
+        var format = (byte)_prefixes.Format;
+        var control = (byte)_prefixes.Control;
+        switch (_reading)
+        {
+            case Reading.Text:
+            {
+                // The common case: a vectorised search to the next prefix, so ordinary data costs what it did before.
+                var next = _bytes.AsSpan(i, _length - i).IndexOfAny(format, control);
+                if (next < 0)
+                {
+                    i = _length;
+                    return false;
+                }
+                i += next;
+                _formatMarker = _bytes[i] == format;
+                _hasFirstLetter = false;
+                _reading = Reading.Name;
+                i++;
+                return false;
+            }
+
+            case Reading.Name:
+            {
+                var b = _bytes[i];
+                if (b == format || b == control)
+                {
+                    _reading = Reading.Text; // the name was cut short: a new command starts at this byte
+                    return false;
+                }
+                i++;
+                if (b is (byte)'\r' or (byte)'\n') return false;
+                if (!_hasFirstLetter)
+                {
+                    _hasFirstLetter = true;
+                    _firstLetter = b;
+                    // ^A takes one letter; what follows is its font, never part of a name.
+                    if (_formatMarker && (b | 0x20) == 'a') _reading = Reading.Text;
+                    return false;
+                }
+                _reading = Reading.Text;
+                if (_formatMarker && (_firstLetter | 0x20) == 'x' && (b | 0x20) == 'z') return true;
+                if (ZplPrefixes.IsChange((char)_firstLetter, (char)b, out var kind))
+                {
+                    _changeKind = kind;
+                    _reading = Reading.ChangeCharacter;
+                }
+                return false;
+            }
+
+            default: // Reading.ChangeCharacter
+            {
+                var b = _bytes[i];
+                if (b is (byte)'\r' or (byte)'\n')
+                {
+                    i++; // as in the parser, a line break before the character is skipped
+                    return false;
+                }
+                _reading = Reading.Text;
+                if (_prefixes.TryChange(_changeKind, (char)b, out var changed))
+                {
+                    _prefixes = changed;
+                    i++;
+                }
+                else if (b != format && b != control)
+                {
+                    i++; // a refused character is swallowed, except a prefix, which starts the next command
+                }
+                return false;
+            }
+        }
+    }
 }

@@ -22,9 +22,7 @@ public static class ZplFormatter
     public static string Format(string? zpl)
     {
         if (string.IsNullOrEmpty(zpl)) return "";
-        // Binary downloads must reach the parser byte for byte: re-flowing would drop their CR/LF bytes and insert
-        // line breaks before '^' inside the data, changing its length.
-        if (BinaryDownloads.ContainsAny(zpl)) return zpl;
+        if (LeavesAsIs(zpl)) return zpl;
         try
         {
             return FormatCore(zpl);
@@ -35,6 +33,39 @@ public static class ZplFormatter
             // always a correct ZPL, just harder to read.
             return zpl;
         }
+    }
+
+    /// <summary>
+    /// True for a text <see cref="Format"/> returns unchanged. The formatter re-flows the text at '^' and '~', which is
+    /// only safe when those are the prefixes throughout; returning the text as it is keeps it drawable and its line
+    /// numbers equal to the editor's, because both then show the very same text. That is the case for:
+    /// <list type="bullet">
+    /// <item>binary downloads, which must reach the parser byte for byte: re-flowing would drop their CR/LF bytes and
+    /// insert line breaks before '^' inside the data, changing its length;</item>
+    /// <item>a text that changes the prefixes or the delimiter (^CC, ^CT, ^CD to anything but the defaults): after the
+    /// change a '^' or '~' is ordinary data, and spaces before it could be trimmed away;</item>
+    /// <item>a text that starts like a command under another prefix ("/XA"), which is what a job looks like when an
+    /// earlier job changed the prefix. The formatter cannot know that state (it formats each text on its own, so the
+    /// window, the job card and the editor all agree), and this guess leaves alone exactly the jobs it would harm.</item>
+    /// </list>
+    /// The job assembler never joins such a text to another job, nor another job to it: the lines of the joined text
+    /// would not be the lines of its parts formatted one by one.
+    /// </summary>
+    internal static bool LeavesAsIs(string zpl) =>
+        BinaryDownloads.ContainsAny(zpl) || ZplPrefixes.AnyChangeIn(zpl) || StartsWithOtherPrefix(zpl);
+
+    /// <summary>
+    /// True when the first visible character is not '^' or '~' but a punctuation mark followed by two letters or digits,
+    /// such as "/XA" or "+DG": a command written with a prefix an earlier job set.
+    /// </summary>
+    private static bool StartsWithOtherPrefix(string zpl)
+    {
+        var i = 0;
+        while (i < zpl.Length && (char.IsWhiteSpace(zpl[i]) || zpl[i] == '\uFEFF')) i++;
+        if (i + 2 >= zpl.Length) return false;
+        var c = zpl[i];
+        return c is > ' ' and < '\x7F' and not ('^' or '~' or ',') && !char.IsAsciiLetterOrDigit(c)
+               && char.IsAsciiLetterOrDigit(zpl[i + 1]) && char.IsAsciiLetterOrDigit(zpl[i + 2]);
     }
 
     private static string FormatCore(string zpl)

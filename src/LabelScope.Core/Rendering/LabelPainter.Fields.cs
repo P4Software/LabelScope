@@ -240,8 +240,7 @@ internal sealed partial class LabelPainter
                     break;
                 case "^FH":
                     // The same reading as the painter's ^FH, so the supplier's escapes decode the same way.
-                    var a = cmd.Args.Split(',');
-                    hex = a[0].Length > 0 ? a[0][0] : '_';
+                    hex = cmd.Args.Length > 0 ? cmd.Args[0] : '_';
                     break;
                 case "^FC":
                     clock = FieldClock.ReadIndicators(cmd.Args);

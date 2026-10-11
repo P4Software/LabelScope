@@ -151,6 +151,8 @@
   <data name="Render_XzWithoutXa" xml:space="preserve"><value>Se encontró ^XZ sin su ^XA correspondiente y se ignoró.</value></data>
   <data name="Render_OutsideLabel" xml:space="preserve"><value>{0} está fuera de una etiqueta (^XA … ^XZ) o todavía no es compatible, y se ignoró.</value></data>
   <data name="Render_NoXz" xml:space="preserve"><value>La etiqueta no terminó con ^XZ; se dibujó hasta donde llegó.</value></data>
+  <data name="Render_PrefixRefused" xml:space="preserve"><value>{0} se ignoró: el carácter {1} no puede ser un prefijo de comando ni un delimitador. Las letras, los dígitos, los espacios, las comas, los caracteres fuera del ASCII simple y un carácter que ya se usa como el otro prefijo o como delimitador harían ilegible el resto del trabajo. Sigue vigente el carácter anterior; elija en su lugar un signo de puntuación como / o +.</value></data>
+  <data name="Render_PrefixStillChanged" xml:space="preserve"><value>Nada de este trabajo se leyó como comando: un trabajo anterior cambió el prefijo de comando de ^ a {0}, y este trabajo está escrito con ^. Empiece el trabajo con {1}CC^ para volver a ^, o borre la memoria de impresora.</value></data>
   <data name="Render_StoppedAtLine" xml:space="preserve"><value>LabelScope dejó de leer este trabajo en la línea {0} por un problema inesperado; se muestran las etiquetas anteriores a esa línea. Vuelva a enviar el trabajo y, si esto sigue pasando, repórtelo adjuntando el trabajo.</value></data>
   <data name="Render_CommandInternalError" xml:space="preserve"><value>{0} no se pudo procesar por un error interno; no se guardó nada.</value></data>
   <data name="Render_LabelNotDrawn" xml:space="preserve"><value>Esta etiqueta no se pudo dibujar ({0}).</value></data>

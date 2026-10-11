@@ -151,6 +151,8 @@
   <data name="Render_XzWithoutXa" xml:space="preserve"><value>^XZ was found without a matching ^XA and was ignored.</value></data>
   <data name="Render_OutsideLabel" xml:space="preserve"><value>{0} is outside a label (^XA … ^XZ) or not supported yet, and was ignored.</value></data>
   <data name="Render_NoXz" xml:space="preserve"><value>The label did not end with ^XZ; it was drawn as far as it arrived.</value></data>
+  <data name="Render_PrefixRefused" xml:space="preserve"><value>{0} was ignored: the character {1} cannot be a command prefix or delimiter. Letters, digits, spaces, commas, characters outside plain ASCII and a character already used as the other prefix or the delimiter would make the rest of the job unreadable. The previous character stays in effect; choose a punctuation mark such as / or + instead.</value></data>
+  <data name="Render_PrefixStillChanged" xml:space="preserve"><value>Nothing in this job was read as a command: an earlier job changed the command prefix from ^ to {0}, and this job is written with ^. Start the job with {1}CC^ to go back to ^, or clear the printer memory.</value></data>
   <data name="Render_StoppedAtLine" xml:space="preserve"><value>LabelScope stopped reading this job at line {0} because of a problem it did not expect; the labels before that line are shown. Send the job again, and if this keeps happening, report it with the job attached.</value></data>
   <data name="Render_CommandInternalError" xml:space="preserve"><value>{0} could not be handled because of an internal error; nothing was stored.</value></data>
   <data name="Render_LabelNotDrawn" xml:space="preserve"><value>This label could not be drawn ({0}).</value></data>
