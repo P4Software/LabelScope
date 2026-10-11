@@ -412,7 +412,7 @@ internal sealed partial class LabelPainter : IDisposable
             _data = planned;
             _hasData = true;
             _hexIndicator = plan.Value.HexIndicator;
-            // A supplier that counts (^SN or ^SF on its line) brings its counter along; otherwise the field's own applies.
+            // A supplier that counts (^SN on its line) brings its counter along; otherwise the field's own applies.
             if (plan.Value.Serial is { } supplied) _serial = supplied;
         }
 
