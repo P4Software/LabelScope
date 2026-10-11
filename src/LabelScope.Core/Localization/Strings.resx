@@ -359,4 +359,6 @@
   <data name="Clock_OffsetClockUnknown" xml:space="preserve"><value>^SO{0} names no clock, so it was ignored. Use ^SO2 for the secondary clock or ^SO3 for the third clock.</value></data>
   <data name="Clock_LanguageUnknown" xml:space="preserve"><value>^SL asks for language {0}, which does not exist, so month and day names stay in the language they had. Use a number from 1 to {1} (1 is English, 2 is Spanish).</value></data>
   <data name="Clock_SetTimeInvalid" xml:space="preserve"><value>^ST{0} is not a date and time the printer clock can take, so the clock was not changed. Write it as month,day,year,hour,minute,second, for example ^ST03,05,2026,14,07,09.</value></data>
+  <data name="Painter_MapClearUnknown" xml:space="preserve"><value>^MC{0} is neither ^MCY nor ^MCN, so it was ignored. Use ^MCN to keep each label as the background of the next one, or ^MCY to start every label blank.</value></data>
+  <data name="Render_MapClearNotKept" xml:space="preserve"><value>The label was drawn, but it could not be kept as the background of the next label for ^MCN ({0}), so the next label starts blank. Send a smaller label, or close other programs and send it again.</value></data>
 </root>

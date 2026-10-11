@@ -62,6 +62,13 @@ internal sealed partial class LabelPainter : IDisposable
     private bool _clockLanguageWarned;
     // Whether this label sent ^LH or ^LR, so only what it set is kept for the next job.
     private bool _homeSet, _reverseAllSet;
+    // ^MC: whether the finished label is kept as the next label's background (printer state, carried from earlier jobs),
+    // and whether this label sent a ^MC, so only what it set is kept for the next job.
+    private bool _keepImage, _keepImageSet;
+    // True for the second paint that makes the ^MCN background: fields whose data came from ^FV are left out.
+    private bool _withoutVariableFields;
+    // Whether each side of the label came from the ZPL (this job or an earlier one), for the result.
+    private bool _widthFromZpl, _heightFromZpl;
 
     // State of the field being built; reset by ^FS.
     private int _x, _y;
@@ -70,6 +77,8 @@ internal sealed partial class LabelPainter : IDisposable
     private bool _reverseAll;     // ^LRY: every field is reversed until ^LRN
     private string _data = "";
     private bool _hasData;
+    // Whether the field's data came from ^FV (variable data, which ^MCN does not keep).
+    private bool _variable;
     private int? _fontHeight, _fontWidth;
     private FieldBlock? _fieldBlock;
     // Orientation named by ^A for the field being built (null = use the ^FW default). Reset by ^FS.
@@ -85,13 +94,15 @@ internal sealed partial class LabelPainter : IDisposable
 
     private sealed record FieldBlock(int Width, int MaxLines, int LineSpacing, char Justify, int Line);
 
-    private LabelPainter(int width, int height, int dpi, List<RenderWarning> warnings, bool inverted, PaintContext context, PrinterSetup.Values setup)
+    private LabelPainter(int width, int height, int dpi, List<RenderWarning> warnings, bool inverted, PaintContext context, PrinterSetup.Values setup,
+                         LabelBackground? background)
     {
         _warnings = warnings;
-        // Label home and reverse-all carry over from earlier jobs, as on a printer.
+        // Label home, reverse-all and ^MC carry over from earlier jobs, as on a printer.
         _homeX = setup.HomeX ?? 0;
         _homeY = setup.HomeY ?? 0;
         _reverseAll = setup.ReverseAll ?? false;
+        _keepImage = setup.KeepImage ?? false;
         _clockOffset = setup.ClockOffset;
         _clockSettings = new ClockSettings(setup.ClockLanguage ?? 1, setup.ClockSecondary, setup.ClockThird);
         _dpi = dpi;
@@ -99,6 +110,9 @@ internal sealed partial class LabelPainter : IDisposable
         _bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         _canvas = new SKCanvas(_bitmap);
         _canvas.Clear(SKColors.White);
+        // The picture ^MCN kept is the printer's bitmap as printed, so it goes in before the ^PO I turn: a turned label
+        // is kept turned and comes back exactly where it was printed.
+        if (background is not null) DrawBackground(background);
         if (inverted)
         {
             // ^PO I prints the label upside down: every point (x, y) goes to (W - x, H - y). Doing it as one
@@ -124,50 +138,118 @@ internal sealed partial class LabelPainter : IDisposable
     internal static RenderedLabel Paint(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, PaintContext context,
                                         long copyIndex, out SerialRun? serials)
     {
-        serials = null;
+        using var painter = Draw(block, options, warnings, context, copyIndex, withoutVariableFields: false);
+        serials = painter._serialFieldCount > 0
+            ? new SerialRun(painter._copies, painter._replicates, painter._serialFields, painter._serialFieldCount)
+            : null;
+        return painter.ToResult(painter._widthFromZpl, painter._heightFromZpl, options.Dpi);
+    }
+
+    /// <summary>
+    /// Paints the label block again without its ^FV fields and returns that picture: the background ^MCN keeps for the
+    /// next label. <paramref name="context"/> must hold a private copy of printer memory as it was before the label (see
+    /// <c>ZplRenderer.PaintSafely</c>), so storage commands in the label act on the copy and the real memory is changed
+    /// once, by the first paint. Nothing is reported: the first paint already gave every warning, so this one writes into
+    /// a list nobody reads. No ^IS save, field list or PNG is made and printer setup is left alone, because the first
+    /// paint did all of that.
+    /// </summary>
+    /// <param name="block">The same expanded block the label was painted from.</param>
+    /// <param name="options">The same options.</param>
+    /// <param name="context">A context over a private copy of printer memory as it was before the label.</param>
+    /// <param name="copyIndex">The serial value number of the image kept (0 for a label without serial fields).</param>
+    internal static LabelBackground PaintKeptImage(IReadOnlyList<ZplCommand> block, RenderOptions options, PaintContext context, long copyIndex)
+    {
+        using var painter = Draw(block, options, [], context, copyIndex, withoutVariableFields: true);
+        painter._canvas.Flush();
+        var bitmap = painter._bitmap;
+        return LabelBackground.FromRgba(bitmap.GetPixelSpan(), bitmap.RowBytes, bitmap.Width, bitmap.Height);
+    }
+
+    /// <summary>
+    /// Draws every command of <paramref name="block"/> and returns the painter holding the picture, which the caller
+    /// disposes. With <paramref name="withoutVariableFields"/> (the ^MCN background) the ^FV fields are left out and the
+    /// label's after-effects (the ^IS save, what it sets in printer setup) are skipped.
+    /// </summary>
+    private static LabelPainter Draw(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, PaintContext context,
+                                     long copyIndex, bool withoutVariableFields)
+    {
         var setup = context.Memory.Setup.Current;
         var (width, height, widthFromZpl, heightFromZpl, sentWidth, sentHeight) = ResolveSize(block, setup, options, warnings);
         // Only the last ^PO counts, wherever it appears; without one the last job's ^PO still applies.
         var po = block.LastOrDefault(c => c.Name == "^PO");
         var inverted = po is not null ? po.Args.TrimStart().StartsWith("I", StringComparison.OrdinalIgnoreCase) : setup.Inverted ?? false;
 
-        using var painter = new LabelPainter(width, height, options.Dpi, warnings, inverted, context, setup);
-        painter._readAsWindows1252 = options.TextReadAsWindows1252;
-        painter._copyIndex = copyIndex;
-        // A ^CI sent just before this label's ^XA applies to it, and to it only (see PaintContext).
-        if (context.PendingCharacterSet is { } pending)
+        var painter = new LabelPainter(width, height, options.Dpi, warnings, inverted, context, setup, context.Memory.Setup.KeptBackground);
+        try
         {
-            context.PendingCharacterSet = null;
-            painter.UseCharacterSet(pending.Set, pending.Line);
+            painter._widthFromZpl = widthFromZpl;
+            painter._heightFromZpl = heightFromZpl;
+            painter._withoutVariableFields = withoutVariableFields;
+            painter._readAsWindows1252 = options.TextReadAsWindows1252;
+            painter._copyIndex = copyIndex;
+            // A ^CI sent just before this label's ^XA applies to it, and to it only (see PaintContext).
+            if (context.PendingCharacterSet is { } pending)
+            {
+                context.PendingCharacterSet = null;
+                painter.UseCharacterSet(pending.Set, pending.Line);
+            }
+            // Which field gets the data of which ^FN number, decided once before drawing (see PlanFieldNumbers).
+            painter._fieldPlans = PlanFieldNumbers(block, warnings, copyIndex);
+            // The plan is keyed by the position of each field's ^FS in this very list, and the painter is told that
+            // position here: the scan and the drawing read the same list, so they cannot disagree about which field is which.
+            for (var i = 0; i < block.Count; i++)
+            {
+                painter._commandIndex = i;
+                painter.Handle(block[i]);
+            }
+            if (withoutVariableFields) return painter;
+            painter.SaveImageIfAsked();
+
+            // What this label set is kept for the jobs that follow. Only what the ZPL itself sent is kept: the loaded
+            // label is a setting, so a later change of it in Printer setup must still take effect.
+            context.Memory.Setup.Apply(new PrinterSetup.Values(
+                sentWidth,
+                sentHeight,
+                painter._homeSet ? painter._homeX : null,
+                painter._homeSet ? painter._homeY : null,
+                po is not null ? inverted : null,
+                painter._reverseAllSet ? painter._reverseAll : null,
+                painter._clockOffsetSet ? painter._clockOffset : null,
+                painter._clockSecondarySet ? painter._clockSettings.Secondary : null,
+                painter._clockThirdSet ? painter._clockSettings.Third : null,
+                painter._clockLanguageSet ? painter._clockSettings.Language : null,
+                painter._keepImageSet ? painter._keepImage : null));
+            return painter;
         }
-        // Which field gets the data of which ^FN number, decided once before drawing (see PlanFieldNumbers).
-        painter._fieldPlans = PlanFieldNumbers(block, warnings, copyIndex);
-        // The plan is keyed by the position of each field's ^FS in this very list, and the painter is told that
-        // position here: the scan and the drawing read the same list, so they cannot disagree about which field is which.
-        for (var i = 0; i < block.Count; i++)
+        catch
         {
-            painter._commandIndex = i;
-            painter.Handle(block[i]);
+            // The painter holds a bitmap of up to 160 MB; it must not wait for the finalizer.
+            painter.Dispose();
+            throw;
         }
-        painter.SaveImageIfAsked();
+    }
 
-        if (painter._serialFieldCount > 0)
-            serials = new SerialRun(painter._copies, painter._replicates, painter._serialFields, painter._serialFieldCount);
-
-        // What this label set is kept for the jobs that follow. Only what the ZPL itself sent is kept: the loaded
-        // label is a setting, so a later change of it in Printer setup must still take effect.
-        context.Memory.Setup.Apply(new PrinterSetup.Values(
-            sentWidth,
-            sentHeight,
-            painter._homeSet ? painter._homeX : null,
-            painter._homeSet ? painter._homeY : null,
-            po is not null ? inverted : null,
-            painter._reverseAllSet ? painter._reverseAll : null,
-            painter._clockOffsetSet ? painter._clockOffset : null,
-            painter._clockSecondarySet ? painter._clockSettings.Secondary : null,
-            painter._clockThirdSet ? painter._clockSettings.Third : null,
-            painter._clockLanguageSet ? painter._clockSettings.Language : null));
-        return painter.ToResult(widthFromZpl, heightFromZpl, options.Dpi);
+    /// <summary>
+    /// Draws the kept ^MCN picture at 0,0 onto the fresh white bitmap, read in place from its grey bytes. A picture larger
+    /// than this label is cut at its edges; a smaller one leaves the rest white. Skia only touches the dots both share,
+    /// so a 40-megapixel background under a small label costs no more than the small label.
+    /// </summary>
+    private void DrawBackground(LabelBackground background)
+    {
+        var handle = background.Pin();
+        try
+        {
+            var info = new SKImageInfo(background.Width, background.Height, SKColorType.Gray8, SKAlphaType.Opaque);
+            using var pixmap = new SKPixmap(info, handle.AddrOfPinnedObject(), background.Width);
+            using var image = SKImage.FromPixels(pixmap);
+            _canvas.DrawImage(image, 0, 0);
+            // Raster drawing is done when DrawImage returns; flushing makes sure before the bytes are unpinned.
+            _canvas.Flush();
+        }
+        finally
+        {
+            handle.Free();
+        }
     }
 
     /// <summary>
@@ -260,6 +342,7 @@ internal sealed partial class LabelPainter : IDisposable
             case "^SN":
                 (_data, _serial) = Serialization.ReadSn(cmd, _warnings);
                 _hasData = true;
+                _variable = false;
                 _dataLine = cmd.Line;
                 break;
             case "^SF":
@@ -268,9 +351,13 @@ internal sealed partial class LabelPainter : IDisposable
             case "^CF": SetDefaultFont(cmd, a); break;
             case "^A": SetFieldFont(cmd, a); break;
             case "^FB": _fieldBlock = new FieldBlock(Math.Clamp(Int(a, 0, 0), 0, MaxDots), Math.Clamp(Int(a, 1, 1), 1, MaxFieldBlockLines), Math.Clamp(Int(a, 2, 0), -MaxDots, MaxDots), Justify(a), cmd.Line); break;
-            // ^FV is variable data: it draws exactly like ^FD (it only differs under ^MCN, which keeps the label).
+            // ^FV is variable data: it draws exactly like ^FD, but the picture ^MCN keeps for the next label leaves it out.
             // A ^FD after ^SN replaces the ^SN data and its counter with it (other ZPL viewers draw it so; the guide is silent).
-            case "^FD": case "^FV": _data = cmd.Args; _hasData = true; _dataLine = cmd.Line; if (_serial is SnSpec) _serial = null; break;
+            case "^FD": case "^FV":
+                _data = cmd.Args; _hasData = true; _dataLine = cmd.Line; _variable = cmd.Name == "^FV";
+                if (_serial is SnSpec) _serial = null;
+                break;
+            case "^MC": SetMapClear(cmd); break;
             case "^FN": _fieldNumberLine = cmd.Line; break; // the number itself was read by PlanFieldNumbers
             case "^FE": break; // concatenation was resolved by PlanFieldNumbers
             case "^FS": EndField(); break;
@@ -513,6 +600,45 @@ internal sealed partial class LabelPainter : IDisposable
         return null;
     }
 
+    // ---- map clear (^MC) ------------------------------------------------------------------------
+
+    /// <summary>
+    /// ^MCa inside a label: whether this label, once finished, is kept as the background of the next one. Only the value
+    /// in effect when the label ends counts, so a ^MCN anywhere in the format keeps that format's own picture, as the
+    /// guide's ^FV example shows. It is printer state, kept for later labels until another ^MC.
+    /// </summary>
+    private void SetMapClear(ZplCommand cmd)
+    {
+        if (ReadMapClear(cmd, _warnings) is not { } keep) return;
+        _keepImage = keep;
+        _keepImageSet = true;
+    }
+
+    /// <summary>A ^MC outside any label: printer state, set straight away for the labels that follow.</summary>
+    internal static void SetMapClearSetting(ZplCommand cmd, PaintContext context, List<RenderWarning> warnings)
+    {
+        if (ReadMapClear(cmd, warnings) is { } keep)
+            context.Memory.Setup.Apply(PrinterSetup.Values.None with { KeepImage = keep });
+    }
+
+    /// <summary>
+    /// Reads ^MCa: true for N (keep the picture), false for Y or nothing (clear it, the guide's default); null, with a
+    /// warning, for anything else, which leaves the setting as it was.
+    /// </summary>
+    private static bool? ReadMapClear(ZplCommand cmd, List<RenderWarning> warnings)
+    {
+        var a = cmd.Args.Trim();
+        if (a.Length == 0) return false;
+        switch (char.ToUpperInvariant(a[0]))
+        {
+            case 'Y': return false;
+            case 'N': return true;
+        }
+        // Quoted back to the user, so a hostile megabyte of text is cut to a readable length.
+        warnings.Add(new(cmd.Line, Text.Get("Painter_MapClearUnknown", Clip(a, 20))));
+        return null;
+    }
+
     // ---- fields ------------------------------------------------------------------------------
 
     private SKPaint InkPaint(bool white = false)
@@ -548,6 +674,15 @@ internal sealed partial class LabelPainter : IDisposable
             if (plan.Value.Serial is { } supplied) _serial = supplied;
             // A supplier's ^FC goes with the data it wrote; without one, the field's own ^FC applies.
             if (plan.Value.Clock is { } clockOfData) _clock = clockOfData;
+            // Recalled data is variable when the supplier wrote it with ^FV.
+            _variable = plan.Value.Variable;
+        }
+        // The ^MCN background leaves out every field whose data is variable (^FV), text and barcode alike: the guide
+        // says ^FV data is wiped once the label prints, while everything else stays for the next label.
+        if (_withoutVariableFields && _hasData && _variable)
+        {
+            ClearField();
+            return;
         }
 
         // ^FH escapes are resolved once, here, so text and barcodes see the same characters. Under ^CI28 the escaped
@@ -581,7 +716,7 @@ internal sealed partial class LabelPainter : IDisposable
     /// <summary>Forgets everything that belongs to one field only, ready for the next one.</summary>
     private void ClearField()
     {
-        _data = ""; _hasData = false; _reverse = false;
+        _data = ""; _hasData = false; _variable = false; _reverse = false;
         _fontHeight = null; _fontWidth = null; _fieldFont = null; _fieldBlock = null; _textOrientation = null;
         _barcode = null; _hexIndicator = null; _serial = null; _clock = null; // all four apply to one field only
         _originLine = 0;

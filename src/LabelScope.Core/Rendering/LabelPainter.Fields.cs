@@ -173,7 +173,10 @@ internal sealed partial class LabelPainter
     /// ^SN travels, because ^SN is data; a ^SF modifies the field it is written on, and a supplier is never drawn, so
     /// its ^SF is dropped (as other ZPL viewers do; the guide is silent).</param>
     /// <param name="Clock">The supplier's ^FC, which goes with the data it wrote, like its ^FH; null to keep the field's own.</param>
-    private readonly record struct FieldPlan(string? Data, char? HexIndicator, bool Skip, SnSpec? Serial = null, ClockIndicators? Clock = null);
+    /// <param name="Variable">True when <paramref name="Data"/> was written with ^FV, so the picture ^MCN keeps leaves the
+    /// field out, as it leaves out a field with its own ^FV.</param>
+    private readonly record struct FieldPlan(string? Data, char? HexIndicator, bool Skip, SnSpec? Serial = null, ClockIndicators? Clock = null,
+                                             bool Variable = false);
 
     // Decisions per field, keyed by the position of the field's ^FS in the painted block; null when the label has no
     // ^FN or ^FE at all, which is almost every label.
@@ -201,6 +204,8 @@ internal sealed partial class LabelPainter
     /// follows how other ZPL viewers behave, because the guide does not say. ^FE references are resolved here as well, from
     /// the data numbered fields gave before the field.
     /// </remarks>
+    /// <param name="block">The label block, as painted.</param>
+    /// <param name="warnings">Where ^FN and ^FE problems are reported.</param>
     /// <param name="copyIndex">The serial value this image draws: a ^FE reference to a numbered ^SN field sees the counted
     /// value of this image, not the start value.</param>
     private static Dictionary<int, FieldPlan>? PlanFieldNumbers(IReadOnlyList<ZplCommand> block, List<RenderWarning> warnings, long copyIndex)
@@ -222,6 +227,7 @@ internal sealed partial class LabelPainter
         var concatenated = false;
         SnSpec? serial = null;
         ClockIndicators? clock = null;
+        var variable = false;
 
         for (var index = 0; index < block.Count; index++)
         {
@@ -250,12 +256,14 @@ internal sealed partial class LabelPainter
                     data = delimiter is { } d ? Concatenate(cmd, d, known, warnings) : cmd.Args;
                     delimiter = null;
                     serial = null; // as in the painter: ^FD replaces the ^SN data and its counter
+                    variable = cmd.Name == "^FV";
                     break;
                 case "^SN":
                     // ^SN is data too, so a numbered ^SN field supplies its number rather than waiting for data.
                     (data, var sn) = Serialization.ReadSn(cmd, silent);
                     serial = sn;
                     concatenated = false;
+                    variable = false;
                     break;
                 case "^FS":
                     // A field is known by the position of its ^FS, the same key the painter looks up.
@@ -274,20 +282,20 @@ internal sealed partial class LabelPainter
                             known[n] = serial is { } counted ? counted.Apply(data, copyIndex) : data;
                             if (waiting.Remove(n, out var w))
                             {
-                                foreach (var target in w.Fields) plans[target] = new FieldPlan(data, hex, false, serial, clock);
+                                foreach (var target in w.Fields) plans[target] = new FieldPlan(data, hex, false, serial, clock, variable);
                                 plans[field] = new FieldPlan(null, null, true);
                             }
                             else if (concatenated)
                             {
-                                plans[field] = new FieldPlan(data, hex, false);
+                                plans[field] = new FieldPlan(data, hex, false, Variable: variable);
                             }
                         }
                     }
                     else if (concatenated && data is not null)
                     {
-                        plans[field] = new FieldPlan(data, hex, false);
+                        plans[field] = new FieldPlan(data, hex, false, Variable: variable);
                     }
-                    number = null; data = null; hex = null; delimiter = null; concatenated = false; serial = null; clock = null;
+                    number = null; data = null; hex = null; delimiter = null; concatenated = false; serial = null; clock = null; variable = false;
                     break;
             }
         }

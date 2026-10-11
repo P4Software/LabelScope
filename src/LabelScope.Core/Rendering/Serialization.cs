@@ -13,6 +13,7 @@ internal abstract record SerialSpec(int Line)
 /// <summary>^SNv,n,z: the right-most run of digits counts by <paramref name="Step"/>.</summary>
 /// <param name="Step">Added once per value; negative counts down. At most 12 digits, as the guide allows.</param>
 /// <param name="Zeros">True for z=Y (leading zeros kept); false for z=N (leading zeros print as spaces).</param>
+/// <param name="Line">Line of the ^SN, where problems with the counter are reported.</param>
 internal sealed record SnSpec(long Step, bool Zeros, int Line) : SerialSpec(Line)
 {
     /// <inheritdoc />
@@ -22,6 +23,7 @@ internal sealed record SnSpec(long Step, bool Zeros, int Line) : SerialSpec(Line
 /// <summary>^SFa,b: the masked characters at the end of the data count like an odometer.</summary>
 /// <param name="Mask">One placeholder per serialized character, aligned with the end of the data.</param>
 /// <param name="Increment">What is added per value, aligned with the end of the mask.</param>
+/// <param name="Line">Line of the ^SF, where problems with the counter are reported.</param>
 internal sealed record SfSpec(string Mask, string Increment, int Line) : SerialSpec(Line)
 {
     /// <inheritdoc />

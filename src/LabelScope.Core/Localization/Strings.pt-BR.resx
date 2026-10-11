@@ -359,4 +359,6 @@
   <data name="Clock_OffsetClockUnknown" xml:space="preserve"><value>^SO{0} não indica nenhum relógio, então foi ignorado. Use ^SO2 para o relógio secundário ou ^SO3 para o terceiro relógio.</value></data>
   <data name="Clock_LanguageUnknown" xml:space="preserve"><value>^SL pede o idioma {0}, que não existe, então os nomes de meses e dias continuam no idioma que tinham. Use um número de 1 a {1} (1 é inglês, 2 é espanhol).</value></data>
   <data name="Clock_SetTimeInvalid" xml:space="preserve"><value>^ST{0} não é uma data e hora que o relógio da impressora aceite, então o relógio não mudou. Escreva como mês,dia,ano,hora,minuto,segundo, por exemplo ^ST03,05,2026,14,07,09.</value></data>
+  <data name="Painter_MapClearUnknown" xml:space="preserve"><value>^MC{0} não é ^MCY nem ^MCN, então foi ignorado. Use ^MCN para manter cada etiqueta como fundo da seguinte, ou ^MCY para que cada etiqueta comece em branco.</value></data>
+  <data name="Render_MapClearNotKept" xml:space="preserve"><value>A etiqueta foi desenhada, mas não pôde ser mantida como fundo da próxima etiqueta para o ^MCN ({0}), então a próxima etiqueta começa em branco. Envie uma etiqueta menor, ou feche outros programas e envie de novo.</value></data>
 </root>

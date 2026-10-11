@@ -36,7 +36,7 @@ public sealed class PrinterMemory
         MaxObjects = maxObjects;
     }
 
-    /// <summary>Label setup (^PW, ^LL, ^LH, ^PO, ^LR) kept between jobs; cleared together with the memory.</summary>
+    /// <summary>Label setup (^PW, ^LL, ^LH, ^PO, ^LR, the clock, ^MC) kept between jobs; cleared together with the memory.</summary>
     public PrinterSetup Setup { get; } = new();
 
     /// <summary>Most bytes kept at once.</summary>
@@ -97,7 +97,7 @@ public sealed class PrinterMemory
     }
 
     /// <summary>
-    /// A private copy of this memory as it is now: the same objects, ^CW letters and printer setup, with nothing
+    /// A private copy of this memory as it is now: the same objects, ^CW letters, printer setup and ^MCN background, with nothing
     /// listening to it. The later images of a serial label are each drawn against a copy taken before the first image,
     /// so a download, ^ID or ^CW inside the label happens at the same point on every image while the real memory is
     /// changed once only. Stored objects are shared, not copied: they never change after they are stored.
@@ -112,6 +112,8 @@ public sealed class PrinterMemory
             copy._bytes = _bytes;
         }
         copy.Setup.Apply(Setup.Current);
+        // The ^MCN background is shared, not copied: it never changes once kept.
+        copy.Setup.KeptBackground = Setup.KeptBackground;
         return copy;
     }
 
@@ -189,7 +191,10 @@ public sealed class PrinterMemory
         lock (_gate) return _fontIds.TryGetValue(char.ToUpperInvariant(id), out var file) ? file : null;
     }
 
-    /// <summary>Empties the memory and forgets every ^CW font letter and the label setup (the window's "Clear printer memory" button).</summary>
+    /// <summary>
+    /// Empties the memory and forgets every ^CW font letter, the label setup and the ^MCN background (the window's
+    /// "Clear printer memory" button).
+    /// </summary>
     public void Clear()
     {
         Setup.Reset();
