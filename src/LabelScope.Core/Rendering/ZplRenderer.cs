@@ -89,6 +89,12 @@ public sealed class ZplRenderer
                             nextRefused++;
                             warnings.Add(new(cmd.Line, Text.Get("Render_PrefixRefused", cmd.Name, ShownCharacter(cmd.Args))));
                         }
+                        // ':' and '.' are accepted as a printer accepts them, but they also live inside parameters:
+                        // the drive in R:LOGO.GRF, a file extension, a decimal number. Those now split, so say so.
+                        else if (cmd.Name is "^CD" or "~CD" && cmd.Args is ":" or ".")
+                        {
+                            warnings.Add(new(cmd.Line, Text.Get("Render_DelimiterSplitsNames", cmd.Name, cmd.Args)));
+                        }
                         break;
 
                     case "^XA":

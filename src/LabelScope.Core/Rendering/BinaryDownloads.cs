@@ -12,14 +12,14 @@ namespace LabelScope.Core.Rendering;
 internal static class BinaryDownloads
 {
     // A header longer than this is not a header: protects against scanning megabytes of text for commas.
-    private const int MaxHeaderChars = 256;
+    internal const int MaxHeaderChars = 256;
 
     /// <summary>
     /// For the command <paramref name="name"/> whose name ends at <paramref name="afterName"/>, returns true when it
     /// announces binary data, with the index where the data starts and its length in characters. The skip is by
     /// characters, which equals the byte count only when the job was read as Windows-1252 (one character per byte).
-    /// Binary data almost always is, because it is not valid UTF-8; a payload that happens to be valid UTF-8 can be
-    /// mis-counted until the splitter is byte-aware (planned for a later release).
+    /// Binary data almost always is, because it is not valid UTF-8; a payload that happens to be valid UTF-8 is counted
+    /// in bytes by the splitter and in characters here, so its end can be misplaced here.
     /// </summary>
     public static bool TryMeasure(string text, int afterName, string name, out int dataStart, out long dataLength) =>
         TryMeasure(text, afterName, name, ZplPrefixes.Default, out dataStart, out dataLength);
@@ -32,13 +32,7 @@ internal static class BinaryDownloads
     {
         dataStart = 0;
         dataLength = 0;
-        // ^GFa,b,c,d,data (format a, byte count b) and ~DYd:f,b,x,t,w,data (format b, total bytes t).
-        var (commas, formatIndex, lengthIndex) = name switch
-        {
-            "^GF" => (4, 0, 1),
-            "~DY" => (5, 1, 3),
-            _ => (0, 0, 0),
-        };
+        var (commas, formatIndex, lengthIndex) = Layout(name);
         if (commas == 0) return false;
 
         var (formatPrefix, controlPrefix, delimiter) = prefixes.OrDefault();
@@ -56,16 +50,38 @@ internal static class BinaryDownloads
             if (fields.Count == commas) break;
         }
         if (fields.Count < commas) return false;
-
-        var format = fields[formatIndex].Trim();
-        // Formats B and C both carry raw bytes (C is compressed binary); only the byte count matters here.
-        if (format.Length == 0 || char.ToUpperInvariant(format[0]) is not ('B' or 'C')) return false;
-        if (!long.TryParse(fields[lengthIndex].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var length)
-            || length < 1 || length > ZplStreamSplitter.MaxPendingChars) return false;
+        if (!TryReadLength(fields[formatIndex], fields[lengthIndex], out var length)) return false;
 
         dataStart = k + 1;
         dataLength = length;
         return true;
+    }
+
+    /// <summary>
+    /// Where the header of <paramref name="name"/> keeps its facts: the number of delimiters before the data, and the
+    /// indexes of the format and byte-count parameters. All zero for a command that never carries binary data. Shared
+    /// with <see cref="ZplStreamSplitter"/>, which must skip the same bytes the parser skips.
+    /// </summary>
+    internal static (int Delimiters, int FormatIndex, int LengthIndex) Layout(string name) => name switch
+    {
+        // ^GFa,b,c,d,data (format a, byte count b) and ~DYd:f,b,x,t,w,data (format b, total bytes t).
+        "^GF" => (4, 0, 1),
+        "~DY" => (5, 1, 3),
+        _ => (0, 0, 0),
+    };
+
+    /// <summary>
+    /// True when a header's format parameter announces binary data and its byte count is usable;
+    /// <paramref name="length"/> is then that count. Shared with <see cref="ZplStreamSplitter"/>.
+    /// </summary>
+    internal static bool TryReadLength(string formatField, string lengthField, out long length)
+    {
+        length = 0;
+        var format = formatField.Trim();
+        // Formats B and C both carry raw bytes (C is compressed binary); only the byte count matters here.
+        if (format.Length == 0 || char.ToUpperInvariant(format[0]) is not ('B' or 'C')) return false;
+        return long.TryParse(lengthField.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out length)
+               && length >= 1 && length <= ZplStreamSplitter.MaxPendingChars;
     }
 
     /// <summary>

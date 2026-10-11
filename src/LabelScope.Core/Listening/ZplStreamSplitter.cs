@@ -18,9 +18,16 @@ public sealed record DecodedZpl(string Text, bool ReadAsWindows1252);
 /// The splitter follows ^CC, ^CT and ^CD (and their ~ forms) the way <see cref="ZplParser"/> reads them: after
 /// <c>~CC/</c> a label ends at <c>/XZ</c>. Every byte is read once, with a small reading state that survives between
 /// chunks, so a command cut by a chunk boundary is still seen and the cost stays linear however small the chunks are.
-/// The characters are kept for this connection only: another connection starts from the defaults (a label that never
-/// ends is still delivered when its connection closes, so nothing is lost). Only printable ASCII is accepted as a new
-/// character (<see cref="ZplPrefixes.TryChange"/>), so the bytes read here and the characters the parser reads agree.
+/// The characters are kept for this connection only: another connection starts from the defaults. A label that never
+/// ends is delivered when its connection closes, unless it grew past <see cref="MaxPendingChars"/> first: then it is
+/// discarded with <see cref="ZplTooLargeException"/>. Only printable ASCII is accepted as a new character
+/// (<see cref="ZplPrefixes.TryChange"/>), so the bytes read here and the characters the parser reads agree.
+/// </para>
+/// <para>
+/// Names are read as the parser reads them: case is ignored and line breaks inside a name are skipped, so
+/// <c>^X</c>, a line break and <c>Z</c> also end a label. The binary data a ^GF or ~DY header announces (format B or
+/// C) is skipped by its declared byte count, as in the parser, so bytes inside a graphic or font download that look
+/// like <c>^XZ</c> or <c>~CC</c> neither end the label nor change the prefix.
 /// </para>
 /// <para>
 /// The end marker is searched as plain ASCII bytes, which is safe in UTF-8 and in the Windows code pages
@@ -64,6 +71,14 @@ public sealed class ZplStreamSplitter
     private byte _firstLetter;
     private char _changeKind;     // 'C', 'T' or 'D' while waiting for a change command's character
 
+    // The header of a ^GF or ~DY being read (see BinaryDownloads.Layout), and the binary bytes still to skip.
+    private int _headerBytes;
+    private int _headerField;
+    private int _headerDelimiters, _formatIndex, _lengthIndex;
+    private readonly StringBuilder _formatField = new();
+    private readonly StringBuilder _lengthField = new();
+    private long _binaryLeft;
+
     /// <summary>What the splitter was in the middle of when the last chunk ended.</summary>
     private enum Reading
     {
@@ -73,6 +88,10 @@ public sealed class ZplStreamSplitter
         Name,
         /// <summary>After ^CC, ^CT or ^CD: waiting for the new character.</summary>
         ChangeCharacter,
+        /// <summary>After ^GF or ~DY: reading the header that may announce binary data.</summary>
+        Header,
+        /// <summary>Inside announced binary data: its bytes are skipped, whatever they look like.</summary>
+        Binary,
     }
 
     private static Encoding CreateWindows1252()
@@ -242,12 +261,29 @@ public sealed class ZplStreamSplitter
                     return false;
                 }
                 _reading = Reading.Text;
-                if (_formatMarker && (_firstLetter | 0x20) == 'x' && (b | 0x20) == 'z') return true;
-                if (ZplPrefixes.IsChange((char)_firstLetter, (char)b, out var kind))
+                var first = _firstLetter | 0x20;
+                var second = b | 0x20;
+                if (_formatMarker && first == 'x' && second == 'z') return true;
+                if (_formatMarker && first == 'g' && second == 'f') StartHeader("^GF");
+                else if (!_formatMarker && first == 'd' && second == 'y') StartHeader("~DY");
+                else if (ZplPrefixes.IsChange((char)_firstLetter, (char)b, out var kind))
                 {
                     _changeKind = kind;
                     _reading = Reading.ChangeCharacter;
                 }
+                return false;
+            }
+
+            case Reading.Header:
+                return StepHeader(ref i, format, control);
+
+            case Reading.Binary:
+            {
+                // Skipped in bulk: a large font download costs one step per chunk, not one per byte.
+                var take = (int)Math.Min(_binaryLeft, _length - i);
+                i += take;
+                _binaryLeft -= take;
+                if (_binaryLeft == 0) _reading = Reading.Text;
                 return false;
             }
 
@@ -272,5 +308,61 @@ public sealed class ZplStreamSplitter
                 return false;
             }
         }
+    }
+
+    /// <summary>Starts reading the header of <paramref name="name"/> (^GF or ~DY), which may announce binary data.</summary>
+    private void StartHeader(string name)
+    {
+        (_headerDelimiters, _formatIndex, _lengthIndex) = BinaryDownloads.Layout(name);
+        _headerBytes = 0;
+        _headerField = 0;
+        _formatField.Clear();
+        _lengthField.Clear();
+        _reading = Reading.Header;
+    }
+
+    /// <summary>
+    /// One byte of a ^GF or ~DY header, read by the rules of <see cref="BinaryDownloads.TryMeasure(string, int, string, ZplPrefixes, out int, out long)"/>:
+    /// at most <see cref="BinaryDownloads.MaxHeaderChars"/> bytes, line breaks skipped, a prefix ending the header without
+    /// data. When the last header delimiter announces binary data, its bytes are skipped next, so a <c>^XZ</c> or a
+    /// <c>~CC</c> inside a graphic or a font download neither ends the label nor changes the prefix. The parser skips
+    /// the very same bytes.
+    /// </summary>
+    private bool StepHeader(ref int i, byte format, byte control)
+    {
+        // Not a header after all: the byte is read again as ordinary text (or as the next command), as the parser does.
+        if (_headerBytes >= BinaryDownloads.MaxHeaderChars)
+        {
+            _reading = Reading.Text;
+            return false;
+        }
+        var b = _bytes[i];
+        if (b == format || b == control)
+        {
+            _reading = Reading.Text;
+            return false;
+        }
+        _headerBytes++;
+        i++;
+        if (b is (byte)'\r' or (byte)'\n') return false;
+        if (b != (byte)_prefixes.Delimiter)
+        {
+            // Only the two parameters that matter are kept; a header is at most 256 bytes, so they stay small.
+            if (_headerField == _formatIndex) _formatField.Append((char)b);
+            else if (_headerField == _lengthIndex) _lengthField.Append((char)b);
+            return false;
+        }
+        if (++_headerField < _headerDelimiters) return false;
+
+        if (BinaryDownloads.TryReadLength(_formatField.ToString(), _lengthField.ToString(), out var length))
+        {
+            _binaryLeft = length;
+            _reading = Reading.Binary;
+        }
+        else
+        {
+            _reading = Reading.Text;
+        }
+        return false;
     }
 }
