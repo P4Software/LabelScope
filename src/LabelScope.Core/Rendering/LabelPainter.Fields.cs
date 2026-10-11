@@ -172,7 +172,8 @@ internal sealed partial class LabelPainter
     /// <param name="Serial">The supplier's ^SN, which counts the data it gave; null to keep the field's own counter. Only
     /// ^SN travels, because ^SN is data; a ^SF modifies the field it is written on, and a supplier is never drawn, so
     /// its ^SF is dropped (as other ZPL viewers do; the guide is silent).</param>
-    private readonly record struct FieldPlan(string? Data, char? HexIndicator, bool Skip, SnSpec? Serial = null);
+    /// <param name="Clock">The supplier's ^FC, which goes with the data it wrote, like its ^FH; null to keep the field's own.</param>
+    private readonly record struct FieldPlan(string? Data, char? HexIndicator, bool Skip, SnSpec? Serial = null, ClockIndicators? Clock = null);
 
     // Decisions per field, keyed by the position of the field's ^FS in the painted block; null when the label has no
     // ^FN or ^FE at all, which is almost every label.
@@ -220,6 +221,7 @@ internal sealed partial class LabelPainter
         char? hex = null, delimiter = null;
         var concatenated = false;
         SnSpec? serial = null;
+        ClockIndicators? clock = null;
 
         for (var index = 0; index < block.Count; index++)
         {
@@ -234,6 +236,9 @@ internal sealed partial class LabelPainter
                     // The same reading as the painter's ^FH, so the supplier's escapes decode the same way.
                     var a = cmd.Args.Split(',');
                     hex = a[0].Length > 0 ? a[0][0] : '_';
+                    break;
+                case "^FC":
+                    clock = FieldClock.ReadIndicators(cmd.Args);
                     break;
                 case "^FE":
                     delimiter = cmd.Args.Length > 0 ? cmd.Args[0] : '#';
@@ -269,7 +274,7 @@ internal sealed partial class LabelPainter
                             known[n] = serial is { } counted ? counted.Apply(data, copyIndex) : data;
                             if (waiting.Remove(n, out var w))
                             {
-                                foreach (var target in w.Fields) plans[target] = new FieldPlan(data, hex, false, serial);
+                                foreach (var target in w.Fields) plans[target] = new FieldPlan(data, hex, false, serial, clock);
                                 plans[field] = new FieldPlan(null, null, true);
                             }
                             else if (concatenated)
@@ -282,7 +287,7 @@ internal sealed partial class LabelPainter
                     {
                         plans[field] = new FieldPlan(data, hex, false);
                     }
-                    number = null; data = null; hex = null; delimiter = null; concatenated = false; serial = null;
+                    number = null; data = null; hex = null; delimiter = null; concatenated = false; serial = null; clock = null;
                     break;
             }
         }

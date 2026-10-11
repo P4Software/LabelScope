@@ -58,7 +58,8 @@ public sealed class ZplRenderer
         var labels = new List<RenderedLabel>();
         var warnings = new List<RenderWarning>();
         var notes = new List<string>();
-        var context = new PaintContext(Memory, notes, Fonts);
+        // "Now" is read once per job: every label and serial image of the job shows the same clock (see PaintContext.Now).
+        var context = new PaintContext(Memory, notes, Fonts) { Now = options.Clock ?? DateTimeOffset.Now };
         var block = new List<ZplCommand>();
         var inLabel = false;
         // Line of the command being handled, for the last-resort warning below.
@@ -102,6 +103,8 @@ public sealed class ZplRenderer
                             if (LabelPainter.CheckCharacterSetCommand(cmd, cmd.Args.Split(','), warnings) is { } set)
                                 context.PendingCharacterSet = (set, cmd.Line);
                         }
+                        // ^ST sets the printer clock, which is printer state: setup jobs often send it on its own.
+                        else if (cmd.Name == "^ST") LabelPainter.SetClock(cmd, context, warnings);
                         // Downloads usually travel outside any label; they act on printer memory right here, in stream order.
                         else if (HandleStorageSafely(cmd, context, warnings)) { }
                         else if (!SilentCommands.IsSilent(cmd.Name, cmd.Args))
@@ -172,7 +175,7 @@ public sealed class ZplRenderer
                 labels.Add(first);
                 return;
             }
-            PaintSerialImages(expanded, options, warnings, labels, context.Fonts, before, characterSet, first, serials);
+            PaintSerialImages(expanded, options, warnings, labels, context.Fonts, context.Now, before, characterSet, first, serials);
         }
         catch (Exception ex)
         {
@@ -194,7 +197,7 @@ public sealed class ZplRenderer
     /// drawing them. A later image that fails ends the run with a warning; the images already drawn are kept.
     /// </remarks>
     private static void PaintSerialImages(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, List<RenderedLabel> labels,
-                                          FontLibrary fonts, PrinterMemory before, (int Set, int Line)? characterSet, RenderedLabel first, SerialRun serials)
+                                          FontLibrary fonts, DateTimeOffset now, PrinterMemory before, (int Set, int Line)? characterSet, RenderedLabel first, SerialRun serials)
     {
         var (quantity, replicates) = (serials.Quantity, serials.Replicates);
         var (_, distinct) = Serialization.Counts(quantity, replicates);
@@ -205,7 +208,8 @@ public sealed class ZplRenderer
         for (long i = 1; i < images; i++)
         {
             scratch.Clear();
-            var copy = new PaintContext(before.Fork(), [], fonts) { PendingCharacterSet = characterSet };
+            // The same moment as the first image: a job is drawn at one time.
+            var copy = new PaintContext(before.Fork(), [], fonts) { PendingCharacterSet = characterSet, Now = now };
             RenderedLabel image;
             try
             {

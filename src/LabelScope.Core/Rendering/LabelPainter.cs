@@ -51,6 +51,15 @@ internal sealed partial class LabelPainter : IDisposable
     private SerialSpec? _serial;
     private readonly List<(SerialSpec Spec, string Data)> _serialFields = [];
     private int _serialFieldCount;
+    // Field clock. The indicators of the field being built (^FC, reset by ^FS); the label's ^SL language and ^SO2 / ^SO3
+    // offsets (they last for this label); the printer clock offset that ^ST sets (printer state, carried from earlier
+    // jobs and kept for later ones when this label sets it); and the clock warnings already given in this label.
+    private ClockIndicators? _clock;
+    private ClockSettings _clockSettings = new(1, null, null);
+    private TimeSpan? _clockOffset;
+    private bool _clockOffsetSet;
+    private ClockProblems _clockWarned;
+    private bool _clockLanguageWarned;
     // Whether this label sent ^LH or ^LR, so only what it set is kept for the next job.
     private bool _homeSet, _reverseAllSet;
 
@@ -83,6 +92,7 @@ internal sealed partial class LabelPainter : IDisposable
         _homeX = setup.HomeX ?? 0;
         _homeY = setup.HomeY ?? 0;
         _reverseAll = setup.ReverseAll ?? false;
+        _clockOffset = setup.ClockOffset;
         _dpi = dpi;
         _context = context;
         _bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
@@ -151,7 +161,8 @@ internal sealed partial class LabelPainter : IDisposable
             painter._homeSet ? painter._homeX : null,
             painter._homeSet ? painter._homeY : null,
             po is not null ? inverted : null,
-            painter._reverseAllSet ? painter._reverseAll : null));
+            painter._reverseAllSet ? painter._reverseAll : null,
+            painter._clockOffsetSet ? painter._clockOffset : null));
         return painter.ToResult(widthFromZpl, heightFromZpl, options.Dpi);
     }
 
@@ -259,6 +270,16 @@ internal sealed partial class LabelPainter : IDisposable
             case "^FN": _fieldNumberLine = cmd.Line; break; // the number itself was read by PlanFieldNumbers
             case "^FE": break; // concatenation was resolved by PlanFieldNumbers
             case "^FS": EndField(); break;
+            case "^FC": _clock = FieldClock.ReadIndicators(cmd.Args); break;
+            case "^SO": SetClockShift(cmd); break;
+            case "^SL": SetClockLanguage(cmd); break;
+            case "^ST":
+                if (ReadSetTime(cmd, _context.Now, _clockOffset, _warnings) is { } offset)
+                {
+                    _clockOffset = offset;
+                    _clockOffsetSet = true;
+                }
+                break;
             case "^GB": DrawBox(cmd, a); break;
             case "^XG": RecallGraphic(cmd, a, scalable: true); break;
             case "^IM": RecallGraphic(cmd, a, scalable: false); break;
@@ -376,6 +397,83 @@ internal sealed partial class LabelPainter : IDisposable
         _warnings.Add(new(_charSetLine, Text.Get("Painter_CharSetPartial", set, CharacterSets.Describe(set) ?? "")));
     }
 
+    // ---- field clock --------------------------------------------------------------------------
+
+    /// <summary>Fills in the clock placeholders of a field's final data, with one warning per kind of problem per label.</summary>
+    private string ExpandClock(string data, ClockIndicators clock)
+    {
+        var now = FieldClock.PrinterNow(_context.Now, _clockOffset);
+        var expanded = FieldClock.Expand(data, clock, now, _clockSettings, out var problems);
+        var fresh = problems & ~_clockWarned;
+        if (fresh == ClockProblems.None) return expanded;
+        _clockWarned |= fresh;
+        if (fresh.HasFlag(ClockProblems.NoSecondary)) _warnings.Add(new(_dataLine, Text.Get("Clock_NoOffset", 2)));
+        if (fresh.HasFlag(ClockProblems.NoThird)) _warnings.Add(new(_dataLine, Text.Get("Clock_NoOffset", 3)));
+        if (fresh.HasFlag(ClockProblems.SecondaryOutOfRange)) _warnings.Add(new(_dataLine, Text.Get("Clock_OffsetOutOfRange", 2)));
+        if (fresh.HasFlag(ClockProblems.ThirdOutOfRange)) _warnings.Add(new(_dataLine, Text.Get("Clock_OffsetOutOfRange", 3)));
+        return expanded;
+    }
+
+    /// <summary>
+    /// ^SO2 / ^SO3: the offset of the secondary or third clock, for the fields after it in this label. The guide says a
+    /// printer keeps offsets until they change; LabelScope keeps them for the label only (the design for this release),
+    /// so a label never depends on an offset sent by an earlier job.
+    /// </summary>
+    private void SetClockShift(ZplCommand cmd)
+    {
+        if (!FieldClock.TryReadShift(cmd.Args, out var clock, out var shift, out var shown))
+        {
+            _warnings.Add(new(cmd.Line, Text.Get("Clock_OffsetClockUnknown", shown)));
+            return;
+        }
+        _clockSettings = clock == 2 ? _clockSettings with { Secondary = shift } : _clockSettings with { Third = shift };
+    }
+
+    /// <summary>
+    /// ^SLa,b: the language of month and day names, for the fields after it in this label. The mode (a) only says when
+    /// a printer reads its clock; LabelScope draws a whole job at one moment, so every mode gives the same picture.
+    /// </summary>
+    private void SetClockLanguage(ZplCommand cmd)
+    {
+        switch (FieldClock.ReadLanguage(cmd.Args, out var shown))
+        {
+            case null:
+                break;
+            case 0:
+                // One warning per label: the same wrong number in every field is one problem.
+                if (!_clockLanguageWarned)
+                {
+                    _clockLanguageWarned = true;
+                    _warnings.Add(new(cmd.Line, Text.Get("Clock_LanguageUnknown", shown, FieldClock.LanguageCount)));
+                }
+                break;
+            case { } language:
+                _clockSettings = _clockSettings with { Language = language };
+                break;
+        }
+    }
+
+    /// <summary>A ^ST outside any label: it sets the printer clock straight away, as printer state.</summary>
+    internal static void SetClock(ZplCommand cmd, PaintContext context, List<RenderWarning> warnings)
+    {
+        if (ReadSetTime(cmd, context.Now, context.Memory.Setup.Current.ClockOffset, warnings) is { } offset)
+            context.Memory.Setup.Apply(PrinterSetup.Values.None with { ClockOffset = offset });
+    }
+
+    /// <summary>
+    /// Reads a ^ST against the printer clock as it is now (values left out keep the clock's own) and returns the
+    /// offset to keep; null, with a warning, for a date or time that does not exist, which leaves the clock alone.
+    /// </summary>
+    private static TimeSpan? ReadSetTime(ZplCommand cmd, DateTimeOffset now, TimeSpan? offset, List<RenderWarning> warnings)
+    {
+        var current = FieldClock.PrinterNow(now, offset).DateTime;
+        if (FieldClock.TryReadSetTime(cmd.Args, current, out var set)) return FieldClock.OffsetFor(set, now);
+        // Quoted back to the user, so a hostile megabyte of text is cut to a readable length.
+        var shown = cmd.Args.Length > 40 ? cmd.Args[..40] + "..." : cmd.Args;
+        warnings.Add(new(cmd.Line, Text.Get("Clock_SetTimeInvalid", shown)));
+        return null;
+    }
+
     // ---- fields ------------------------------------------------------------------------------
 
     private SKPaint InkPaint(bool white = false)
@@ -409,6 +507,8 @@ internal sealed partial class LabelPainter : IDisposable
             _hexIndicator = plan.Value.HexIndicator;
             // A supplier that counts (^SN on its line) brings its counter along; otherwise the field's own applies.
             if (plan.Value.Serial is { } supplied) _serial = supplied;
+            // A supplier's ^FC goes with the data it wrote; without one, the field's own ^FC applies.
+            if (plan.Value.Clock is { } clockOfData) _clock = clockOfData;
         }
 
         // ^FH escapes are resolved once, here, so text and barcodes see the same characters. Under ^CI28 the escaped
@@ -420,6 +520,10 @@ internal sealed partial class LabelPainter : IDisposable
             if (_serialFieldCount++ < Serialization.MaxListedFields) _serialFields.Add((serial, data));
             data = serial.Apply(data, _copyIndex);
         }
+        // The clock is filled in last, as a printer fills it when it builds the field. Counting comes first so the counter
+        // works on the data as written: in ^SNLOT001-%H the counter is 001, never the hour the clock puts after it, and a
+        // ^SF mask lines up with the characters the sender wrote.
+        if (_hasData && _clock is { } clock) data = ExpandClock(data, clock);
         if (_hasData) CheckCharacterSet(data);
         if (_barcode is not null)
         {
@@ -440,7 +544,7 @@ internal sealed partial class LabelPainter : IDisposable
     {
         _data = ""; _hasData = false; _reverse = false;
         _fontHeight = null; _fontWidth = null; _fieldFont = null; _fieldBlock = null; _textOrientation = null;
-        _barcode = null; _hexIndicator = null; _serial = null; // all three apply to one field only
+        _barcode = null; _hexIndicator = null; _serial = null; _clock = null; // all four apply to one field only
         _originLine = 0;
         _fieldNumberLine = 0;
     }

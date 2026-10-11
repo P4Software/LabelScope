@@ -2,7 +2,7 @@ namespace LabelScope.Core.Memory;
 
 /// <summary>
 /// Label setup a real printer keeps from one job to the next: print width (^PW), label length (^LL), label home (^LH),
-/// print orientation (^PO) and reverse-all (^LR). Label programs often send these once, in a setup job of their own,
+/// print orientation (^PO), reverse-all (^LR) and the clock time set with ^ST. Label programs often send these once, in a setup job of their own,
 /// and the labels that follow rely on them; forgetting them would draw those labels on the wrong size.
 /// Kept until LabelScope closes or the user clears printer memory, as a printer keeps them until it is switched off.
 /// Safe to use from several threads.
@@ -25,7 +25,13 @@ public sealed class PrinterSetup
     /// <param name="HomeY">Last ^LH y, in dots.</param>
     /// <param name="Inverted">Last ^PO: true for ^POI (upside down).</param>
     /// <param name="ReverseAll">Last ^LR: true for ^LRY.</param>
-    public sealed record Values(int? WidthDots, int? HeightDots, int? HomeX, int? HomeY, bool? Inverted, bool? ReverseAll)
+    /// <param name="ClockOffset">
+    /// What the last ^ST set, as the difference between the set time and the job's time in UTC (see
+    /// <c>FieldClock.PrinterNow</c>): later jobs show the set time moved on by the time since, as a printer's battery
+    /// clock does. Null when no ^ST was sent, so the clock is the job's own time.
+    /// </param>
+    public sealed record Values(int? WidthDots, int? HeightDots, int? HomeX, int? HomeY, bool? Inverted, bool? ReverseAll,
+                                TimeSpan? ClockOffset = null)
     {
         /// <summary>Nothing set yet.</summary>
         public static readonly Values None = new(null, null, null, null, null, null);
@@ -48,7 +54,8 @@ public sealed class PrinterSetup
                 changes.HomeX ?? _values.HomeX,
                 changes.HomeY ?? _values.HomeY,
                 changes.Inverted ?? _values.Inverted,
-                changes.ReverseAll ?? _values.ReverseAll);
+                changes.ReverseAll ?? _values.ReverseAll,
+                changes.ClockOffset ?? _values.ClockOffset);
         }
     }
 

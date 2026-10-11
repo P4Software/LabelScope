@@ -281,7 +281,12 @@ public partial class MainWindow : Window
             if (_closing) return;
             // One read of the field: Printer setup may replace the settings object while this thread runs. How the bytes
             // were read goes with the label, so a ^CI28 label whose data was not UTF-8 says so.
-            var options = OptionsFor(_settings) with { TextReadAsWindows1252 = received.ReadAsWindows1252 };
+            // The clock fields (^FC) show the time the job arrived, so a redraw shows the same time. A label that will
+            // join the open job of its connection uses that job's time: a redraw draws the joined job at that one moment.
+            // (When the job turns out to be full and this label starts a new one, its card keeps its own arrival time;
+            // a redraw of that card may then show a few seconds later than this first drawing.)
+            var clock = _assembler.CurrentJob(received.ConnectionId)?.ReceivedAt ?? received.ReceivedAt;
+            var options = OptionsFor(_settings) with { TextReadAsWindows1252 = received.ReadAsWindows1252, Clock = clock };
             // Format first and draw THE FORMATTED TEXT: warnings and fields carry line numbers, and they must point
             // at the lines the user sees. Formatting does not change the picture (ZPL ignores line breaks).
             // Formatting copies the whole text, so it waits for the same gate as drawing: a flood of very large
@@ -551,7 +556,7 @@ public partial class MainWindow : Window
                     if (_closing || Volatile.Read(ref _renderGeneration) != generation) return false;
                     RenderResult result;
                     _renderGate.Wait();
-                    try { result = renderer.Render(ZplFormatter.Format(job.Zpl), options with { TextReadAsWindows1252 = job.ReadAsWindows1252 }); }
+                    try { result = renderer.Render(ZplFormatter.Format(job.Zpl), options with { TextReadAsWindows1252 = job.ReadAsWindows1252, Clock = job.ReceivedAt }); }
                     finally { _renderGate.Release(); }
                     // A newer pass started meanwhile: its result wins, this one is dropped.
                     if (Volatile.Read(ref _renderGeneration) != generation) return false;
@@ -614,7 +619,7 @@ public partial class MainWindow : Window
                     var options = OptionsFor(_settings);
                     RenderResult result;
                     _renderGate.Wait();
-                    try { result = renderer.Render(ZplFormatter.Format(s.Zpl), options with { TextReadAsWindows1252 = s.ReadAsWindows1252 }); }
+                    try { result = renderer.Render(ZplFormatter.Format(s.Zpl), options with { TextReadAsWindows1252 = s.ReadAsWindows1252, Clock = s.ReceivedAt }); }
                     finally { _renderGate.Release(); }
                     list.Add(LabelJob.FromSaved(s, result));
                 }

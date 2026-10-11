@@ -21,4 +21,11 @@ internal sealed class PaintContext(PrinterMemory memory, List<string> memoryNote
     /// the same warnings whether a send is drawn label by label or as one job.
     /// </summary>
     public (int Set, int Line)? PendingCharacterSet { get; set; }
+
+    /// <summary>
+    /// The moment this job is drawn at (<see cref="RenderOptions.Clock"/>, or the PC clock read once). One value for the
+    /// whole job: every label and every serial image of a job shows the same time, as ^SLS and ^SLT both do when a job
+    /// is drawn at one moment.
+    /// </summary>
+    public DateTimeOffset Now { get; init; }
 }

@@ -16,6 +16,13 @@ public sealed record RenderOptions(int Dpi = 203, double LabelWidthMm = 101.6, d
     /// that accented letters may be wrong. Set per job, from what the listener or Open file reported.
     /// </summary>
     public bool TextReadAsWindows1252 { get; init; }
+
+    /// <summary>
+    /// "Now" for the clock fields (^FC): the window passes the time the job arrived, both when it arrives and when it
+    /// is drawn again, so a redraw shows the same date and time. Null means the PC clock, read once per job. Only the
+    /// wall-clock date and time are used, never the machine's time zone.
+    /// </summary>
+    public DateTimeOffset? Clock { get; init; }
 }
 
 /// <summary>One rendered label.</summary>

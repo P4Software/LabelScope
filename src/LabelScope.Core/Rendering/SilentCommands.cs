@@ -17,6 +17,8 @@ internal static class SilentCommands
     {
         "^MN", "^MM", "^MD", "^MT", "^PR", "^JU", "^JZ", "^XB", "^FX",
         "~TA", "~JS", "~SD",
+        // ^KD only chooses how the clock is shown on the printer's display and configuration label, never on a label.
+        "^KD",
     };
 
     /// <summary>True when <paramref name="name"/> with <paramref name="args"/> cannot affect the drawn label.</summary>
