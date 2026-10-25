@@ -358,7 +358,8 @@ public partial class MainWindow : Window
         if (result.Labels.Count == 0)
         {
             // Never drop a job silently; the card and the placeholder picture show what arrived.
-            // A download or a ^DF label that only stored something in memory says what it stored.
+            // A download, or a label that only stored something in memory (^DF, ^IS ..,N, or memory commands such as
+            // ^ID alone), says what it stored.
             if (result.OnlyStored) return StatusText.ForMemoryNotes(result.MemoryNotes);
             var hasStart = received.Zpl.Contains("^XA", StringComparison.OrdinalIgnoreCase);
             return hasStart ? UiText.Get("Ui_NotDrawnNote") : StatusText.ForNoLabel(result.Warnings.Count > 0);
