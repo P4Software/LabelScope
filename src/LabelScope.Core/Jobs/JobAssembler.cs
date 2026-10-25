@@ -100,7 +100,7 @@ public sealed class JobAssembler
         {
             MemoryNotes = [.. before.MemoryNotes, .. result.MemoryNotes],
             LabelBlocks = before.LabelBlocks + result.LabelBlocks,
-            StoredFormatBlocks = before.StoredFormatBlocks + result.StoredFormatBlocks,
+            StoredOnlyBlocks = before.StoredOnlyBlocks + result.StoredOnlyBlocks,
         };
 
         var job = new LabelJob

@@ -134,21 +134,24 @@ internal sealed partial class LabelPainter : IDisposable
     /// job (a printer keeps them); a side the ZPL never gave is the loaded label from <paramref name="options"/>.
     /// </summary>
     public static RenderedLabel Paint(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, PaintContext context) =>
-        Paint(block, options, warnings, context, 0, out _);
+        Paint(block, options, warnings, context, 0, out _, out _);
 
     /// <summary>
     /// Paints one image of a label block. <paramref name="copyIndex"/> is the serial value number (0 = the first).
     /// When the label has a serial field, <paramref name="serials"/> returns what the renderer needs to draw the other
     /// values (null for a label without one). The renderer paints each later value against its own copy of printer
     /// memory as it was before the first image, so every image sees the same memory at every command.
+    /// <paramref name="imageSavePrints"/> is the print flag of the label's ^IS (the last one counts): false for
+    /// ^IS d:o.x,N, which a printer stores without printing, true for one that prints, null when the label has no ^IS.
     /// </summary>
     internal static RenderedLabel Paint(IReadOnlyList<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, PaintContext context,
-                                        long copyIndex, out SerialRun? serials)
+                                        long copyIndex, out SerialRun? serials, out bool? imageSavePrints)
     {
         using var painter = Draw(block, options, warnings, context, copyIndex, withoutVariableFields: false);
         serials = painter._serialFieldCount > 0
             ? new SerialRun(painter._copies, painter._replicates, painter._serialFields, painter._serialFieldCount)
             : null;
+        imageSavePrints = painter._imageSave?.Print;
         return painter.ToResult(painter._widthFromZpl, painter._heightFromZpl, options.Dpi);
     }
 

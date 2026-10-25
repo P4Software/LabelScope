@@ -51,25 +51,28 @@ public sealed record RenderedLabel(byte[] PngBytes, int WidthDots, int HeightDot
 public sealed record RenderWarning(int Line, string Message);
 
 /// <summary>Everything the renderer produced for one piece of ZPL text.</summary>
-/// <param name="Labels">One image per ^XA..^XZ block.</param>
+/// <param name="Labels">One image per ^XA..^XZ block a printer prints (more for a label with serial fields).</param>
 /// <param name="Warnings">Problems found, in the order they occurred.</param>
 public sealed record RenderResult(IReadOnlyList<RenderedLabel> Labels, IReadOnlyList<RenderWarning> Warnings)
 {
     /// <summary>What this ZPL stored in or deleted from printer memory, in plain language; empty when nothing.</summary>
     public IReadOnlyList<string> MemoryNotes { get; init; } = [];
 
-    /// <summary>Number of ^XA..^XZ blocks read, whether they drew a label, stored a format or failed.</summary>
+    /// <summary>Number of ^XA..^XZ blocks read, whether they drew a label, stored something or failed.</summary>
     public int LabelBlocks { get; init; }
 
     /// <summary>
-    /// Number of those blocks that held a ^DF and so stored a format instead of drawing. When it equals
-    /// <see cref="LabelBlocks"/> and nothing was drawn, the job only stored things in printer memory.
+    /// Number of those blocks that a printer does not print because they only store in or delete from printer
+    /// memory: a ^DF block (stores a format), a ^IS ..,N block (stores the label as an image), or a block that drew no
+    /// field and only ran memory commands such as ^ID. When it equals <see cref="LabelBlocks"/> and nothing was drawn,
+    /// the job only stored things in printer memory.
     /// </summary>
-    public int StoredFormatBlocks { get; init; }
+    public int StoredOnlyBlocks { get; init; }
 
     /// <summary>
     /// True when the job drew nothing and only stored in or deleted from printer memory: downloads outside any label
-    /// and ^DF labels, which a printer does not print either. A success, not a label that could not be drawn.
+    /// and the blocks counted in <see cref="StoredOnlyBlocks"/>, which a printer does not print either. A success, not
+    /// a label that could not be drawn.
     /// </summary>
-    public bool OnlyStored => Labels.Count == 0 && MemoryNotes.Count > 0 && StoredFormatBlocks == LabelBlocks;
+    public bool OnlyStored => Labels.Count == 0 && MemoryNotes.Count > 0 && StoredOnlyBlocks == LabelBlocks;
 }

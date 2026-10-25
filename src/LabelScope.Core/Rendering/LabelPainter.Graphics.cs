@@ -177,7 +177,8 @@ internal sealed partial class LabelPainter
     /// <summary>
     /// Runs after the last command of the label: ^IS saves the whole finished label, so it must see every field,
     /// including the ones after ^IS. The picture is stored in black and white as drawn (a ^PO I label is stored
-    /// already turned), the way a printer stores its bitmap.
+    /// already turned), the way a printer stores its bitmap. With ^IS ..,N the renderer then shows no label for the
+    /// block, as a printer prints none (see <c>ZplRenderer.PaintSafely</c>).
     /// </summary>
     private void SaveImageIfAsked()
     {
@@ -196,8 +197,6 @@ internal sealed partial class LabelPainter
         }
         var cmd = new ZplCommand("^IS", "", save.Line);
         StorageCommands.StoreGraphic(cmd, _context, _warnings, save.Name, image, $"^IS {save.Name.Display}");
-        if (!save.Print)
-            _warnings.Add(new(save.Line, Text.Get("Painter_IsNoPrint", save.Name.Display)));
     }
 
     private void Warn(ZplCommand cmd, string message) => _warnings.Add(new(cmd.Line, message));

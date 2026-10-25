@@ -65,14 +65,15 @@ public sealed class ZplRenderer
         // Line of the command being handled, for the last-resort warning below.
         var line = 1;
 
-        // ^XA..^XZ blocks met, and how many of them were ^DF blocks that stored a format instead of drawing. The window
-        // uses them to show a job made only of ^DF labels as "stored in memory", not as a label that could not be drawn.
+        // ^XA..^XZ blocks met, and how many of them only stored in or deleted from printer memory instead of printing
+        // (see PaintSafely). The window uses them to show a job made only of such blocks as "stored in memory", not as
+        // a label that could not be drawn.
         var blocks = 0;
-        var formatBlocks = 0;
+        var storedBlocks = 0;
         void PaintBlock()
         {
             blocks++;
-            if (PaintSafely(block, options, warnings, labels, context)) formatBlocks++;
+            if (PaintSafely(block, options, warnings, labels, context)) storedBlocks++;
         }
 
         try
@@ -172,7 +173,7 @@ public sealed class ZplRenderer
             warnings.Add(new(line, Text.Get("Render_StoppedAtLine", line)));
         }
 
-        return new RenderResult(labels, warnings) { MemoryNotes = notes, LabelBlocks = blocks, StoredFormatBlocks = formatBlocks };
+        return new RenderResult(labels, warnings) { MemoryNotes = notes, LabelBlocks = blocks, StoredOnlyBlocks = storedBlocks };
     }
 
     /// <summary>
@@ -207,11 +208,15 @@ public sealed class ZplRenderer
 
     /// <summary>
     /// Paints one block. A ^DF block is stored as a format instead and adds no label; any other block has its ^XF
-    /// recalls replaced by the stored commands first (see <see cref="StoredFormats"/>). A failure inside Skia (for
-    /// example, not enough memory for a very large label) becomes a warning, so one bad label cannot take the whole
-    /// render down.
+    /// recalls replaced by the stored commands first (see <see cref="StoredFormats"/>). A block that a printer paints
+    /// but does not print adds no label either: one with ^IS ..,N, and one that drew nothing and only stored in or
+    /// deleted from printer memory. A failure inside Skia (for example, not enough memory for a very large label)
+    /// becomes a warning, so one bad label cannot take the whole render down.
     /// </summary>
-    /// <returns>True when the block was a ^DF block (stored, or refused with a warning) and so drew no label.</returns>
+    /// <returns>
+    /// True when the block printed nothing and only stored in or deleted from printer memory: a ^DF block (stored, or
+    /// refused with a warning), a ^IS ..,N block, or a block of memory commands only.
+    /// </returns>
     private static bool PaintSafely(List<ZplCommand> block, RenderOptions options, List<RenderWarning> warnings, List<RenderedLabel> labels, PaintContext context)
     {
         try
@@ -227,14 +232,31 @@ public sealed class ZplRenderer
             var setup = context.Memory.Setup;
             var mayKeep = setup.Current.KeepImage == true || expanded.Any(c => c.Name == "^MC");
             var before = serialBlock || mayKeep ? context.Memory.Fork() : null;
-            var first = LabelPainter.Paint(expanded, options, warnings, context, 0, out var serials);
+            // Read before painting, to tell afterwards whether the block did anything but printer-memory work.
+            var notesBefore = context.MemoryNotes.Count;
+            var onKeptBackground = setup.KeptBackground is not null;
+            var first = LabelPainter.Paint(expanded, options, warnings, context, 0, out var serials, out var imageSavePrints);
+
+            // A block a printer does not print is no label. ^IS ..,N stores the label as an image only. A block that
+            // drew no field and only stored in or deleted from printer memory feeds no label either: a WMS that loads
+            // a template with ^IL ends the job with ^XA^IDR:x.GRF^FS^XZ, and a printer prints one label, not two. Both
+            // are still painted above, because that stored the image and kept the printer setup the block sent. A
+            // block that drew nothing and changed no memory (^XA^PW400^XZ) is still shown as an empty label, and so
+            // is a ^IS ..,Y block or one drawn on a background ^MCN kept, which a printer does print.
+            var storedOnly = imageSavePrints == false
+                || (imageSavePrints is null && !onKeptBackground && first.Fields.Count == 0 && context.MemoryNotes.Count > notesBefore);
+
             // A label without a serial field (almost every label) is one image whose Copies is ^PQ q, as always.
             // The serial value the ^MCN background shows: the last one the printer prints (0 without serial fields).
+            // A block that is not printed adds no image, not even for its serial values: the printer prints none.
             var keptValue = 0L;
-            if (serials is null || before is null)
-                labels.Add(first);
-            else
-                keptValue = PaintSerialImages(expanded, options, warnings, labels, context, before, first, serials);
+            if (!storedOnly)
+            {
+                if (serials is null || before is null)
+                    labels.Add(first);
+                else
+                    keptValue = PaintSerialImages(expanded, options, warnings, labels, context, before, first, serials);
+            }
 
             // ^MC as it stands at the end of the label decides what the next label starts on. Labels that never met a
             // ^MCN (almost all) only read two values here.
@@ -242,6 +264,7 @@ public sealed class ZplRenderer
                 KeepImage(expanded, options, warnings, context, before, keptValue);
             else if (setup.KeptBackground is not null)
                 setup.KeptBackground = null;
+            return storedOnly;
         }
         catch (Exception ex)
         {
@@ -293,7 +316,7 @@ public sealed class ZplRenderer
             RenderedLabel image;
             try
             {
-                image = LabelPainter.Paint(block, options, scratch, copy, i, out _);
+                image = LabelPainter.Paint(block, options, scratch, copy, i, out _, out _);
             }
             catch (Exception ex)
             {
