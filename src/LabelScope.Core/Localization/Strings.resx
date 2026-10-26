@@ -395,4 +395,7 @@
   <data name="Sample_20" xml:space="preserve"><value>Automotive part label</value></data>
   <data name="Sample_21" xml:space="preserve"><value>Asset tag</value></data>
   <data name="Sample_22" xml:space="preserve"><value>Lot and expiry label</value></data>
+  <data name="Sample_23" xml:space="preserve"><value>Pharmacy label with GS1 Data Matrix</value></data>
+  <data name="Sample_24" xml:space="preserve"><value>Specimen tube label</value></data>
+  <data name="Sample_25" xml:space="preserve"><value>Shipping document with PDF417</value></data>
 </root>

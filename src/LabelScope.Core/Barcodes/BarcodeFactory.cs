@@ -71,6 +71,12 @@ internal static class BarcodeFactory
     public static string SymbologyName(string command) =>
         Names.GetValueOrDefault(command) ?? DeferredName(command) ?? command;
 
+    /// <summary>
+    /// Every command that can be drawn (for example "^BC"). It is the set the sample coverage test checks: each of these
+    /// must appear in at least one built-in sample label.
+    /// </summary>
+    internal static IReadOnlyCollection<string> DrawableCommands => Encoders.Keys;
+
     /// <summary>True when <paramref name="command"/> (for example "^BC") can be drawn.</summary>
     public static bool IsSupported(string command) => Encoders.ContainsKey(command);
 

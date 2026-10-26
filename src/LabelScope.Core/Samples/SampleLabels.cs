@@ -55,6 +55,9 @@ public static class SampleLabels
         new(20, "automotive-part-label", SampleGroup.Manufacturing),
         new(21, "asset-tag", SampleGroup.Manufacturing),
         new(22, "lot-expiry-label", SampleGroup.Manufacturing),
+        new(23, "pharmacy-datamatrix-label", SampleGroup.Healthcare),
+        new(24, "specimen-tube-label", SampleGroup.Healthcare),
+        new(25, "shipping-document-pdf417", SampleGroup.Documents),
     ];
 
     /// <summary>Finds a sample by its id (the slug). Returns false for an unknown or null id, for example one kept by a later version.</summary>

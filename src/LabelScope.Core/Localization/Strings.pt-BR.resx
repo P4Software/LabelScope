@@ -395,4 +395,7 @@
   <data name="Sample_20" xml:space="preserve"><value>Etiqueta de peça automotiva</value></data>
   <data name="Sample_21" xml:space="preserve"><value>Etiqueta de patrimônio</value></data>
   <data name="Sample_22" xml:space="preserve"><value>Etiqueta de lote e validade</value></data>
+  <data name="Sample_23" xml:space="preserve"><value>Etiqueta de farmácia com Data Matrix GS1</value></data>
+  <data name="Sample_24" xml:space="preserve"><value>Etiqueta de tubo de amostra</value></data>
+  <data name="Sample_25" xml:space="preserve"><value>Documento de expedição com PDF417</value></data>
 </root>
