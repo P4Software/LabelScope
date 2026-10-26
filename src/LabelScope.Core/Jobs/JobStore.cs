@@ -23,16 +23,20 @@ namespace LabelScope.Core.Jobs;
 /// written before 0.5.0, whose jobs then all count as one earlier epoch. Adding it needs no new file version: older
 /// LabelScope versions ignore a member they do not know, so they can still read and write the file.</param>
 /// <param name="SampleId">The id (slug) of the built-in sample label this job shows; null for every other job. A sample job
-/// is written with <c>Origin</c> <see cref="JobOrigin.OpenedFromFile"/> plus this member (see <see cref="LabelJob.ToSaved"/>).
-/// Adding it needs no new file version, for the same reason as <paramref name="Epoch"/>: 0.5.1 ignores the member and
-/// shows the job as an opened file, so it can still read and write the file. Absent in files written before 0.5.2.</param>
+/// is written with <c>Origin</c> <see cref="JobOrigin.OpenedFromFile"/> plus this member (see <see cref="LabelJob.ToSaved"/>),
+/// in the <c>Samples</c> array of the file, not in <c>Jobs</c> (see <see cref="JobStore"/>). Adding it needs no new file
+/// version, for the same reason as <paramref name="Epoch"/>: 0.5.1 ignores the members it does not know, so it can still
+/// read and write the file. Its next save leaves the <c>Samples</c> array out; the sample cards are built in and can be
+/// opened again. Not written when null, so a file without samples keeps the exact shape 0.5.1 writes. Absent in files
+/// written before 0.5.2.</param>
 public sealed record SavedJob(Guid Id, string Name, string? RemoteAddress, string? ResolvedHost, JobOrigin Origin,
                               DateTimeOffset ReceivedAt, string Zpl, bool Complete, bool ReadAsWindows1252 = false,
-                              Guid? Epoch = null, string? SampleId = null);
+                              Guid? Epoch = null,
+                              [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SampleId = null);
 
 /// <summary>
 /// Keeps the job list between runs ("Keep jobs after closing LabelScope") in jobs.json, as
-/// <c>{ "Version": 1, "Jobs": [...] }</c>. Neither method ever throws: a file that cannot be read gives an empty list
+/// <c>{ "Version": 1, "Jobs": [...], "Samples": [...] }</c> (<c>Samples</c> only when sample labels are kept). Neither method ever throws: a file that cannot be read gives an empty list
 /// and a plain-language message, so a bad file never stops LabelScope from starting.
 /// </summary>
 /// <remarks>
@@ -42,6 +46,13 @@ public sealed record SavedJob(Guid Id, string Name, string? RemoteAddress, strin
 /// held it, or access was denied), <see cref="Save"/> refuses until a later <see cref="Load"/> succeeds: the jobs in
 /// that file were never read, so writing this session's list would erase them. A damaged file is different: its jobs
 /// are already lost, so it may be replaced.
+/// <para>
+/// Sample labels (see <see cref="JobOrigin.Sample"/>) are kept in their own <c>Samples</c> array and not in <c>Jobs</c>.
+/// 0.5.1 counts every entry of <c>Jobs</c> toward its HistoryLimit when it restores and saves, so sample entries there
+/// would push out up to 25 real jobs for anyone who goes back to it. It skips a root member it does not know, so with a
+/// separate array it keeps exactly the real jobs, and its next save drops only the samples (built in, can be opened
+/// again). <see cref="Load"/> merges both arrays into the one list it returns, and no file version change is needed.
+/// </para>
 /// </remarks>
 public sealed class JobStore
 {
@@ -117,7 +128,11 @@ public sealed class JobStore
         try
         {
             ArgumentNullException.ThrowIfNull(jobs);
-            var kept = Keep(jobs.Select(j => j.ToSaved()).ToList(), limit);
+            var all = jobs.Select(j => j.ToSaved()).ToList();
+            // Real jobs first, so they have first call on the size budget; the samples get what is left.
+            var keptJobs = Keep(all.Where(j => !IsSample(j)).ToList(), limit, _maxBytes, out var used);
+            var keptSamples = Keep(all.Where(IsSample).ToList(), int.MaxValue, _maxBytes - used, out _);
+            var count = keptJobs.Count + keptSamples.Count;
 
             var full = Path.GetFullPath(_path);
             var folder = Path.GetDirectoryName(full)!;
@@ -125,13 +140,13 @@ public sealed class JobStore
             DeleteStaleTempFiles(folder, Path.GetFileName(full));
             temp = full + "." + Guid.NewGuid().ToString("N") + ".tmp";
             using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                JsonSerializer.Serialize(stream, new JobFile { Version = CurrentVersion, Jobs = kept }, Options);
+                JsonSerializer.Serialize(stream, new JobFile { Version = CurrentVersion, Jobs = keptJobs, Samples = keptSamples.Count > 0 ? keptSamples : null }, Options);
 
             // Same folder as the target, so Replace and Move are a swap rather than a copy.
             if (File.Exists(full)) File.Replace(temp, full, null);
             else File.Move(temp, full);
             temp = null;
-            return OperationResult.Ok(Text.Get("Jobs_Saved", kept.Count, full));
+            return OperationResult.Ok(Text.Get("Jobs_Saved", count, full));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
                                        or NotSupportedException or System.Security.SecurityException
@@ -146,10 +161,14 @@ public sealed class JobStore
     }
 
     /// <summary>
-    /// The newest jobs within the count and size limits, in their original order. Only real jobs count toward
-    /// <paramref name="limit"/>; sample jobs are kept beside them (newest first, while the size allows).
+    /// The newest of <paramref name="saved"/> within <paramref name="limit"/> jobs and <paramref name="budget"/> bytes, in
+    /// their original order. Called once for the real jobs (with HistoryLimit) and once for the samples (no count limit).
     /// </summary>
-    private List<SavedJob> Keep(List<SavedJob> saved, int limit)
+    /// <param name="saved">The jobs to choose from.</param>
+    /// <param name="limit">The most jobs to keep.</param>
+    /// <param name="budget">The most bytes the kept jobs may take in the file.</param>
+    /// <param name="used">The bytes the kept jobs take.</param>
+    private static List<SavedJob> Keep(List<SavedJob> saved, int limit, long budget, out long used)
     {
         // Newest first by arrival time; the stable sort keeps the given order for jobs that arrived at the same moment.
         var newestFirst = saved.Select((job, index) => (job, index))
@@ -157,20 +176,17 @@ public sealed class JobStore
                                .ToList();
         var keep = new HashSet<int>();
         long total = 0;
-        var realKept = 0;
         foreach (var (job, index) in newestFirst)
         {
-            // Not a break: an older sample can still follow the real job that reached the limit.
-            var isSample = IsSample(job);
-            if (!isSample && realKept >= limit) continue;
+            if (keep.Count >= limit) break;
             // The real size in the file, so the limit holds however much escaping the text needs.
             long size = JsonSerializer.SerializeToUtf8Bytes(job, Options).Length;
             // One huge job must not cost the user every older job: skip it and keep filling with the rest.
-            if (total + size > _maxBytes) continue;
+            if (total + size > budget) continue;
             total += size;
             keep.Add(index);
-            if (!isSample) realKept++;
         }
+        used = total;
         return saved.Where((_, i) => keep.Contains(i)).ToList();
     }
 
@@ -181,6 +197,9 @@ public sealed class JobStore
     /// </summary>
     /// <param name="saved">What <see cref="Load"/> returned.</param>
     /// <param name="limit">HistoryLimit: how many real jobs to bring back.</param>
+    /// <returns>The jobs to draw, oldest first. The file lists jobs newest first, so jobs that arrived at the same moment
+    /// come out in the reverse of their order in <paramref name="saved"/>, and it is the later ones of them that the
+    /// limit cuts.</returns>
     public static IReadOnlyList<SavedJob> NewestWithinLimit(IReadOnlyList<SavedJob> saved, int limit)
     {
         ArgumentNullException.ThrowIfNull(saved);
@@ -205,7 +224,7 @@ public sealed class JobStore
     /// True for a job that comes back as a sample label. An id this version does not know (a sample a later version
     /// removed) comes back as an ordinary opened file (see <see cref="LabelJob.FromSaved"/>), so it counts as a real job.
     /// </summary>
-    private static bool IsSample(SavedJob job) => SampleLabels.TryGet(job.SampleId, out _);
+    private static bool IsSample(SavedJob job) => SampleLabels.IsKnown(job.SampleId);
 
     /// <summary>Removes "jobs.json.*.tmp" files left by a save that was cut off; one that cannot be removed is left.</summary>
     private static void DeleteStaleTempFiles(string folder, string fileName)
@@ -253,7 +272,7 @@ public sealed class JobStore
             }
 
             // The parser happily puts null into non-nullable properties of a hand-edited file; repair or drop those.
-            var jobs = (file.Jobs ?? [])
+            var jobs = (file.Jobs ?? []).Concat(file.Samples ?? [])
                 .Where(j => j is not null && !string.IsNullOrEmpty(j.Zpl))
                 .Select(j => j with { Name = j.Name ?? "" })
                 .ToList();
@@ -288,7 +307,9 @@ public sealed class JobStore
             if (string.Equals(p.Name, "Version", StringComparison.OrdinalIgnoreCase))
                 file.Version = p.Value.ValueKind == JsonValueKind.Number && p.Value.TryGetInt32(out var v) ? v : 0;
         if (file.Version != CurrentVersion) return file;
-        file.Jobs = doc.RootElement.Deserialize<JobFile>(Options)?.Jobs;
+        var read = doc.RootElement.Deserialize<JobFile>(Options);
+        file.Jobs = read?.Jobs;
+        file.Samples = read?.Samples;
         return file;
     }
 
@@ -297,5 +318,9 @@ public sealed class JobStore
     {
         public int Version { get; set; }
         public List<SavedJob>? Jobs { get; set; }
+
+        // Sample labels, apart from Jobs so that 0.5.1 does not count them toward its limit. Left out when empty.
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<SavedJob>? Samples { get; set; }
     }
 }

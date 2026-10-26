@@ -67,6 +67,12 @@ public static class SampleLabels
         return sample is not null;
     }
 
+    /// <summary>
+    /// True when <paramref name="id"/> names a sample of this version. The one rule for "is this saved job a sample": a
+    /// saved id that is not known (a sample a later version removed) is an ordinary opened file.
+    /// </summary>
+    public static bool IsKnown(string? id) => TryGet(id, out _);
+
     /// <summary>Reads the ZPL of <paramref name="sample"/> from the file embedded in this assembly.</summary>
     public static string Load(SampleLabel sample)
     {

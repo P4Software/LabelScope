@@ -69,7 +69,7 @@ public sealed class LabelJob
     /// it), otherwise the stored name, or "Label" when the ZPL gives none.
     /// </summary>
     public string DisplayName =>
-        SampleLabels.TryGet(SampleId, out var sample) ? sample.Title : JobNamer.DisplayName(Name);
+        SampleId is not null && SampleLabels.TryGet(SampleId, out var sample) ? sample.Title : JobNamer.DisplayName(Name);
 
     /// <summary>The sender's IP address as received; null for a file or a paste (and for an unknown sender).</summary>
     public string? RemoteAddress { get; init; }
@@ -216,7 +216,7 @@ public sealed class LabelJob
     public static LabelJob FromSaved(SavedJob saved, RenderResult result)
     {
         ArgumentNullException.ThrowIfNull(saved);
-        var isSample = SampleLabels.TryGet(saved.SampleId, out _);
+        var isSample = SampleLabels.IsKnown(saved.SampleId);
         return new LabelJob
         {
             Id = saved.Id,

@@ -131,8 +131,8 @@ public static partial class JobNamer
 
     /// <summary>
     /// The source text from facts already known, without asking DNS: the localized text for a file, a paste, a sample
-    /// label or this computer; otherwise <paramref name="resolvedHost"/> when known, else the address. Looked up on every call, so it
-    /// follows a language switch.
+    /// label or this computer; otherwise <paramref name="resolvedHost"/> when known, else the address. Looked up on
+    /// every call, so it follows a language switch.
     /// </summary>
     /// <param name="origin">How the job reached LabelScope.</param>
     /// <param name="remoteAddress">The sender's IP address as text; null or empty means this computer.</param>
