@@ -40,6 +40,12 @@ public static class SampleLabels
         new(5, "return-label", SampleGroup.Shipping),
         new(6, "packing-slip", SampleGroup.Shipping),
         new(7, "itf14-case-label", SampleGroup.Shipping),
+        new(8, "pick-ticket-saved-template", SampleGroup.Warehouse),
+        new(9, "bin-location-label", SampleGroup.Warehouse),
+        new(10, "license-plate-lpn", SampleGroup.Warehouse),
+        new(11, "receiving-label", SampleGroup.Warehouse),
+        new(12, "rack-label", SampleGroup.Warehouse),
+        new(13, "inventory-count-tag", SampleGroup.Warehouse),
     ];
 
     /// <summary>Finds a sample by its id (the slug). Returns false for an unknown or null id, for example one kept by a later version.</summary>

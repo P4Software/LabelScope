@@ -380,4 +380,10 @@
   <data name="Sample_05" xml:space="preserve"><value>Etiqueta de devolução</value></data>
   <data name="Sample_06" xml:space="preserve"><value>Romaneio de embalagem</value></data>
   <data name="Sample_07" xml:space="preserve"><value>Etiqueta de caixa ITF-14</value></data>
+  <data name="Sample_08" xml:space="preserve"><value>Ordem de separação em um modelo salvo</value></data>
+  <data name="Sample_09" xml:space="preserve"><value>Etiqueta de localização de prateleira</value></data>
+  <data name="Sample_10" xml:space="preserve"><value>Etiqueta de placa de identificação (LPN)</value></data>
+  <data name="Sample_11" xml:space="preserve"><value>Etiqueta de recebimento</value></data>
+  <data name="Sample_12" xml:space="preserve"><value>Etiqueta de estante</value></data>
+  <data name="Sample_13" xml:space="preserve"><value>Cartão de contagem de inventário</value></data>
 </root>

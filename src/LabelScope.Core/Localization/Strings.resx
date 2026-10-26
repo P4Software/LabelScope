@@ -380,4 +380,10 @@
   <data name="Sample_05" xml:space="preserve"><value>Return label</value></data>
   <data name="Sample_06" xml:space="preserve"><value>Packing slip</value></data>
   <data name="Sample_07" xml:space="preserve"><value>ITF-14 case label</value></data>
+  <data name="Sample_08" xml:space="preserve"><value>Pick ticket on a saved template</value></data>
+  <data name="Sample_09" xml:space="preserve"><value>Bin location label</value></data>
+  <data name="Sample_10" xml:space="preserve"><value>License plate (LPN) label</value></data>
+  <data name="Sample_11" xml:space="preserve"><value>Receiving label</value></data>
+  <data name="Sample_12" xml:space="preserve"><value>Rack label</value></data>
+  <data name="Sample_13" xml:space="preserve"><value>Inventory count tag</value></data>
 </root>

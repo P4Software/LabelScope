@@ -380,4 +380,10 @@
   <data name="Sample_05" xml:space="preserve"><value>Étiquette de retour</value></data>
   <data name="Sample_06" xml:space="preserve"><value>Bordereau d'emballage</value></data>
   <data name="Sample_07" xml:space="preserve"><value>Étiquette de caisse ITF-14</value></data>
+  <data name="Sample_08" xml:space="preserve"><value>Bon de préparation sur un gabarit enregistré</value></data>
+  <data name="Sample_09" xml:space="preserve"><value>Étiquette d'emplacement de casier</value></data>
+  <data name="Sample_10" xml:space="preserve"><value>Étiquette de plaque d'identification (LPN)</value></data>
+  <data name="Sample_11" xml:space="preserve"><value>Étiquette de réception</value></data>
+  <data name="Sample_12" xml:space="preserve"><value>Étiquette de rayonnage</value></data>
+  <data name="Sample_13" xml:space="preserve"><value>Étiquette de comptage d'inventaire</value></data>
 </root>
