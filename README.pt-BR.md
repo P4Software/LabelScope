@@ -25,7 +25,7 @@
   &nbsp;·&nbsp;
   <a href="https://github.com/P4Software/LabelScope/releases/latest">Todas as versões</a>
   <br>
-  <sub>Versão 0.5.0 · Windows 10 ou 11, 64 bits · grátis · não precisa de direitos de administrador para instalar</sub>
+  <sub>Versão 0.5.2 · Windows 10 ou 11, 64 bits · grátis · não precisa de direitos de administrador para instalar</sub>
 </p>
 
 ---
@@ -92,6 +92,7 @@ Cada envio do seu sistema vira um cartão, o mais recente primeiro, com a hora, 
 - **O tamanho da etiqueta vem primeiro do ZPL.** `^PW` e `^LL` têm prioridade; se a etiqueta não envia nenhum, o LabelScope usa o tamanho que um trabalho anterior enviou e, depois, a etiqueta carregada em Configurar impressora (também na lista de tamanhos da barra de ferramentas).
 - **Salvar como PNG** ou copiar a etiqueta como imagem. O tamanho da etiqueta aparece em polegadas e pontos.
 - **Memória da impressora** como numa impressora real: gráficos, fontes e configurações enviados em um trabalho ficam disponíveis para o próximo.
+- **25 etiquetas de exemplo** no menu **...**: expedição, armazém, varejo, fabricação, saúde e documentos. Os dados são inventados, e um exemplo nunca muda o que a sua impressora guarda na memória.
 - **Atualização dentro do aplicativo** e um **registro de falhas** (crash log) se algo der errado.
 
 ---
@@ -103,6 +104,8 @@ Cada envio do seu sistema vira um cartão, o mais recente primeiro, com a hora, 
 3. Abra **Configurar impressora** e clique em **Reinstalar impressora**, ou use o menu **...** e escolha **Instalar impressora**. Responda **Sim** quando o Windows perguntar. Este é o único passo que precisa de permissão de administrador.
 4. Imprima de qualquer programa na impressora chamada **LabelScope**, ou envie ZPL para `127.0.0.1` porta `9100`.
 5. O trabalho aparece à esquerda e a etiqueta no meio. Clique nele, clique em um campo, leia o ZPL.
+
+Ainda não tem nada para enviar? Clique em **Experimentar uma etiqueta de exemplo** na janela vazia, ou abra o menu **...** e escolha **Etiquetas de exemplo**: um exemplo mostra o LabelScope em ação antes de imprimir qualquer coisa.
 
 Não tem ZPL à mão? Clique em **Colar ZPL** e cole isto:
 

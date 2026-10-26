@@ -25,7 +25,7 @@
   &nbsp;·&nbsp;
   <a href="https://github.com/P4Software/LabelScope/releases/latest">All releases</a>
   <br>
-  <sub>Version 0.5.0 · Windows 10 or 11, 64-bit · free · no administrator rights needed to install</sub>
+  <sub>Version 0.5.2 · Windows 10 or 11, 64-bit · free · no administrator rights needed to install</sub>
 </p>
 
 ---
@@ -102,6 +102,7 @@ Each send from your system becomes one card, newest first, with the time, the se
 - **Label size from the ZPL first.** `^PW` and `^LL` win; if the label sends none, LabelScope uses the size an earlier job sent, then the label loaded in Printer setup (also in the size list in the toolbar).
 - **Save as PNG** or copy the label as an image. The label size shows in inches and dots.
 - **Printer memory** like a real printer: graphics, fonts and settings sent in one job are available to the next.
+- **25 sample labels** in the **...** menu: shipping, warehouse, retail, manufacturing, healthcare and documents. The data is made up, and a sample never changes what your printer remembers.
 - **Update inside the app** and a **crash log** if something goes wrong.
 
 ---
@@ -113,6 +114,8 @@ Each send from your system becomes one card, newest first, with the time, the se
 3. Open **Printer setup** and press **Reinstall printer**, or use the **...** menu and choose **Install printer**. Answer **Yes** when Windows asks. This is the only step that needs administrator permission.
 4. Print from any program to the printer called **LabelScope**, or send ZPL to `127.0.0.1` port `9100`.
 5. The job appears on the left and the label in the middle. Click it, click a field, read the ZPL.
+
+Nothing to send yet? Press **Try a sample label** in the empty window, or open the **...** menu and choose **Sample labels**: a sample shows LabelScope at work before anything is printed.
 
 No ZPL at hand? Press **Paste ZPL** and paste this:
 

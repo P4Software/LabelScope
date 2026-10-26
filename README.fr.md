@@ -25,7 +25,7 @@
   &nbsp;·&nbsp;
   <a href="https://github.com/P4Software/LabelScope/releases/latest">Toutes les versions</a>
   <br>
-  <sub>Version 0.5.0 · Windows 10 ou 11, 64 bits · gratuit · aucun droit d'administrateur requis pour l'installation</sub>
+  <sub>Version 0.5.2 · Windows 10 ou 11, 64 bits · gratuit · aucun droit d'administrateur requis pour l'installation</sub>
 </p>
 
 ---
@@ -92,6 +92,7 @@ Chaque envoi de votre système devient une carte, la plus récente en premier, a
 - **La taille de l'étiquette vient d'abord du ZPL.** `^PW` et `^LL` ont priorité; si l'étiquette n'en envoie pas, LabelScope utilise la taille envoyée par un travail précédent, puis l'étiquette chargée dans Configurer l'imprimante (aussi dans la liste des tailles de la barre d'outils).
 - **Enregistrer en PNG** ou copier l'étiquette comme image. La taille de l'étiquette s'affiche en pouces et en points.
 - **Mémoire de l'imprimante** comme sur une vraie imprimante : les graphiques, polices et réglages envoyés dans un travail restent disponibles pour le suivant.
+- **25 étiquettes d'exemple** dans le menu **...** : expédition, entrepôt, commerce de détail, fabrication, santé et documents. Les données sont inventées, et un exemple ne change jamais ce dont votre imprimante se souvient.
 - **Mise à jour depuis l'application** et un **journal de plantage** (crash log) si quelque chose tourne mal.
 
 ---
@@ -103,6 +104,8 @@ Chaque envoi de votre système devient une carte, la plus récente en premier, a
 3. Ouvrez **Configurer l'imprimante** et cliquez sur **Réinstaller l'imprimante**, ou utilisez le menu **...** et choisissez **Installer l'imprimante**. Répondez **Oui** quand Windows le demande. C'est la seule étape qui demande une autorisation d'administrateur.
 4. Imprimez depuis n'importe quel programme vers l'imprimante nommée **LabelScope**, ou envoyez du ZPL à `127.0.0.1` port `9100`.
 5. Le travail apparaît à gauche et l'étiquette au centre. Cliquez dessus, cliquez sur un champ, lisez le ZPL.
+
+Rien à envoyer pour l'instant? Cliquez sur **Essayer une étiquette d'exemple** dans la fenêtre vide, ou ouvrez le menu **...** et choisissez **Étiquettes d'exemple** : un exemple montre LabelScope à l'œuvre avant d'imprimer quoi que ce soit.
 
 Pas de ZPL sous la main? Cliquez sur **Coller le ZPL** et collez ceci :
 

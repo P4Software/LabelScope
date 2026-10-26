@@ -25,7 +25,7 @@
   &nbsp;·&nbsp;
   <a href="https://github.com/P4Software/LabelScope/releases/latest">Todas las versiones</a>
   <br>
-  <sub>Versión 0.5.0 · Windows 10 u 11 de 64 bits · gratis · no hacen falta permisos de administrador para instalar</sub>
+  <sub>Versión 0.5.2 · Windows 10 u 11 de 64 bits · gratis · no hacen falta permisos de administrador para instalar</sub>
 </p>
 
 ---
@@ -92,6 +92,7 @@ Cada envío de su sistema se convierte en una tarjeta, la más reciente primero,
 - **El tamaño de la etiqueta viene primero del ZPL.** `^PW` y `^LL` mandan; si la etiqueta no envía ninguno, LabelScope usa el tamaño que envió un trabajo anterior y, si no, la etiqueta cargada en Configurar impresora (también en la lista de tamaños de la barra de herramientas).
 - **Guardar como PNG** o copiar la etiqueta como imagen. El tamaño de la etiqueta se muestra en pulgadas y puntos.
 - **Memoria de impresora** como en una impresora real: los gráficos, fuentes y ajustes enviados en un trabajo están disponibles para el siguiente.
+- **25 etiquetas de muestra** en el menú **...**: envíos, almacén, comercio, manufactura, salud y documentos. Los datos son inventados, y una muestra nunca cambia lo que recuerda su impresora.
 - **Actualización dentro de la aplicación** y un **registro de errores graves** (crash log) si algo sale mal.
 
 ---
@@ -103,6 +104,8 @@ Cada envío de su sistema se convierte en una tarjeta, la más reciente primero,
 3. Abra **Configurar impresora** y pulse **Reinstalar impresora**, o use el menú **...** y elija **Instalar impresora**. Responda **Sí** cuando Windows lo pregunte. Es el único paso que necesita permiso de administrador.
 4. Imprima desde cualquier programa en la impresora llamada **LabelScope**, o envíe ZPL a `127.0.0.1` puerto `9100`.
 5. El trabajo aparece a la izquierda y la etiqueta en el centro. Haga clic en él, haga clic en un campo, lea el ZPL.
+
+¿Todavía no tiene nada que enviar? Pulse **Probar una etiqueta de muestra** en la ventana vacía, o abra el menú **...** y elija **Etiquetas de muestra**: una muestra enseña LabelScope en acción antes de imprimir nada.
 
 ¿No tiene ZPL a mano? Pulse **Pegar ZPL** y pegue esto:
 
