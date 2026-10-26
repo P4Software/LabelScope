@@ -329,9 +329,11 @@
   <data name="Job_ThisComputer" xml:space="preserve"><value>Este computador</value></data>
   <data name="Job_OpenedFromFile" xml:space="preserve"><value>Aberto de um arquivo</value></data>
   <data name="Job_Pasted" xml:space="preserve"><value>Colado</value></data>
+  <data name="Job_Sample" xml:space="preserve"><value>Etiqueta de exemplo</value></data>
   <data name="Log_Received" xml:space="preserve"><value>Recebidos {1} bytes. Remetente: {0}.</value></data>
   <data name="Log_OpenedFromFile" xml:space="preserve"><value>Aberto de um arquivo, {0} bytes.</value></data>
   <data name="Log_Pasted" xml:space="preserve"><value>Colado da área de transferência, {0} bytes.</value></data>
+  <data name="Log_Sample" xml:space="preserve"><value>Foi aberta a etiqueta de exemplo “{0}”.</value></data>
   <data name="Log_Incomplete" xml:space="preserve"><value>O remetente parou antes do fim da última etiqueta (^XZ), então pode faltar parte dessa etiqueta. Envie o trabalho novamente; se isso continuar acontecendo, verifique a rede ou o programa que envia.</value></data>
   <data name="Jobs_Saved" xml:space="preserve"><value>{0} trabalhos foram salvos em {1}.</value></data>
   <data name="Jobs_SaveFailed" xml:space="preserve"><value>Não foi possível salvar a lista de trabalhos em {0} ({1}). Os trabalhos continuam sendo exibidos, mas não voltarão na próxima inicialização. Verifique se é possível gravar na pasta e se nenhum outro programa está com o arquivo aberto.</value></data>

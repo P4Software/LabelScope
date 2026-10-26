@@ -329,9 +329,11 @@
   <data name="Job_ThisComputer" xml:space="preserve"><value>Cet ordinateur</value></data>
   <data name="Job_OpenedFromFile" xml:space="preserve"><value>Ouvert depuis un fichier</value></data>
   <data name="Job_Pasted" xml:space="preserve"><value>Collé</value></data>
+  <data name="Job_Sample" xml:space="preserve"><value>Étiquette d'exemple</value></data>
   <data name="Log_Received" xml:space="preserve"><value>{1} octets reçus. Expéditeur : {0}.</value></data>
   <data name="Log_OpenedFromFile" xml:space="preserve"><value>Ouvert depuis un fichier, {0} octets.</value></data>
   <data name="Log_Pasted" xml:space="preserve"><value>Collé depuis le presse-papiers, {0} octets.</value></data>
+  <data name="Log_Sample" xml:space="preserve"><value>Étiquette d'exemple « {0} » ouverte.</value></data>
   <data name="Log_Incomplete" xml:space="preserve"><value>L'expéditeur s'est arrêté avant la fin de la dernière étiquette (^XZ); il peut donc manquer des parties à cette étiquette. Envoyez de nouveau le travail; si cela se reproduit, vérifiez le réseau ou le programme expéditeur.</value></data>
   <data name="Jobs_Saved" xml:space="preserve"><value>{0} travaux ont été enregistrés dans {1}.</value></data>
   <data name="Jobs_SaveFailed" xml:space="preserve"><value>La liste des travaux n'a pas pu être enregistrée dans {0} ({1}). Les travaux sont toujours affichés, mais ils ne reviendront pas au prochain démarrage. Vérifiez qu'il est possible d'écrire dans le dossier et qu'aucun autre programme n'a ouvert le fichier.</value></data>

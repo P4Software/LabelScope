@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using LabelScope.Core.Rendering;
+using LabelScope.Core.Samples;
 
 namespace LabelScope.Core.Jobs;
 
@@ -15,6 +16,12 @@ public enum JobOrigin
 
     /// <summary>Taken from the clipboard with "Paste ZPL".</summary>
     Pasted,
+
+    /// <summary>
+    /// One of the built-in sample labels (see <see cref="SampleLabels"/>). Added last so the numbers of the other values
+    /// never move. Never written to jobs.json as such: see <see cref="LabelJob.ToSaved"/>.
+    /// </summary>
+    Sample,
 }
 
 /// <summary>One line in a job's Log tab.</summary>
@@ -57,8 +64,12 @@ public sealed class LabelJob
         init => _name = string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
-    /// <summary>The name shown on the card, in the current language ("Label" when the ZPL gives none).</summary>
-    public string DisplayName => JobNamer.DisplayName(Name);
+    /// <summary>
+    /// The name shown on the card, in the current language: the sample's title for a sample (so a language switch retitles
+    /// it), otherwise the stored name, or "Label" when the ZPL gives none.
+    /// </summary>
+    public string DisplayName =>
+        SampleLabels.TryGet(SampleId, out var sample) ? sample.Title : JobNamer.DisplayName(Name);
 
     /// <summary>The sender's IP address as received; null for a file or a paste (and for an unknown sender).</summary>
     public string? RemoteAddress { get; init; }
@@ -78,6 +89,12 @@ public sealed class LabelJob
 
     /// <summary>How the job reached LabelScope; decides the source text and the wording of the "received" log line.</summary>
     public JobOrigin Origin { get; init; }
+
+    /// <summary>
+    /// The id (slug) of the built-in sample this job shows, or null for every other job. It is the job's link to the
+    /// catalog: <see cref="DisplayName"/> and the Log follow the sample's title from it, and jobs.json keeps it.
+    /// </summary>
+    public string? SampleId { get; init; }
 
     /// <summary>When the job arrived.</summary>
     public DateTimeOffset ReceivedAt { get; init; }
@@ -179,20 +196,35 @@ public sealed class LabelJob
         if (host is not null) Interlocked.CompareExchange(ref _resolvedHost, host, null);
     }
 
-    /// <summary>The raw facts to write to jobs.json; the drawn result is not saved because it is redrawn on load.</summary>
-    public SavedJob ToSaved() => new(Id, Name, RemoteAddress, ResolvedHost, Origin, ReceivedAt, Zpl, Complete, ReadAsWindows1252, Epoch);
+    /// <summary>
+    /// The raw facts to write to jobs.json; the drawn result is not saved because it is redrawn on load. A sample job is
+    /// written as <see cref="JobOrigin.OpenedFromFile"/> plus its <see cref="SampleId"/>: LabelScope 0.5.1 reads
+    /// <c>Origin</c> as a string enum and takes a value it does not know for a damaged file, which its next save would
+    /// replace, so writing "Sample" would cost anyone who goes back to 0.5.1 every job they kept. It ignores the unknown
+    /// <c>SampleId</c> member and shows the job as an opened file.
+    /// </summary>
+    public SavedJob ToSaved() => new(Id, Name, RemoteAddress, ResolvedHost,
+        Origin == JobOrigin.Sample ? JobOrigin.OpenedFromFile : Origin,
+        ReceivedAt, Zpl, Complete, ReadAsWindows1252, Epoch,
+        Origin == JobOrigin.Sample ? SampleId : null);
 
-    /// <summary>Rebuilds a job read from jobs.json, with <paramref name="result"/> from drawing its ZPL again.</summary>
+    /// <summary>
+    /// Rebuilds a job read from jobs.json, with <paramref name="result"/> from drawing its ZPL again. A saved
+    /// <c>SampleId</c> that the catalog knows makes it a <see cref="JobOrigin.Sample"/> job again; an unknown one (a sample
+    /// a later version removed) leaves it the opened file it was saved as.
+    /// </summary>
     public static LabelJob FromSaved(SavedJob saved, RenderResult result)
     {
         ArgumentNullException.ThrowIfNull(saved);
+        var isSample = SampleLabels.TryGet(saved.SampleId, out _);
         return new LabelJob
         {
             Id = saved.Id,
             Name = saved.Name ?? "",
             RemoteAddress = saved.RemoteAddress,
             ResolvedHost = saved.ResolvedHost,
-            Origin = saved.Origin,
+            Origin = isSample ? JobOrigin.Sample : saved.Origin,
+            SampleId = isSample ? saved.SampleId : null,
             ReceivedAt = saved.ReceivedAt,
             Zpl = saved.Zpl ?? "",
             Complete = saved.Complete,
@@ -210,6 +242,8 @@ public sealed class LabelJob
             {
                 JobOrigin.OpenedFromFile => Text.Get("Log_OpenedFromFile", ByteCount),
                 JobOrigin.Pasted => Text.Get("Log_Pasted", ByteCount),
+                // DisplayName is the sample's title in the current language (the stored name when the sample is unknown).
+                JobOrigin.Sample => Text.Get("Log_Sample", DisplayName),
                 _ => Text.Get("Log_Received", JobNamer.DisplaySource(Origin, RemoteAddress, host), ByteCount),
             }, null),
         };

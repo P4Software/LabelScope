@@ -39,4 +39,43 @@ public static class HistoryBudget
         }
         return kept;
     }
+
+    /// <summary>
+    /// Like <see cref="EntriesToKeep"/>, for a list where some entries do not count toward the count limit (sample
+    /// labels, which must never push out a real job). Walks from the newest entry: an entry that counts is dropped once
+    /// <paramref name="maxCount"/> counting entries are kept (older entries that do not count may still be kept); the
+    /// byte budget covers every entry, and the first entry that would go over it is dropped together with everything
+    /// older. The first entry kept is kept even when it alone is over the budget, so the label that just arrived is
+    /// never thrown away before it can be seen.
+    /// </summary>
+    /// <param name="sizesNewestFirst">The size of every entry, newest first.</param>
+    /// <param name="countsTowardLimit">For each entry, in the same order: true when it counts toward <paramref name="maxCount"/>.</param>
+    /// <param name="maxCount">The count limit for the entries that count (HistoryLimit in settings.json).</param>
+    /// <param name="maxBytes">The total size limit, for all entries.</param>
+    /// <returns>For each entry, in the same order: true to keep it.</returns>
+    public static bool[] KeepFlags(IReadOnlyList<long> sizesNewestFirst, IReadOnlyList<bool> countsTowardLimit, int maxCount,
+        long maxBytes = DefaultMaxBytes)
+    {
+        ArgumentNullException.ThrowIfNull(sizesNewestFirst);
+        ArgumentNullException.ThrowIfNull(countsTowardLimit);
+        if (sizesNewestFirst.Count != countsTowardLimit.Count)
+            throw new ArgumentException("There must be one size for each entry.", nameof(countsTowardLimit));
+
+        var flags = new bool[sizesNewestFirst.Count];
+        var counted = 0;
+        var keptAny = false;
+        long total = 0;
+        for (var i = 0; i < flags.Length; i++)
+        {
+            // Over the count limit: this one goes, but it adds no bytes, so older exempt entries are still judged.
+            if (countsTowardLimit[i] && counted >= maxCount) continue;
+            // Over the byte budget: everything from here on is older and goes too.
+            if (keptAny && total + sizesNewestFirst[i] > maxBytes) break;
+            total += sizesNewestFirst[i];
+            keptAny = true;
+            flags[i] = true;
+            if (countsTowardLimit[i]) counted++;
+        }
+        return flags;
+    }
 }

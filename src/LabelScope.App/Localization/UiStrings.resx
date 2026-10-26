@@ -75,6 +75,7 @@
   <data name="Ui_ReceivedThisComputer" xml:space="preserve"><value>Received from this computer at {0}</value></data>
   <data name="Ui_ReceivedFile" xml:space="preserve"><value>Opened from file at {0}</value></data>
   <data name="Ui_ReceivedPasted" xml:space="preserve"><value>Pasted at {0}</value></data>
+  <data name="Ui_ReceivedSample" xml:space="preserve"><value>Sample label opened at {0}</value></data>
   <data name="Ui_JobSubtitle" xml:space="preserve"><value>{0} · {1} · {2}</value></data>
   <data name="Ui_JobLabelsOne" xml:space="preserve"><value>{0} label</value></data>
   <data name="Ui_JobLabelsMany" xml:space="preserve"><value>{0} labels</value></data>

@@ -330,9 +330,11 @@
   <data name="Job_ThisComputer" xml:space="preserve"><value>Esta computadora</value></data>
   <data name="Job_OpenedFromFile" xml:space="preserve"><value>Abierto desde archivo</value></data>
   <data name="Job_Pasted" xml:space="preserve"><value>Pegado</value></data>
+  <data name="Job_Sample" xml:space="preserve"><value>Etiqueta de muestra</value></data>
   <data name="Log_Received" xml:space="preserve"><value>Se recibieron {1} bytes. Remitente: {0}.</value></data>
   <data name="Log_OpenedFromFile" xml:space="preserve"><value>Abierto desde un archivo, {0} bytes.</value></data>
   <data name="Log_Pasted" xml:space="preserve"><value>Pegado desde el portapapeles, {0} bytes.</value></data>
+  <data name="Log_Sample" xml:space="preserve"><value>Se abrió la etiqueta de muestra “{0}”.</value></data>
   <data name="Log_Incomplete" xml:space="preserve"><value>El remitente se detuvo antes del final de la última etiqueta (^XZ), así que a esa etiqueta le pueden faltar partes. Envíe el trabajo de nuevo; si sigue pasando, revise la red o el programa que envía.</value></data>
   <data name="Jobs_Saved" xml:space="preserve"><value>Se guardaron {0} trabajos en {1}.</value></data>
   <data name="Jobs_SaveFailed" xml:space="preserve"><value>No se pudo guardar la lista de trabajos en {0} ({1}). Los trabajos se siguen mostrando, pero no volverán al próximo inicio. Compruebe que se pueda escribir en la carpeta y que ningún otro programa tenga abierto el archivo.</value></data>

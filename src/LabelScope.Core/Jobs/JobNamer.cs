@@ -130,8 +130,8 @@ public static partial class JobNamer
     }
 
     /// <summary>
-    /// The source text from facts already known, without asking DNS: the localized text for a file, a paste or this
-    /// computer; otherwise <paramref name="resolvedHost"/> when known, else the address. Looked up on every call, so it
+    /// The source text from facts already known, without asking DNS: the localized text for a file, a paste, a sample
+    /// label or this computer; otherwise <paramref name="resolvedHost"/> when known, else the address. Looked up on every call, so it
     /// follows a language switch.
     /// </summary>
     /// <param name="origin">How the job reached LabelScope.</param>
@@ -143,6 +143,7 @@ public static partial class JobNamer
         {
             case JobOrigin.OpenedFromFile: return Text.Get("Job_OpenedFromFile");
             case JobOrigin.Pasted: return Text.Get("Job_Pasted");
+            case JobOrigin.Sample: return Text.Get("Job_Sample");
         }
         // The Windows printer always sends from this computer; a missing address can only mean the same.
         if (string.IsNullOrWhiteSpace(remoteAddress)) return Text.Get("Job_ThisComputer");

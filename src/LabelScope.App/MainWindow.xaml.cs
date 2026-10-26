@@ -876,7 +876,8 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// "Received from WMS at 14:31:40", "Received from this computer at …", "Opened from file at …" or "Pasted at …":
+    /// "Received from WMS at 14:31:40", "Received from this computer at …", "Opened from file at …", "Pasted at …" or
+    /// "Sample label opened at …":
     /// a whole sentence per case, so a source never appears with a capital letter in the middle of one.
     /// </summary>
     private static string ReceivedLine(LabelJob job)
@@ -886,6 +887,7 @@ public partial class MainWindow : Window
         {
             JobOrigin.OpenedFromFile => UiText.Get("Ui_ReceivedFile", time),
             JobOrigin.Pasted => UiText.Get("Ui_ReceivedPasted", time),
+            JobOrigin.Sample => UiText.Get("Ui_ReceivedSample", time),
             _ when IsThisComputer(job.RemoteAddress) => UiText.Get("Ui_ReceivedThisComputer", time),
             _ => UiText.Get("Ui_ReceivedFrom", job.DisplaySource, time),
         };

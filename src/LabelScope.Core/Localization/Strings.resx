@@ -330,9 +330,11 @@
   <data name="Job_ThisComputer" xml:space="preserve"><value>This computer</value></data>
   <data name="Job_OpenedFromFile" xml:space="preserve"><value>Opened from file</value></data>
   <data name="Job_Pasted" xml:space="preserve"><value>Pasted</value></data>
+  <data name="Job_Sample" xml:space="preserve"><value>Sample label</value></data>
   <data name="Log_Received" xml:space="preserve"><value>Received {1} bytes. Sender: {0}.</value></data>
   <data name="Log_OpenedFromFile" xml:space="preserve"><value>Opened from a file, {0} bytes.</value></data>
   <data name="Log_Pasted" xml:space="preserve"><value>Pasted from the clipboard, {0} bytes.</value></data>
+  <data name="Log_Sample" xml:space="preserve"><value>Opened the sample label “{0}”.</value></data>
   <data name="Log_Incomplete" xml:space="preserve"><value>The sender stopped before the end of the last label (^XZ), so that label may be missing parts. Send the job again; if this keeps happening, check the network or the sending program.</value></data>
   <data name="Jobs_Saved" xml:space="preserve"><value>{0} jobs were saved to {1}.</value></data>
   <data name="Jobs_SaveFailed" xml:space="preserve"><value>The job list could not be saved to {0} ({1}). The jobs are still shown, but they will not come back at the next start. Check that the folder is writable and that no other program has the file open.</value></data>

@@ -1,6 +1,7 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using LabelScope.Core.Samples;
 
 namespace LabelScope.Core.Jobs;
 
@@ -21,9 +22,13 @@ namespace LabelScope.Core.Jobs;
 /// <param name="Epoch">The printer epoch the job was drawn in (see <see cref="LabelJob.Epoch"/>); absent (null) in files
 /// written before 0.5.0, whose jobs then all count as one earlier epoch. Adding it needs no new file version: older
 /// LabelScope versions ignore a member they do not know, so they can still read and write the file.</param>
+/// <param name="SampleId">The id (slug) of the built-in sample label this job shows; null for every other job. A sample job
+/// is written with <c>Origin</c> <see cref="JobOrigin.OpenedFromFile"/> plus this member (see <see cref="LabelJob.ToSaved"/>).
+/// Adding it needs no new file version, for the same reason as <paramref name="Epoch"/>: 0.5.1 ignores the member and
+/// shows the job as an opened file, so it can still read and write the file. Absent in files written before 0.5.2.</param>
 public sealed record SavedJob(Guid Id, string Name, string? RemoteAddress, string? ResolvedHost, JobOrigin Origin,
                               DateTimeOffset ReceivedAt, string Zpl, bool Complete, bool ReadAsWindows1252 = false,
-                              Guid? Epoch = null);
+                              Guid? Epoch = null, string? SampleId = null);
 
 /// <summary>
 /// Keeps the job list between runs ("Keep jobs after closing LabelScope") in jobs.json, as
@@ -94,7 +99,8 @@ public sealed class JobStore
 
     /// <summary>
     /// Writes <paramref name="jobs"/> to the file, keeping only the newest ones: at most <paramref name="limit"/>
-    /// jobs, and together at most the size given to the constructor. A single job bigger than that is skipped, and
+    /// jobs, and together at most the size given to the constructor. Sample labels do not count toward the limit (they
+    /// must never push out a real job) but do count toward the size. A single job bigger than that is skipped, and
     /// older jobs that still fit are kept. Kept jobs stay in the order given. The new file is written next to the old
     /// one and then swapped in, so a failure halfway never leaves a broken file; leftover temp files of earlier
     /// failures are removed. Refuses (and changes nothing) when <see cref="Load"/> found a file from a newer version,
@@ -139,7 +145,10 @@ public sealed class JobStore
         }
     }
 
-    /// <summary>The newest jobs within the count and size limits, in their original order.</summary>
+    /// <summary>
+    /// The newest jobs within the count and size limits, in their original order. Only real jobs count toward
+    /// <paramref name="limit"/>; sample jobs are kept beside them (newest first, while the size allows).
+    /// </summary>
     private List<SavedJob> Keep(List<SavedJob> saved, int limit)
     {
         // Newest first by arrival time; the stable sort keeps the given order for jobs that arrived at the same moment.
@@ -148,18 +157,55 @@ public sealed class JobStore
                                .ToList();
         var keep = new HashSet<int>();
         long total = 0;
+        var realKept = 0;
         foreach (var (job, index) in newestFirst)
         {
-            if (keep.Count >= limit) break;
+            // Not a break: an older sample can still follow the real job that reached the limit.
+            var isSample = IsSample(job);
+            if (!isSample && realKept >= limit) continue;
             // The real size in the file, so the limit holds however much escaping the text needs.
             long size = JsonSerializer.SerializeToUtf8Bytes(job, Options).Length;
             // One huge job must not cost the user every older job: skip it and keep filling with the rest.
             if (total + size > _maxBytes) continue;
             total += size;
             keep.Add(index);
+            if (!isSample) realKept++;
         }
         return saved.Where((_, i) => keep.Contains(i)).ToList();
     }
+
+    /// <summary>
+    /// The jobs to bring back at start: the newest <paramref name="limit"/> real jobs plus every sample job, oldest
+    /// first (the order they are drawn in). Samples do not use up the limit, so a small HistoryLimit never hides the
+    /// real jobs behind sample cards.
+    /// </summary>
+    /// <param name="saved">What <see cref="Load"/> returned.</param>
+    /// <param name="limit">HistoryLimit: how many real jobs to bring back.</param>
+    public static IReadOnlyList<SavedJob> NewestWithinLimit(IReadOnlyList<SavedJob> saved, int limit)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        // Newest first by arrival time, stable for jobs that arrived at the same moment (as Keep does).
+        var newestFirst = saved.OrderByDescending(j => j.ReceivedAt);
+        var result = new List<SavedJob>();
+        var realKept = 0;
+        foreach (var job in newestFirst)
+        {
+            if (IsSample(job)) result.Add(job);
+            else if (realKept < limit)
+            {
+                result.Add(job);
+                realKept++;
+            }
+        }
+        result.Reverse();
+        return result;
+    }
+
+    /// <summary>
+    /// True for a job that comes back as a sample label. An id this version does not know (a sample a later version
+    /// removed) comes back as an ordinary opened file (see <see cref="LabelJob.FromSaved"/>), so it counts as a real job.
+    /// </summary>
+    private static bool IsSample(SavedJob job) => SampleLabels.TryGet(job.SampleId, out _);
 
     /// <summary>Removes "jobs.json.*.tmp" files left by a save that was cut off; one that cannot be removed is left.</summary>
     private static void DeleteStaleTempFiles(string folder, string fileName)
