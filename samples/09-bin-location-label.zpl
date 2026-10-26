@@ -15,7 +15,7 @@
 ^FX Location in large letters.
 ^FO104,22^A0N,24,24^FDBIN LOCATION^FS
 ^FO104,58^A0N,112,92^FDA-12-03^FS
-^FX Location as a Code 128 symbol: 112 modules, so 336 dots at 3 dots per module, with 30 dots of quiet zone on each side.
+^FX Location as a Code 128 symbol: 112 modules, so 336 dots at 3 dots per module, with at least 30 dots of quiet zone on each side.
 ^BY3,3,90
 ^FO436,30^BCN,90,N,N,N^FDA-12-03^FS
 ^FO436,140^A0N,26,26^FDAISLE A   LEVEL 3^FS

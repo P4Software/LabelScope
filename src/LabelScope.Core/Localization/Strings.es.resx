@@ -386,4 +386,13 @@
   <data name="Sample_11" xml:space="preserve"><value>Etiqueta de recepción</value></data>
   <data name="Sample_12" xml:space="preserve"><value>Etiqueta de estantería</value></data>
   <data name="Sample_13" xml:space="preserve"><value>Tarjeta de conteo de inventario</value></data>
+  <data name="Sample_14" xml:space="preserve"><value>Etiqueta de precio de estante UPC-A</value></data>
+  <data name="Sample_15" xml:space="preserve"><value>Etiqueta de producto EAN-13 (en español)</value></data>
+  <data name="Sample_16" xml:space="preserve"><value>Etiqueta pequeña UPC-E</value></data>
+  <data name="Sample_17" xml:space="preserve"><value>Etiqueta de precio EAN-8</value></data>
+  <data name="Sample_18" xml:space="preserve"><value>Etiqueta de ropa</value></data>
+  <data name="Sample_19" xml:space="preserve"><value>Etiquetas de número de serie</value></data>
+  <data name="Sample_20" xml:space="preserve"><value>Etiqueta de pieza automotriz</value></data>
+  <data name="Sample_21" xml:space="preserve"><value>Etiqueta de activo</value></data>
+  <data name="Sample_22" xml:space="preserve"><value>Etiqueta de lote y caducidad</value></data>
 </root>

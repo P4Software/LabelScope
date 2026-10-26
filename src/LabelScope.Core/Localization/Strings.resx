@@ -386,4 +386,13 @@
   <data name="Sample_11" xml:space="preserve"><value>Receiving label</value></data>
   <data name="Sample_12" xml:space="preserve"><value>Rack label</value></data>
   <data name="Sample_13" xml:space="preserve"><value>Inventory count tag</value></data>
+  <data name="Sample_14" xml:space="preserve"><value>UPC-A shelf price label</value></data>
+  <data name="Sample_15" xml:space="preserve"><value>EAN-13 product label (Spanish)</value></data>
+  <data name="Sample_16" xml:space="preserve"><value>Small UPC-E label</value></data>
+  <data name="Sample_17" xml:space="preserve"><value>EAN-8 price tag</value></data>
+  <data name="Sample_18" xml:space="preserve"><value>Clothing tag</value></data>
+  <data name="Sample_19" xml:space="preserve"><value>Serial-number labels</value></data>
+  <data name="Sample_20" xml:space="preserve"><value>Automotive part label</value></data>
+  <data name="Sample_21" xml:space="preserve"><value>Asset tag</value></data>
+  <data name="Sample_22" xml:space="preserve"><value>Lot and expiry label</value></data>
 </root>

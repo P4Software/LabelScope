@@ -12,7 +12,7 @@
 ^FO16,16^GB780,64,64,B^FS
 ^FO36,24^FR^A0N,48,48^FDLICENSE PLATE^FS
 ^FO704,34^FR^A0N,32,32^FDLPN^FS
-^FX License plate number as a Code 128 symbol (digits after the letters are packed two to a character), X dimension 4 dots.
+^FX License plate number as a Code 128 symbol (12 characters in subset B), X dimension 4 dots.
 ^BY4,3,150
 ^FO72,98^BCN,150,Y,N,N^FDLP0048211734^FS
 ^FX Contents of the plate.

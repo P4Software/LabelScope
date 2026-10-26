@@ -46,6 +46,15 @@ public static class SampleLabels
         new(11, "receiving-label", SampleGroup.Warehouse),
         new(12, "rack-label", SampleGroup.Warehouse),
         new(13, "inventory-count-tag", SampleGroup.Warehouse),
+        new(14, "upc-a-price-label", SampleGroup.Retail),
+        new(15, "ean-13-product-label", SampleGroup.Retail),
+        new(16, "upc-e-small-label", SampleGroup.Retail),
+        new(17, "ean-8-price-tag", SampleGroup.Retail),
+        new(18, "clothing-tag", SampleGroup.Retail),
+        new(19, "serial-number-labels", SampleGroup.Manufacturing),
+        new(20, "automotive-part-label", SampleGroup.Manufacturing),
+        new(21, "asset-tag", SampleGroup.Manufacturing),
+        new(22, "lot-expiry-label", SampleGroup.Manufacturing),
     ];
 
     /// <summary>Finds a sample by its id (the slug). Returns false for an unknown or null id, for example one kept by a later version.</summary>
