@@ -102,7 +102,7 @@ Each send from your system becomes one card, newest first, with the time, the se
 - **Label size from the ZPL first.** `^PW` and `^LL` win; if the label sends none, LabelScope uses the size an earlier job sent, then the label loaded in Printer setup (also in the size list in the toolbar).
 - **Save as PNG** or copy the label as an image. The label size shows in inches and dots.
 - **Printer memory** like a real printer: graphics, fonts and settings sent in one job are available to the next.
-- **25 sample labels** in the **...** menu: shipping, warehouse, retail, manufacturing, healthcare and documents. The data is made up, and a sample never changes what your printer remembers.
+- **25 sample labels** in the **...** menu: shipping, warehouse, retail, manufacturing, healthcare and documents. The data is made up, and a sample opened from the menu never changes what your printer remembers.
 - **Update inside the app** and a **crash log** if something goes wrong.
 
 ---
@@ -298,7 +298,10 @@ src/LabelScope.Core/    Settings, TCP listener, ZPL parser and renderer, printer
 src/LabelScope.App/     The Windows (WPF) application
 installer/              Inno Setup script and the build that creates and signs the installer
 assets/                 Logo, icon and screenshots
+samples/                The 25 sample labels as ZPL files
 ```
+
+The 25 sample labels are described in [samples/README.md](samples/README.md).
 
 ---
 

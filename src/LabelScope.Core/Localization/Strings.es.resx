@@ -377,10 +377,10 @@
   <data name="SampleGroup_Documents" xml:space="preserve"><value>Documentos</value></data>
   <data name="Sample_01" xml:space="preserve"><value>Etiqueta de envío de paquete</value></data>
   <data name="Sample_02" xml:space="preserve"><value>Etiqueta de caja GS1-128 con SSCC</value></data>
-  <data name="Sample_03" xml:space="preserve"><value>Etiqueta de palet</value></data>
+  <data name="Sample_03" xml:space="preserve"><value>Etiqueta de tarima</value></data>
   <data name="Sample_04" xml:space="preserve"><value>Etiqueta de carga (LTL)</value></data>
   <data name="Sample_05" xml:space="preserve"><value>Etiqueta de devolución</value></data>
-  <data name="Sample_06" xml:space="preserve"><value>Albarán de empaque</value></data>
+  <data name="Sample_06" xml:space="preserve"><value>Lista de empaque</value></data>
   <data name="Sample_07" xml:space="preserve"><value>Etiqueta de caja ITF-14</value></data>
   <data name="Sample_08" xml:space="preserve"><value>Orden de picking sobre una plantilla guardada</value></data>
   <data name="Sample_09" xml:space="preserve"><value>Etiqueta de ubicación de estante</value></data>

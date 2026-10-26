@@ -92,7 +92,7 @@ Cada envio do seu sistema vira um cartão, o mais recente primeiro, com a hora, 
 - **O tamanho da etiqueta vem primeiro do ZPL.** `^PW` e `^LL` têm prioridade; se a etiqueta não envia nenhum, o LabelScope usa o tamanho que um trabalho anterior enviou e, depois, a etiqueta carregada em Configurar impressora (também na lista de tamanhos da barra de ferramentas).
 - **Salvar como PNG** ou copiar a etiqueta como imagem. O tamanho da etiqueta aparece em polegadas e pontos.
 - **Memória da impressora** como numa impressora real: gráficos, fontes e configurações enviados em um trabalho ficam disponíveis para o próximo.
-- **25 etiquetas de exemplo** no menu **...**: expedição, armazém, varejo, fabricação, saúde e documentos. Os dados são inventados, e um exemplo nunca muda o que a sua impressora guarda na memória.
+- **25 etiquetas de exemplo** no menu **...**: expedição, armazém, varejo, fabricação, saúde e documentos. Os dados são inventados, e um exemplo aberto pelo menu nunca muda o que a sua impressora guarda na memória.
 - **Atualização dentro do aplicativo** e um **registro de falhas** (crash log) se algo der errado.
 
 ---
@@ -288,7 +288,10 @@ src/LabelScope.Core/    Configurações, receptor TCP, leitor e desenho de ZPL, 
 src/LabelScope.App/     O aplicativo do Windows (WPF)
 installer/              Script do Inno Setup e a compilação que cria e assina o instalador
 assets/                 Logotipo, ícone e capturas de tela
+samples/                As 25 etiquetas de exemplo como arquivos ZPL
 ```
+
+As 25 etiquetas de exemplo estão descritas em [samples/README.md](samples/README.md).
 
 ---
 

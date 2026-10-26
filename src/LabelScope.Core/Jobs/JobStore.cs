@@ -313,10 +313,45 @@ public sealed class JobStore
             if (string.Equals(p.Name, "Version", StringComparison.OrdinalIgnoreCase))
                 file.Version = p.Value.ValueKind == JsonValueKind.Number && p.Value.TryGetInt32(out var v) ? v : 0;
         if (file.Version != CurrentVersion) return file;
-        var read = doc.RootElement.Deserialize<JobFile>(Options);
-        file.Jobs = read?.Jobs;
-        file.Samples = read?.Samples;
+        // Jobs are read strictly: a job list that does not parse is a damaged file, as it always was.
+        file.Jobs = doc.RootElement.Deserialize<JobsOnly>(Options)?.Jobs;
+        file.Samples = ReadSamples(doc.RootElement);
         return file;
+    }
+
+    /// <summary>
+    /// Reads the <c>Samples</c> member without ever failing. It is the downgrade valve (see <see cref="SavedJob"/>), and a
+    /// later version may give it another shape; samples are built in and can be opened again, so an unreadable member, or
+    /// an unreadable entry in it, is dropped and must never make the file "damaged": the next save would replace the
+    /// file and every real job in <c>Jobs</c> would be lost with it.
+    /// </summary>
+    private static List<SavedJob>? ReadSamples(JsonElement root)
+    {
+        foreach (var p in root.EnumerateObject())
+        {
+            if (!string.Equals(p.Name, "Samples", StringComparison.OrdinalIgnoreCase)) continue;
+            if (p.Value.ValueKind != JsonValueKind.Array) return null;
+            var samples = new List<SavedJob>();
+            foreach (var entry in p.Value.EnumerateArray())
+            {
+                try
+                {
+                    if (entry.Deserialize<SavedJob>(Options) is { } sample) samples.Add(sample);
+                }
+                catch (Exception ex) when (ex is JsonException or InvalidOperationException or NotSupportedException)
+                {
+                    // One entry of another shape: keep the others.
+                }
+            }
+            return samples;
+        }
+        return null;
+    }
+
+    /// <summary>The part of the file that is read strictly. Members it does not list (<c>Samples</c>) are skipped.</summary>
+    private sealed class JobsOnly
+    {
+        public List<SavedJob>? Jobs { get; set; }
     }
 
     /// <summary>The file layout.</summary>
@@ -326,6 +361,9 @@ public sealed class JobStore
         public List<SavedJob>? Jobs { get; set; }
 
         // Sample labels, apart from Jobs so that 0.5.1 does not count them toward its limit. Left out when empty.
+        // Forward compatibility: this is written strictly but read tolerantly (see ReadSamples). A later version may change
+        // the shape of this member, so a member or an entry that does not parse as a SavedJob is dropped on load, and the
+        // file is never reported damaged because of it (that would cost the real jobs at the next save).
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public List<SavedJob>? Samples { get; set; }
     }

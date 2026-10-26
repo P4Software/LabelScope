@@ -50,7 +50,7 @@ Las etiquetas se dibujan en su PC. No se sube nada y no se cobra por uso. El ins
 La pestaña **Campos** muestra todo lo que LabelScope dibujó: textos, códigos de barras, recuadros, círculos, líneas y gráficos, cada uno con su posición, tamaño, fuente y línea de ZPL. Haga clic en un campo de la etiqueta, en una fila de la lista o en una línea de ZPL, y los tres seleccionan lo mismo.
 
 <p align="center">
-  <img src="assets/screenshots/fields.png" alt="La pestaña Campos de una etiqueta de palé GS1, con el nombre del producto seleccionado a la vez en la etiqueta y en la lista de campos" width="900">
+  <img src="assets/screenshots/fields.png" alt="La pestaña Campos de una etiqueta de tarima GS1, con el nombre del producto seleccionado a la vez en la etiqueta y en la lista de campos" width="900">
 </p>
 
 ### Sepa cuándo un código de barras no se podrá escanear
@@ -82,7 +82,7 @@ Elija English, Español, Português (Brasil) o Français en la barra de herramie
 Cada envío de su sistema se convierte en una tarjeta, la más reciente primero, con la hora, el remitente, el número de etiquetas y "Generada correctamente" o el primer problema. Un trabajo con varias etiquetas muestra *Etiqueta 1 de 3* con flechas para recorrerlas. Active **Conservar los trabajos al cerrar LabelScope** y su lista seguirá ahí mañana.
 
 <p align="center">
-  <img src="assets/screenshots/jobs.png" alt="La lista de trabajos de impresión con cinco tarjetas, una de ellas con un error en rojo, y un trabajo de palé de tres etiquetas abierto en la etiqueta 2 de 3" width="900">
+  <img src="assets/screenshots/jobs.png" alt="La lista de trabajos de impresión con cinco tarjetas, una de ellas con un error en rojo, y un trabajo de tarima de tres etiquetas abierto en la etiqueta 2 de 3" width="900">
 </p>
 
 ### Y además
@@ -92,7 +92,7 @@ Cada envío de su sistema se convierte en una tarjeta, la más reciente primero,
 - **El tamaño de la etiqueta viene primero del ZPL.** `^PW` y `^LL` mandan; si la etiqueta no envía ninguno, LabelScope usa el tamaño que envió un trabajo anterior y, si no, la etiqueta cargada en Configurar impresora (también en la lista de tamaños de la barra de herramientas).
 - **Guardar como PNG** o copiar la etiqueta como imagen. El tamaño de la etiqueta se muestra en pulgadas y puntos.
 - **Memoria de impresora** como en una impresora real: los gráficos, fuentes y ajustes enviados en un trabajo están disponibles para el siguiente.
-- **25 etiquetas de muestra** en el menú **...**: envíos, almacén, comercio, manufactura, salud y documentos. Los datos son inventados, y una muestra nunca cambia lo que recuerda su impresora.
+- **25 etiquetas de muestra** en el menú **...**: envíos, almacén, comercio, manufactura, salud y documentos. Los datos son inventados, y una muestra abierta desde el menú nunca cambia lo que recuerda su impresora.
 - **Actualización dentro de la aplicación** y un **registro de errores graves** (crash log) si algo sale mal.
 
 ---
@@ -288,7 +288,10 @@ src/LabelScope.Core/    Configuración, receptor TCP, analizador y dibujo de ZPL
 src/LabelScope.App/     La aplicación de Windows (WPF)
 installer/              Script de Inno Setup y la compilación que crea y firma el instalador
 assets/                 Logotipo, icono y capturas de pantalla
+samples/                Las 25 etiquetas de muestra como archivos ZPL
 ```
+
+Las 25 etiquetas de muestra se describen en [samples/README.md](samples/README.md).
 
 ---
 

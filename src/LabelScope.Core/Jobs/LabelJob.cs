@@ -223,7 +223,10 @@ public sealed class LabelJob
             Name = saved.Name ?? "",
             RemoteAddress = saved.RemoteAddress,
             ResolvedHost = saved.ResolvedHost,
-            Origin = isSample ? JobOrigin.Sample : saved.Origin,
+            // An entry that says Sample but names no sample this version knows (hand-edited, or a sample a later version
+            // removed) becomes an opened file: staying Sample would exempt it from the history limit in TrimHistory while
+            // Save counts it as a real job.
+            Origin = isSample ? JobOrigin.Sample : saved.Origin == JobOrigin.Sample ? JobOrigin.OpenedFromFile : saved.Origin,
             SampleId = isSample ? saved.SampleId : null,
             ReceivedAt = saved.ReceivedAt,
             Zpl = saved.Zpl ?? "",

@@ -62,5 +62,5 @@ All of them are written for 203 dpi, and each one sets its own label size.
 ## Good to know
 
 - **All the data is made up.** Names, addresses, phone numbers, product numbers and bar code data are invented for these samples. They do not belong to any real person, company or product.
-- **A sample never changes your printer's memory.** Each sample is drawn in a memory of its own, at 203 dpi, so opening one does not change the label size, the graphics or the settings that your real jobs use.
+- **A sample from the app never changes your printer's memory.** When you open one from the **Sample labels** menu or with the **Try a sample label** button, it is drawn in a memory of its own, at 203 dpi, so the label size, the graphics and the settings that your real jobs use stay as they were. A sample file that you open with **Open ZPL file**, or send to the printer, is a normal job: it is drawn with the live printer memory and settings, as on a real printer, and it can change them. For example, `17-ean-8-price-tag.zpl` sets a 1.5 x 1 inch size, which the next label without a size then uses.
 - **Compare with a real printer.** Send any of these files to a Zebra printer and put the printed label next to the one LabelScope shows. The letter shapes differ a little, but sizes, positions and bar codes should match.
