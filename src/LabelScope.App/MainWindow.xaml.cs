@@ -21,6 +21,7 @@ using LabelScope.Core.Localization;
 using LabelScope.Core.Memory;
 using LabelScope.Core.Printing;
 using LabelScope.Core.Rendering;
+using LabelScope.Core.Samples;
 using LabelScope.Core.Settings;
 using LabelScope.Core.Updating;
 using Microsoft.Win32;
@@ -444,8 +445,9 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Runs on the UI thread: a new job gets a card at the top; a job that got one more label (same send) updates
-    /// its card in place. A file the user opened or pasted is always shown, because they asked to see it; a printed
-    /// job is shown when "Show the newest job as it arrives" is on (or nothing is shown yet).
+    /// its card in place. A file the user opened or pasted, or a sample label, is always shown, because they asked to
+    /// see it; a printed job is shown when "Show the newest job as it arrives" is on (or nothing is shown yet). A sample
+    /// that already has a card loses that card, so the list holds one card per sample however often it is opened.
     /// </summary>
     private void AddOrUpdateJob(PendingResult pending)
     {
@@ -462,12 +464,18 @@ public partial class MainWindow : Window
             }
             else
             {
+                var isSample = pending.Job.Origin == JobOrigin.Sample;
+                // Done here, on the UI thread, where every card is added: two quick clicks on the same sample, or
+                // "Open all" twice, draw on worker threads and arrive one after the other, never at the same time.
+                if (isSample) RemoveSampleCards(pending.Job.SampleId);
                 var vm = new JobViewModel(pending.Job, pending.ConnectionId, pending.Part);
                 var follow = _settings.ShowNewestJob || pending.Job.Origin != JobOrigin.Printed || HistoryList.SelectedItem is null;
                 // The ListBox keeps tracking the selected card through Insert(0), so "off" leaves the view alone.
                 _jobs.Insert(0, vm);
-                // One send is one arrival, whatever number of cards it makes (parts, or a card made again).
-                if (pending.ConnectionId == 0 || _countedSends.Add(pending.ConnectionId)) CountArrival(pending.Job.ReceivedAt);
+                // One send is one arrival, whatever number of cards it makes (parts, or a card made again). A sample
+                // is not a label that was received, so "N received today" leaves it out.
+                if (!isSample && (pending.ConnectionId == 0 || _countedSends.Add(pending.ConnectionId)))
+                    CountArrival(pending.Job.ReceivedAt);
                 TrimHistory();
                 if (follow) HistoryList.SelectedItem = vm;
             }
@@ -496,15 +504,23 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Drops the oldest jobs until both limits hold: HistoryLimit jobs at most, and 256 MB of kept data at most
-    /// (pictures, field records and ZPL; see <see cref="HistoryBudget"/>). The list is newest first.
+    /// (pictures, field records and ZPL; see <see cref="HistoryBudget"/>). The list is newest first. Sample cards do not
+    /// count toward HistoryLimit, so opening samples never pushes out a real job; they do count toward the 256 MB. A real
+    /// job over the limit can therefore sit above sample cards that stay, so cards are dropped wherever the budget says,
+    /// not only from the end.
     /// </summary>
     private void TrimHistory()
     {
-        var keep = HistoryBudget.EntriesToKeep(_jobs.Select(j => j.ApproximateBytes).ToList(), _settings.HistoryLimit);
-        while (_jobs.Count > keep)
+        var keep = HistoryBudget.KeepFlags(
+            _jobs.Select(j => j.ApproximateBytes).ToList(),
+            _jobs.Select(j => j.Job.Origin != JobOrigin.Sample).ToList(),
+            _settings.HistoryLimit);
+        // From the end, so removing a card never moves the cards still to be looked at.
+        for (var i = keep.Length - 1; i >= 0; i--)
         {
-            var dropped = _jobs[^1];
-            _jobs.RemoveAt(_jobs.Count - 1);
+            if (keep[i]) continue;
+            var dropped = _jobs[i];
+            _jobs.RemoveAt(i);
             // The assembler must not keep a dropped job's pictures alive outside this budget.
             if (dropped.ConnectionId != 0) _assembler.Forget(dropped.ConnectionId, dropped.Job.Id);
         }
@@ -552,7 +568,9 @@ public partial class MainWindow : Window
     /// deletes into the live memory would repeat them out of order (a replayed ^ID would delete a graphic that a later
     /// job downloaded). A label whose graphic came with a job that is no longer in the list then warns about it. Where
     /// the user cleared printer memory (or LabelScope was restarted) between two jobs, the pass clears its memory too
-    /// (<see cref="EpochReplay"/>), so no job is drawn with printer state that was gone when it arrived.
+    /// (<see cref="EpochReplay"/>), so no job is drawn with printer state that was gone when it arrived. A sample label
+    /// is drawn the one way samples are drawn (<see cref="SampleLabels.Render"/>: a memory of its own, 203 dpi) and stays
+    /// out of that replay, so it neither sees nor changes what the real jobs around it are drawn with.
     /// </remarks>
     private async Task RerenderAllJobsAsync()
     {
@@ -574,8 +592,14 @@ public partial class MainWindow : Window
                     _renderGate.Wait();
                     try
                     {
-                        replay.Enter(renderer.Memory, job.Epoch);
-                        result = renderer.Render(ZplFormatter.Format(job.Zpl), options with { TextReadAsWindows1252 = job.ReadAsWindows1252, Clock = job.ReceivedAt });
+                        // A sample stays out of the replay: Enter clears the memory when the epoch differs from the
+                        // previous job's, so a sample between two real jobs of one epoch would wipe what the first stored.
+                        if (SampleLabels.IsKnown(job.SampleId)) result = SampleLabels.Render(job.Zpl, fonts, job.ReceivedAt);
+                        else
+                        {
+                            replay.Enter(renderer.Memory, job.Epoch);
+                            result = renderer.Render(ZplFormatter.Format(job.Zpl), options with { TextReadAsWindows1252 = job.ReadAsWindows1252, Clock = job.ReceivedAt });
+                        }
                     }
                     finally { _renderGate.Release(); }
                     // A newer pass started meanwhile: its result wins, this one is dropped.
@@ -601,9 +625,11 @@ public partial class MainWindow : Window
     // ---- keep jobs between runs --------------------------------------------------------------------
 
     /// <summary>
-    /// Brings back the jobs kept by an earlier run (newest first, up to HistoryLimit), drawn again with today's
-    /// settings into a fresh printer memory, oldest first: nothing of the old printer memory comes back. The memory is
-    /// cleared again wherever the kept jobs' epochs change (<see cref="EpochReplay"/>), as it was cleared when they arrived.
+    /// Brings back the jobs kept by an earlier run (newest first, up to HistoryLimit real jobs plus the kept sample
+    /// labels, see <see cref="JobStore.NewestWithinLimit"/>), drawn again with today's settings into a fresh printer
+    /// memory, oldest first: nothing of the old printer memory comes back. The memory is cleared again wherever the kept
+    /// jobs' epochs change (<see cref="EpochReplay"/>), as it was cleared when they arrived. A sample label is drawn the
+    /// way samples always are (<see cref="SampleLabels.Render"/>), outside that replay.
     /// </summary>
     private async Task LoadKeptJobsAsync()
     {
@@ -626,7 +652,7 @@ public partial class MainWindow : Window
             }
 
             var limit = Math.Max(1, _settings.HistoryLimit);
-            var keep = saved.OrderByDescending(s => s.ReceivedAt).Take(limit).Reverse().ToList();
+            var keep = JobStore.NewestWithinLimit(saved, limit);
             var fonts = _fonts;
             var jobs = await Task.Run(() =>
             {
@@ -643,8 +669,14 @@ public partial class MainWindow : Window
                     _renderGate.Wait();
                     try
                     {
-                        replay.Enter(renderer.Memory, s.Epoch);
-                        result = renderer.Render(ZplFormatter.Format(s.Zpl), options with { TextReadAsWindows1252 = s.ReadAsWindows1252, Clock = s.ReceivedAt });
+                        // A sample stays out of the replay, for the same reason as in RerenderAllJobsAsync. The same rule
+                        // as FromSaved: only an id this version knows makes the job a sample again.
+                        if (SampleLabels.IsKnown(s.SampleId)) result = SampleLabels.Render(s.Zpl, fonts, s.ReceivedAt);
+                        else
+                        {
+                            replay.Enter(renderer.Memory, s.Epoch);
+                            result = renderer.Render(ZplFormatter.Format(s.Zpl), options with { TextReadAsWindows1252 = s.ReadAsWindows1252, Clock = s.ReceivedAt });
+                        }
                     }
                     finally { _renderGate.Release(); }
                     list.Add(LabelJob.FromSaved(s, result));
@@ -656,6 +688,8 @@ public partial class MainWindow : Window
             // Oldest first in 'jobs'; the list is newest first and anything that arrived meanwhile is newer.
             for (var i = jobs.Count - 1; i >= 0; i--)
             {
+                // A sample opened while the kept jobs were read already has its (newer) card: one card per sample.
+                if (jobs[i].Origin == JobOrigin.Sample && _jobs.Any(j => j.Job.SampleId == jobs[i].SampleId)) continue;
                 // Not counted in "received today": that counts this session's sends.
                 _jobs.Add(new JobViewModel(jobs[i]));
             }
@@ -788,7 +822,7 @@ public partial class MainWindow : Window
         CopyZplButton.IsEnabled = vm is not null;
         CopyOriginalButton.IsEnabled = vm is not null;
         LabelFrame.Visibility = vm is null ? Visibility.Collapsed : Visibility.Visible;
-        EmptyCanvasText.Visibility = vm is null ? Visibility.Visible : Visibility.Collapsed;
+        EmptyCanvasPanel.Visibility = vm is null ? Visibility.Visible : Visibility.Collapsed;
         Title = vm is null ? "LabelScope" : "LabelScope — " + vm.Title;
 
         if (vm is null)
@@ -1372,6 +1406,11 @@ public partial class MainWindow : Window
         SetName(SavePngButton, "Ui_SavePng");
         SetName(ClearJobsButton, "Ui_ClearJobs");
         SetName(PrinterSetupButton, "Ui_PrinterSetup");
+        // The sample titles and group names come from Core in the current language, so both menus are built again.
+        SamplesMenu.Header = UiText.Get("Ui_SampleLabels");
+        BuildSampleMenu(SamplesMenu);
+        BuildSampleMenu(TrySampleMenu);
+        TrySampleButton.Content = UiText.Get("Ui_TrySample");
         SetName(ZoomOutButton, "Ui_ZoomOut");
         SetName(ZoomInButton, "Ui_ZoomIn");
         SetName(MoreButton, "Ui_More");
@@ -1869,6 +1908,113 @@ public partial class MainWindow : Window
         var complete = zpl.LastIndexOf("^XZ", StringComparison.OrdinalIgnoreCase) >= 0;
         var job = new ReceivedLabel(zpl, DateTimeOffset.Now, "", complete, ReadAsWindows1252: readAsWindows1252);
         _ = Task.Run(() => ProcessIncoming(job, origin, name));
+    }
+
+    // ---- sample labels ---------------------------------------------------------------------------------
+
+    // Sample batches run one after the other, in the order they were asked for, so "Open all" twice (or one sample
+    // opened during "Open all") never mixes two batches, and the last one asked for ends up on top. Only set on the UI
+    // thread (menu clicks).
+    private Task _sampleWork = Task.CompletedTask;
+
+    /// <summary>
+    /// Fills <paramref name="target"/> (the "Sample labels" entry of the "…" menu, or the menu of the empty-window
+    /// button) with one submenu per sample group listing its samples by title, then "Open all N sample labels". Called
+    /// again after a language switch, because the titles and group names are read in the current language.
+    /// </summary>
+    /// <param name="target">The menu entry or menu to fill; what it held before is replaced.</param>
+    private void BuildSampleMenu(ItemsControl target)
+    {
+        target.Items.Clear();
+        // A menu item can only be in one menu, so each menu gets items of its own. The groups in the order of the enum,
+        // which is the menu order.
+        foreach (var group in Enum.GetValues<SampleGroup>())
+        {
+            var samples = SampleLabels.All.Where(s => s.Group == group).ToList();
+            if (samples.Count == 0) continue;
+            var groupItem = new MenuItem { Header = samples[0].GroupTitle };
+            foreach (var sample in samples)
+            {
+                var item = new MenuItem { Header = sample.Title };
+                item.Click += (_, _) => OpenSamples([sample]);
+                groupItem.Items.Add(item);
+            }
+            target.Items.Add(groupItem);
+        }
+        target.Items.Add(new Separator());
+        var all = new MenuItem { Header = UiText.Get("Ui_OpenAllSamples", SampleLabels.All.Count) };
+        // Last to first, so that sample 01 is added last: it ends up at the top of the list, selected.
+        all.Click += (_, _) => OpenSamples(SampleLabels.All.Reverse().ToList());
+        target.Items.Add(all);
+    }
+
+    /// <summary>"Try a sample label" in the empty window: the sample menu, opened under the button.</summary>
+    private void OnTrySample(object sender, RoutedEventArgs e) => OpenMenuBelow(TrySampleButton);
+
+    /// <summary>
+    /// Opens <paramref name="samples"/> as sample-label jobs, in the order given: each is drawn off the UI thread, then
+    /// gets its card at the top of the list and is selected (see <see cref="AddOrUpdateJob"/>).
+    /// </summary>
+    /// <remarks>
+    /// A sample never takes the path of a printed, opened or pasted job (<see cref="ProcessIncoming"/>). It is drawn with
+    /// <see cref="SampleLabels.Render"/>, in a printer memory of its own at 203 dpi, so it can neither change the printer
+    /// state a real job sees (size, home position, code page, stored graphics and formats) nor be changed by it. It never
+    /// calls <see cref="_assembler"/> either (no WouldJoin, TryAppend or Remember): that is what keeps a sample its own
+    /// job, never joined to an open paste or file job on connection 0.
+    /// The jobs go to the UI thread directly, not through <see cref="QueueForUi"/>: that queue drops the oldest waiting
+    /// results when more than <see cref="MaxPendingForUi"/> wait, as back-pressure on senders, and "Open all" alone makes
+    /// more results than that. A batch is at most the whole catalog, so nothing waits without limit.
+    /// </remarks>
+    private void OpenSamples(IReadOnlyList<SampleLabel> samples)
+    {
+        var fonts = _fonts;
+        _sampleWork = _sampleWork.ContinueWith(_ => DrawSamples(samples, fonts), CancellationToken.None,
+            TaskContinuationOptions.None, TaskScheduler.Default);
+    }
+
+    /// <summary>Runs on a worker thread: draws each sample in turn and hands its job to the UI thread. Never throws.</summary>
+    private void DrawSamples(IReadOnlyList<SampleLabel> samples, FontLibrary fonts)
+    {
+        foreach (var sample in samples)
+        {
+            if (_closing || Dispatcher.HasShutdownStarted) return;
+            try
+            {
+                var zpl = SampleLabels.Load(sample);
+                // One moment for both: a redraw uses the arrival time as the clock, so the picture stays the same.
+                var now = DateTimeOffset.Now;
+                RenderResult result;
+                // The same gate as every other drawing, so samples never add to the work of a backlog of print jobs.
+                _renderGate.Wait();
+                try { result = SampleLabels.Render(zpl, fonts, now); }
+                finally { _renderGate.Release(); }
+                var job = new LabelJob
+                {
+                    Origin = JobOrigin.Sample,
+                    SampleId = sample.Id,
+                    ReceivedAt = now,
+                    Zpl = zpl,
+                    Complete = true,
+                    Result = result,
+                };
+                Log.Information("Sample label opened: {Sample}, {Labels} image(s), {Warnings} warning(s)",
+                    sample.Id, result.Labels.Count, result.Warnings.Count);
+                var pending = new PendingResult(job, 0, null, 1);
+                Dispatcher.BeginInvoke(() => AddOrUpdateJob(pending));
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Could not open the sample label {Sample}", sample.Id);
+                ReportOnUi(UiText.Get("Ui_LabelFailed"));
+            }
+        }
+    }
+
+    /// <summary>Runs on the UI thread: removes the card (normally at most one) of the sample <paramref name="sampleId"/>.</summary>
+    private void RemoveSampleCards(string? sampleId)
+    {
+        for (var i = _jobs.Count - 1; i >= 0; i--)
+            if (_jobs[i].Job.Origin == JobOrigin.Sample && _jobs[i].Job.SampleId == sampleId) _jobs.RemoveAt(i);
     }
 
     // ---- Printer setup and settings ---------------------------------------------------------------------

@@ -25,6 +25,9 @@
   <data name="Ui_LanguageTip" xml:space="preserve"><value>Langue de la fenêtre</value></data>
   <data name="Ui_PrinterSetup" xml:space="preserve"><value>Configurer l'imprimante</value></data>
   <data name="Ui_More" xml:space="preserve"><value>Plus d'actions</value></data>
+  <data name="Ui_SampleLabels" xml:space="preserve"><value>Étiquettes d'exemple</value></data>
+  <data name="Ui_OpenAllSamples" xml:space="preserve"><value>Ouvrir les {0} étiquettes d'exemple</value></data>
+  <data name="Ui_TrySample" xml:space="preserve"><value>Essayer une étiquette d'exemple</value></data>
   <data name="Ui_InstallPrinter" xml:space="preserve"><value>Installer l'imprimante</value></data>
   <data name="Ui_InstallPrinterTip" xml:space="preserve"><value>Ajoute l'imprimante Windows qui envoie les étiquettes à LabelScope</value></data>
   <data name="Ui_RemovePrinter" xml:space="preserve"><value>Retirer l'imprimante</value></data>

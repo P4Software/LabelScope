@@ -191,9 +191,10 @@ public sealed class JobStore
     }
 
     /// <summary>
-    /// The jobs to bring back at start: the newest <paramref name="limit"/> real jobs plus every sample job, oldest
-    /// first (the order they are drawn in). Samples do not use up the limit, so a small HistoryLimit never hides the
-    /// real jobs behind sample cards.
+    /// The jobs to bring back at start: the newest <paramref name="limit"/> real jobs plus the newest job of each sample,
+    /// oldest first (the order they are drawn in). Samples do not use up the limit, so a small HistoryLimit never hides
+    /// the real jobs behind sample cards. The window keeps one card per sample, so a file only holds a sample twice when
+    /// it was edited by hand; the older copy is left out.
     /// </summary>
     /// <param name="saved">What <see cref="Load"/> returned.</param>
     /// <param name="limit">HistoryLimit: how many real jobs to bring back.</param>
@@ -206,10 +207,15 @@ public sealed class JobStore
         // Newest first by arrival time, stable for jobs that arrived at the same moment (as Keep does).
         var newestFirst = saved.OrderByDescending(j => j.ReceivedAt);
         var result = new List<SavedJob>();
+        var samplesSeen = new HashSet<string>(StringComparer.Ordinal);
         var realKept = 0;
         foreach (var job in newestFirst)
         {
-            if (IsSample(job)) result.Add(job);
+            if (IsSample(job))
+            {
+                // Newest first, so the first copy of a sample is the one to keep.
+                if (samplesSeen.Add(job.SampleId!)) result.Add(job);
+            }
             else if (realKept < limit)
             {
                 result.Add(job);

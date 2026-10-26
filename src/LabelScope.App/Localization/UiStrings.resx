@@ -25,6 +25,9 @@
   <data name="Ui_LanguageTip" xml:space="preserve"><value>Language of the window</value></data>
   <data name="Ui_PrinterSetup" xml:space="preserve"><value>Printer setup</value></data>
   <data name="Ui_More" xml:space="preserve"><value>More actions</value></data>
+  <data name="Ui_SampleLabels" xml:space="preserve"><value>Sample labels</value></data>
+  <data name="Ui_OpenAllSamples" xml:space="preserve"><value>Open all {0} sample labels</value></data>
+  <data name="Ui_TrySample" xml:space="preserve"><value>Try a sample label</value></data>
   <data name="Ui_InstallPrinter" xml:space="preserve"><value>Install printer</value></data>
   <data name="Ui_InstallPrinterTip" xml:space="preserve"><value>Adds the Windows printer that sends labels to LabelScope</value></data>
   <data name="Ui_RemovePrinter" xml:space="preserve"><value>Remove printer</value></data>

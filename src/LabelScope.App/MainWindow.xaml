@@ -120,6 +120,9 @@
                   Click="OnMore" Padding="10,7" Margin="6,0,0,0">
             <Button.ContextMenu>
               <ContextMenu x:Name="MoreMenu">
+                <!-- One submenu per sample group, then "Open all"; filled from the catalog (MainWindow.BuildSampleMenu). -->
+                <MenuItem x:Name="SamplesMenu" Header="Sample labels"/>
+                <Separator/>
                 <MenuItem x:Name="InstallItem" Header="Install printer" Click="OnInstallPrinter"/>
                 <MenuItem x:Name="RemoveItem" Header="Remove printer" Click="OnRemovePrinter"/>
                 <Separator/>
@@ -291,8 +294,19 @@
                 </Grid>
               </Grid>
             </ScrollViewer>
-            <TextBlock x:Name="EmptyCanvasText" Style="{StaticResource MutedText}" TextWrapping="Wrap" TextAlignment="Center"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="320" FontSize="14"/>
+            <!-- Shown while no job is selected: what to do, and a button that opens the sample-label menu under it. The
+                 button text is in the accent colour: a flat button alone on the canvas would read as one more line of text. -->
+            <StackPanel x:Name="EmptyCanvasPanel" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="320">
+              <TextBlock x:Name="EmptyCanvasText" Style="{StaticResource MutedText}" TextWrapping="Wrap" TextAlignment="Center"
+                         HorizontalAlignment="Center" FontSize="14"/>
+              <Button x:Name="TrySampleButton" Style="{StaticResource ToolbarButton}" HorizontalAlignment="Center"
+                      Margin="0,12,0,0" Foreground="{StaticResource PrimaryBrush}" Content="Try a sample label"
+                      Click="OnTrySample">
+                <Button.ContextMenu>
+                  <ContextMenu x:Name="TrySampleMenu"/>
+                </Button.ContextMenu>
+              </Button>
+            </StackPanel>
           </Grid>
         </Border>
 
