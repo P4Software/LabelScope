@@ -47,5 +47,5 @@
 ^FO34,924^A0N,24,24^FDSCAN FOR THE SHIPMENT SUMMARY^FS
 ^BY3,3,14
 ^FO44,968^B7N,14,3,6,,N^FDSD-2026-0417, 3 cartons, 42.5 kg, from Example Supply Co., to J. Example, 200 Sample Avenue, Springfield, ST 54321^FS
-^FO584,968^A0N,24,24^FB196,8,4,L,0^FDThe symbol holds the document number, pieces, weight and both addresses.^FS
+^FO584,968^A0N,24,24^FB196,8,4,L,0^FDThe symbol holds the document number, pieces, weight, the shipper's name and the consignee's address.^FS
 ^XZ

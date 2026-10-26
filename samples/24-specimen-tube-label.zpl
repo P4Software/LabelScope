@@ -17,7 +17,7 @@
 ^FO298,104^A0N,18,18^FD2026-10-25^FS
 ^FO298,122^A0N,18,18^FD08:15^FS
 ^FX Accession number as a Codabar bar code (start and stop character A), 2 dots per narrow bar, with a clear margin of
-^FX about 10 narrow bars on each side.
+^FX at least 10 narrow bars between the frame and the first bar (the frame ends at x=7, the symbol starts at x=30).
 ^BY2,3,40
-^FO26,76^BKN,N,40,Y,N,A,A^FD452173^FS
+^FO30,76^BKN,N,40,Y,N,A,A^FD452173^FS
 ^XZ
