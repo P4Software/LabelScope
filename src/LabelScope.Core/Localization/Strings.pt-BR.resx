@@ -366,4 +366,12 @@
   <data name="Clock_SetTimeInvalid" xml:space="preserve"><value>^ST{0} não é uma data e hora que o relógio da impressora aceite, então o relógio não mudou. Escreva como mês,dia,ano,hora,minuto,segundo, por exemplo ^ST03,05,2026,14,07,09.</value></data>
   <data name="Painter_MapClearUnknown" xml:space="preserve"><value>^MC{0} não é ^MCY nem ^MCN, então foi ignorado. Use ^MCN para manter cada etiqueta como fundo da seguinte, ou ^MCY para que cada etiqueta comece em branco.</value></data>
   <data name="Render_MapClearNotKept" xml:space="preserve"><value>A etiqueta foi desenhada, mas não pôde ser mantida como fundo da próxima etiqueta para o ^MCN ({0}), então a próxima etiqueta começa em branco. Envie uma etiqueta menor, ou feche outros programas e envie de novo.</value></data>
+  <!-- Sample labels: the group names and the title of each sample (Sample_NN). -->
+  <data name="SampleGroup_Shipping" xml:space="preserve"><value>Expedição</value></data>
+  <data name="SampleGroup_Warehouse" xml:space="preserve"><value>Armazém</value></data>
+  <data name="SampleGroup_Retail" xml:space="preserve"><value>Varejo</value></data>
+  <data name="SampleGroup_Manufacturing" xml:space="preserve"><value>Fabricação</value></data>
+  <data name="SampleGroup_Healthcare" xml:space="preserve"><value>Saúde</value></data>
+  <data name="SampleGroup_Documents" xml:space="preserve"><value>Documentos</value></data>
+  <data name="Sample_01" xml:space="preserve"><value>Etiqueta de envio de encomenda</value></data>
 </root>

@@ -32,6 +32,8 @@
     <!-- Bundled open-licence fonts (SIL OFL 1.1, see THIRD-PARTY-NOTICES.txt section G), embedded unmodified so labels
          look the same on every PC whether or not Arial or any other font is installed. -->
     <EmbeddedResource Include="Fonts\Files\*.ttf" LogicalName="LabelScope.Fonts.%(Filename)%(Extension)" />
+    <!-- The sample labels (the public samples folder), embedded so the app, the tests and the folder use the same bytes. -->
+    <EmbeddedResource Include="..\..\samples\*.zpl" LogicalName="LabelScope.Samples.%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

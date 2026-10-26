@@ -366,4 +366,12 @@
   <data name="Clock_SetTimeInvalid" xml:space="preserve"><value>^ST{0} is not a date and time the printer clock can take, so the clock was not changed. Write it as month,day,year,hour,minute,second, for example ^ST03,05,2026,14,07,09.</value></data>
   <data name="Painter_MapClearUnknown" xml:space="preserve"><value>^MC{0} is neither ^MCY nor ^MCN, so it was ignored. Use ^MCN to keep each label as the background of the next one, or ^MCY to start every label blank.</value></data>
   <data name="Render_MapClearNotKept" xml:space="preserve"><value>The label was drawn, but it could not be kept as the background of the next label for ^MCN ({0}), so the next label starts blank. Send a smaller label, or close other programs and send it again.</value></data>
+  <!-- Sample labels: the group names and the title of each sample (Sample_NN). -->
+  <data name="SampleGroup_Shipping" xml:space="preserve"><value>Shipping</value></data>
+  <data name="SampleGroup_Warehouse" xml:space="preserve"><value>Warehouse</value></data>
+  <data name="SampleGroup_Retail" xml:space="preserve"><value>Retail</value></data>
+  <data name="SampleGroup_Manufacturing" xml:space="preserve"><value>Manufacturing</value></data>
+  <data name="SampleGroup_Healthcare" xml:space="preserve"><value>Healthcare</value></data>
+  <data name="SampleGroup_Documents" xml:space="preserve"><value>Documents</value></data>
+  <data name="Sample_01" xml:space="preserve"><value>Parcel shipping label</value></data>
 </root>
