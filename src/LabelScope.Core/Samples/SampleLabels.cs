@@ -34,6 +34,12 @@ public static class SampleLabels
     public static IReadOnlyList<SampleLabel> All { get; } =
     [
         new(1, "parcel-shipping-label", SampleGroup.Shipping),
+        new(2, "gs1-carton-label", SampleGroup.Shipping),
+        new(3, "pallet-label", SampleGroup.Shipping),
+        new(4, "freight-ltl-label", SampleGroup.Shipping),
+        new(5, "return-label", SampleGroup.Shipping),
+        new(6, "packing-slip", SampleGroup.Shipping),
+        new(7, "itf14-case-label", SampleGroup.Shipping),
     ];
 
     /// <summary>Finds a sample by its id (the slug). Returns false for an unknown or null id, for example one kept by a later version.</summary>

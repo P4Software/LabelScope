@@ -374,4 +374,10 @@
   <data name="SampleGroup_Healthcare" xml:space="preserve"><value>Healthcare</value></data>
   <data name="SampleGroup_Documents" xml:space="preserve"><value>Documents</value></data>
   <data name="Sample_01" xml:space="preserve"><value>Parcel shipping label</value></data>
+  <data name="Sample_02" xml:space="preserve"><value>GS1-128 carton label with SSCC</value></data>
+  <data name="Sample_03" xml:space="preserve"><value>Pallet label</value></data>
+  <data name="Sample_04" xml:space="preserve"><value>Freight (LTL) label</value></data>
+  <data name="Sample_05" xml:space="preserve"><value>Return label</value></data>
+  <data name="Sample_06" xml:space="preserve"><value>Packing slip</value></data>
+  <data name="Sample_07" xml:space="preserve"><value>ITF-14 case label</value></data>
 </root>

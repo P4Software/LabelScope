@@ -374,4 +374,10 @@
   <data name="SampleGroup_Healthcare" xml:space="preserve"><value>Santé</value></data>
   <data name="SampleGroup_Documents" xml:space="preserve"><value>Documents</value></data>
   <data name="Sample_01" xml:space="preserve"><value>Étiquette d'expédition de colis</value></data>
+  <data name="Sample_02" xml:space="preserve"><value>Étiquette de carton GS1-128 avec SSCC</value></data>
+  <data name="Sample_03" xml:space="preserve"><value>Étiquette de palette</value></data>
+  <data name="Sample_04" xml:space="preserve"><value>Étiquette de fret (LTL)</value></data>
+  <data name="Sample_05" xml:space="preserve"><value>Étiquette de retour</value></data>
+  <data name="Sample_06" xml:space="preserve"><value>Bordereau d'emballage</value></data>
+  <data name="Sample_07" xml:space="preserve"><value>Étiquette de caisse ITF-14</value></data>
 </root>
